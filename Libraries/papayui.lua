@@ -20,6 +20,16 @@ papayui.colors.title = {1, 1, 1}
 ---| '"singlerow"' # A single horizontal row of elements
 ---| '"singlecolumn"' # A single vertical column of elements
 
+---@alias PapayuiAlignment
+---| '"start"' # Aligns to the left or top
+---| '"center"' # Aligns to the center
+---| '"end"' # Aligns to the right or bottom
+---| '"left"' # Same as 'start'
+---| '"top"' # Same as 'start'
+---| '"right"' # Same as 'end'
+---| '"bottom"' # Same as 'end'
+---| '"middle"' # Same as 'center'
+
 ---@class PapayuiElementStyle
 ---@field width number The width of the element
 ---@field height number The height of the element
@@ -28,6 +38,9 @@ papayui.colors.title = {1, 1, 1}
 ---@field color? string The background color of this element, from the ui.colors table
 ---@field colorHover? string The background color of this element when it's hovered over
 ---@field layout PapayuiElementLayout The way this element's children will be laid out
+---@field alignHorizontal PapayuiAlignment The horizontal alignment of the element's children
+---@field alignVertical PapayuiAlignment The vertical alignment of the element's children
+---@field alignInside PapayuiAlignment The alignment of all the individual child elements within a line
 ---@field gap number[] The gap between its child elements in the layout, in the format {horizontal, vertical}
 local ElementStyle = {}
 local ElementStyleMT = {__index = ElementStyle}
@@ -77,6 +90,9 @@ function papayui.newElementStyle()
         padding = {0, 0, 0, 0},
         margin = {0, 0, 0, 0},
         layout = "singlerow",
+        alignHorizontal = "start",
+        alignVertical = "start",
+        alignInside = "start",
         gap = {0, 0}
     }
     return setmetatable(style, ElementStyleMT)
@@ -177,7 +193,7 @@ function UI:draw()
     local members = self.members
     for memberIndex = 1, #members do
         local member = members[memberIndex]
-        member.element:draw(member.x, member.y, member.width, member.height) -- this is a wacky line
+        member.element:draw(member.x, member.y, member.width, member.height)
     end
 end
 
@@ -265,6 +281,22 @@ if not love then papayui.drawRectangle = emptyFunction end
 
 -- Element layouts ---------------------------------------------------------------------------------
 
+local alignEnum = {
+    start = -1,
+    ["end"] = 1,
+    left = -1,
+    top = -1,
+    center = 0,
+    middle = 0,
+    right = 1,
+    bottom = 1
+}
+
+local function getNudgeValue(usableSpace, usedSpace, align)
+    local unusedSpace = usableSpace - usedSpace
+    return (align * unusedSpace + unusedSpace) / 2
+end
+
 ---@type table<string, fun(member: PapayuiLiveMember, ...?): PapayuiLiveMember[]>
 papayui.layouts = {}
 
@@ -272,18 +304,26 @@ function papayui.layouts.none()
     return {}
 end
 
-function papayui.layouts.singlerow(member)
-    local style = member.element.style
-    local children = member.element.children
-    local originX = member.x + style.padding[1]
-    local originY = member.y + style.padding[2]
+function papayui.layouts.singlerow(parentMember)
+    local style = parentMember.element.style
+    local children = parentMember.element.children
+    local originX = parentMember.x + style.padding[1]
+    local originY = parentMember.y + style.padding[2]
     local gap = style.gap[1]
+
+    local alignHorizontal = alignEnum[style.alignHorizontal]
+    local alignVertical = alignEnum[style.alignVertical]
+    local alignInside = alignEnum[style.alignInside]
+    local usableSpaceWidth = parentMember.width - style.padding[1] - style.padding[3]
+    local usableSpaceHeight = parentMember.height - style.padding[2] - style.padding[4]
 
     ---@type PapayuiLiveMember[]
     local outMembers = {}
 
+    -- Lay out all the elements in a line
     local nextX = originX
     local nextY = originY
+    local tallestElement = 0
     for childIndex = 1, #children do
         local child = children[childIndex]
         local childStyle = child.style
@@ -299,7 +339,23 @@ function papayui.layouts.singlerow(member)
         }
         nextX = nextX + childStyle.width + childStyle.margin[3] + gap
 
+        tallestElement = math.max(tallestElement, childStyle.height)
+
         outMembers[#outMembers+1] = childMember
+    end
+
+    -- Nudge the line to align it
+    local lineWidth = nextX - originX - gap -- Remove the trailing gap
+    local horizontalNudge = getNudgeValue(usableSpaceWidth, lineWidth, alignHorizontal)
+    local verticalNudge = getNudgeValue(usableSpaceHeight, tallestElement, alignVertical)
+    for memberIndex = 1, #outMembers do
+        local member = outMembers[memberIndex]
+        member.x = member.x + horizontalNudge
+        member.y = member.y + verticalNudge
+
+        -- Alignment inside line, according to tallest element
+        local insideNudge = getNudgeValue(tallestElement, member.height, alignInside)
+        member.y = member.y + insideNudge
     end
 
     return outMembers
