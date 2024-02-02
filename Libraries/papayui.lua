@@ -33,6 +33,8 @@ papayui.colors.title = {1, 1, 1}
 ---@class PapayuiElementStyle
 ---@field width number The width of the element
 ---@field height number The height of the element
+---@field growHorizontal boolean Whether the element should grow horizontally to take up full parent space
+---@field growVertical boolean Whether the element should grow vertically to take up full parent space
 ---@field padding number[] The padding of the element, in the format {left, top, right, bottom}
 ---@field margin number[] The margin of the element, in the format {left, top, right, bottom}
 ---@field color? string The background color of this element, from the ui.colors table
@@ -87,6 +89,8 @@ function papayui.newElementStyle()
     local style = {
         width = 0,
         height = 0,
+        growHorizontal = false,
+        growVertical = false,
         padding = {0, 0, 0, 0},
         margin = {0, 0, 0, 0},
         layout = "singlerow",
@@ -297,50 +301,123 @@ local function getNudgeValue(usableSpace, usedSpace, align)
     return (align * unusedSpace + unusedSpace) / 2
 end
 
+---@param elements PapayuiElement[]
+---@return PapayuiLiveMember[]
+local function generateMembers(elements)
+    ---@type PapayuiLiveMember[]
+    local members = {}
+    for elementIndex = 1, #elements do
+        local element = elements[elementIndex]
+        local style = element.style
+        members[elementIndex] = {
+            element = element,
+            x = 0,
+            y = 0,
+            width = style.width,
+            height = style.height
+        }
+    end
+    return members
+end
+
+---@param members PapayuiLiveMember[]
 ---@param originX number
 ---@param originY number
----@param elements PapayuiElement[]
 ---@param gap number
 ---@param isVertical boolean
----@return PapayuiLiveMember[]
 ---@return number lineSizeMain
 ---@return number lineSizeCross
-local function layElementsInLine(originX, originY, elements, gap, isVertical)
-    local outMembers = {}
-
+local function layMembersInLine(members, originX, originY, gap, isVertical)
     local marginStart = isVertical and 2 or 1
     local marginEnd = isVertical and 4 or 3
     local sizeMain = isVertical and "height" or "width"
     local sizeCross = isVertical and "width" or "height"
 
     local nextPos = 0
-    local tallestElement = 0
-    for elementIndex = 1, #elements do
-        local element = elements[elementIndex]
-        local elementStyle = element.style
+    local tallestMember = 0
+    for memberIndex = 1, #members do
+        local member = members[memberIndex]
+        local style = member.element.style
 
-        nextPos = nextPos + elementStyle.margin[marginStart]
-        local elementX = originX + (isVertical and 0 or nextPos)
-        local elementY = originY + (isVertical and nextPos or 0)
-        ---@type PapayuiLiveMember
-        local member = {
-            element = element,
-            x = elementX,
-            y = elementY,
-            width = elementStyle.width,
-            height = elementStyle.height
-        }
-        nextPos = nextPos + elementStyle[sizeMain] + elementStyle.margin[marginEnd] + gap
+        nextPos = nextPos + style.margin[marginStart]
+        local memberX = originX + (isVertical and 0 or nextPos)
+        local memberY = originY + (isVertical and nextPos or 0)
 
-        tallestElement = math.max(tallestElement, elementStyle[sizeCross])
+        member.x = memberX
+        member.y = memberY
 
-        outMembers[#outMembers+1] = member
+        nextPos = nextPos + member[sizeMain] + style.margin[marginEnd] + gap
+
+        tallestMember = math.max(tallestMember, member[sizeCross])
     end
 
     local lineSizeMain = nextPos - gap
-    local lineSizeCross = tallestElement
+    local lineSizeCross = tallestMember
 
-    return outMembers, lineSizeMain, lineSizeCross
+    return lineSizeMain, lineSizeCross
+end
+
+local function memberIsLessWide(a, b) return a.width < b.width end
+local function memberIsLessTall(a, b) return a.height < b.height end
+---@param members PapayuiLiveMember
+---@param usableSpaceWidth number
+---@param usableSpaceHeight number
+---@param gap number
+---@param lineIsVertical boolean
+local function growMembers(members, usableSpaceWidth, usableSpaceHeight, gap, lineIsVertical)
+    local sortFunction = lineIsVertical and memberIsLessTall or memberIsLessWide
+    local usableSpaceMain = lineIsVertical and usableSpaceHeight or usableSpaceWidth
+    local usableSpaceCross = lineIsVertical and usableSpaceWidth or usableSpaceHeight
+    local sizeMain = lineIsVertical and "height" or "width"
+    local sizeCross = lineIsVertical and "width" or "height"
+    local growMain = lineIsVertical and "growVertical" or "growHorizontal"
+    local growCross = lineIsVertical and "growHorizontal" or "growVertical"
+    local marginStart = lineIsVertical and 2 or 1
+    local marginEnd = lineIsVertical and 4 or 3
+
+    -- Exclude the gaps between elements from being usable for space distribution
+    usableSpaceMain = usableSpaceMain - (#members - 1) * gap
+
+    local growingMembers = {}
+    for memberIndex = 1, #members do
+        local member = members[memberIndex]
+        local style = member.element.style
+
+        if member.element.style[growMain] then
+            growingMembers[#growingMembers+1] = member
+        else
+            -- Exclude space taken up by non-growing elements
+            usableSpaceMain = usableSpaceMain - member[sizeMain]
+        end
+
+        -- Exclude space taken up by all margins, those don't grow either
+        usableSpaceMain = usableSpaceMain - style.margin[marginStart] - style.margin[marginEnd]
+
+        -- Grow the cross axis
+        if member.element.style[growCross] then
+            local currentWidth = member.width
+            member[sizeCross] = math.max(currentWidth, usableSpaceCross)
+        end
+    end
+
+    table.sort(growingMembers, sortFunction)
+
+    for memberIndex = #growingMembers, 1, -1 do
+        local member = growingMembers[memberIndex]
+        local style = member.element.style
+
+        local assignedSize = usableSpaceMain / memberIndex
+        if member[sizeMain] <= assignedSize then
+            -- Min grow element size found
+            for grownMemberIndex = memberIndex, 1, -1 do
+                growingMembers[grownMemberIndex][sizeMain] = assignedSize
+            end
+            break
+        end
+
+        -- Member is too big to grow, exclude it from the usable space
+        usableSpaceMain = usableSpaceMain - member[sizeMain]
+    end
 end
 
 ---@param lineMembers PapayuiLiveMember[]
@@ -398,7 +475,9 @@ function papayui.layouts.singlerow(parentMember, flipAxis)
     local usableSpaceWidth = parentMember.width - style.padding[1] - style.padding[3]
     local usableSpaceHeight = parentMember.height - style.padding[2] - style.padding[4]
 
-    local outMembers, lineSizeMain, lineSizeCross = layElementsInLine(originX, originY, children, gap, flipAxis)
+    local outMembers = generateMembers(children)
+    growMembers(outMembers, usableSpaceWidth, usableSpaceHeight, gap, flipAxis)
+    local lineSizeMain, lineSizeCross = layMembersInLine(outMembers, originX, originY, gap, flipAxis)
     local usedSpaceWidth = flipAxis and lineSizeCross or lineSizeMain
     local usedSpaceHeight = flipAxis and lineSizeMain or lineSizeCross
     alignLine(outMembers, alignHorizontal, alignVertical, alignInside, usableSpaceWidth, usableSpaceHeight, usedSpaceWidth, usedSpaceHeight, flipAxis)
