@@ -286,7 +286,7 @@ function ElementStyle:setGap(horizontalGap, verticalGap)
 end
 
 --------------------------------------------------
---- ### ElementStyle:setGap(horizontalGrow, verticalGrow)
+--- ### ElementStyle:setGrow(horizontalGrow, verticalGrow)
 --- Sets the style's horizontal and vertical grow.
 ---
 --- If only the first value is supplied, it is applied to both horizontal and vertical grow.
