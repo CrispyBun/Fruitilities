@@ -346,8 +346,13 @@ function Element:draw(x, y, width, height)
     width = width or style.width
     height = height or style.height
 
-    if style.color then
-        papayui.drawRectangle(x, y, width, height, papayui.colors[style.color])
+    local color = papayui.colors[style.color]
+    if style.color and not color then
+        color = {1, 0, 0} -- "Invalid color" redness
+    end
+
+    if color then
+        papayui.drawRectangle(x, y, width, height, color)
     end
 end
 
