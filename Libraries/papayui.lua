@@ -75,6 +75,9 @@ local UIMT = {__index = UI}
 --- ### papayui.newElementStyle()
 --- Creates a new blank papayui element style.
 ---
+--- Optionally, you can supply an array of tables, each of which can contain values for the style.
+--- If values are present in multiple of these tables, the last table in the list has priority.
+---
 --- Example usage:
 --- ```
 --- local style = papayui.newElementStyle()
@@ -83,8 +86,9 @@ local UIMT = {__index = UI}
 --- style.color = "background"
 --- style.layout = "singlecolumn"
 --- ```
+---@param mixins? table[]
 ---@return PapayuiElementStyle
-function papayui.newElementStyle()
+function papayui.newElementStyle(mixins)
     ---@type PapayuiElementStyle
     local style = {
         width = 0,
@@ -99,6 +103,15 @@ function papayui.newElementStyle()
         alignInside = "start",
         gap = {0, 0}
     }
+
+    if mixins then
+        for mixinIndex = 1, #mixins do
+            for key, value in pairs(mixins[mixinIndex]) do
+                style[key] = value
+            end
+        end
+    end
+
     return setmetatable(style, ElementStyleMT)
 end
 
@@ -211,6 +224,25 @@ local function generateDirectionalValue(left, top, right, bottom)
     return {left, top, right, bottom}
 end
 
+local function deepCopy(t, _seenTables)
+    _seenTables = _seenTables or {}
+    if type(t) == "table" then
+        local copiedTable = {}
+
+        if _seenTables[t] then
+            return _seenTables[t]
+        else
+            _seenTables[t] = copiedTable
+        end
+
+        for key, value in pairs(t) do
+            copiedTable[key] = deepCopy(value, _seenTables)
+        end
+        return copiedTable
+    end
+    return t
+end
+
 --------------------------------------------------
 --- ### ElementStyle:setPadding(left, top, right, bottom)
 --- Sets the style's padding.
@@ -251,6 +283,14 @@ function ElementStyle:setGap(horizontalGap, verticalGap)
     horizontalGap = horizontalGap or 0
     verticalGap = verticalGap or horizontalGap
     self.gap = {horizontalGap, verticalGap}
+end
+
+--------------------------------------------------
+--- ### ElementStyle:clone()
+--- Returns a copy of the style
+---@return PapayuiElementStyle
+function ElementStyle:clone()
+    return deepCopy(self)
 end
 
 -- Element methods ---------------------------------------------------------------------------------
