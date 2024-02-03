@@ -286,6 +286,46 @@ function ElementStyle:setGap(horizontalGap, verticalGap)
 end
 
 --------------------------------------------------
+--- ### ElementStyle:setGap(horizontalGrow, verticalGrow)
+--- Sets the style's horizontal and vertical grow.
+---
+--- If only the first value is supplied, it is applied to both horizontal and vertical grow.
+---@param horizontalGrow boolean
+---@param verticalGrow? boolean
+function ElementStyle:setGrow(horizontalGrow, verticalGrow)
+    if verticalGrow == nil then verticalGrow = horizontalGrow end
+    self.growHorizontal = horizontalGrow
+    self.growVertical = verticalGrow
+end
+
+--------------------------------------------------
+--- ### ElementStyle:setLayout(layout, alignHorizontal, alignVertical)
+--- Sets the style's layout as well as alignment.
+--- 
+--- If verticalAlign isn't supplied, it is set to the same align is horizontalAlign. <br>
+--- If alignInside isn't supplied, it will set itself to be same as the align on the cross axis, based on the selected layout.
+---@param layout PapayuiElementLayout
+---@param alignHorizontal PapayuiAlignment
+---@param alignVertical? PapayuiAlignment
+---@param alignInside? PapayuiAlignment
+function ElementStyle:setLayout(layout, alignHorizontal, alignVertical, alignInside)
+    alignVertical = alignVertical or alignHorizontal
+
+    if not alignInside then
+        local alignCross = alignVertical
+        if layout == "singlecolumn" then
+            alignCross = alignHorizontal
+        end
+        alignInside = alignCross
+    end
+
+    self.layout = layout
+    self.alignHorizontal = alignHorizontal
+    self.alignVertical = alignVertical
+    self.alignInside = alignInside
+end
+
+--------------------------------------------------
 --- ### ElementStyle:clone()
 --- Returns a copy of the style
 ---@return PapayuiElementStyle
