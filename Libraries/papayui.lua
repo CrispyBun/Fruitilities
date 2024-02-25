@@ -406,34 +406,44 @@ local function generateMembers(elements)
 end
 
 ---@param members PapayuiLiveMember[]
----@param originX number
----@param originY number
 ---@param gap number
 ---@param isVertical boolean
 ---@return number lineSizeMain
 ---@return number lineSizeCross
-local function layMembersInLine(members, originX, originY, gap, isVertical)
+local function layMembersInLine(members, gap, alignInside, isVertical)
     local marginStart = isVertical and 2 or 1
     local marginEnd = isVertical and 4 or 3
     local sizeMain = isVertical and "height" or "width"
     local sizeCross = isVertical and "width" or "height"
 
-    local nextPos = 0
+    -- Find tallest member
     local tallestMember = 0
+    for memberIndex = 1, #members do
+        tallestMember = math.max(tallestMember, members[memberIndex][sizeCross])
+    end
+
+    -- Lay them out
+    local nextPos = 0
     for memberIndex = 1, #members do
         local member = members[memberIndex]
         local style = member.element.style
 
-        nextPos = nextPos + style.margin[marginStart]
-        local memberX = originX + (isVertical and 0 or nextPos)
-        local memberY = originY + (isVertical and nextPos or 0)
+        local marginStartValue = style.margin[marginStart]
+        local marginEndValue = style.margin[marginEnd]
+        if memberIndex == 1 then marginStartValue = 0 end      -- Ignore the start and end margins,
+        if memberIndex == #members then marginEndValue = 0 end -- the line doesnt take any container into account yet
+
+        -- Alignment inside line
+        local insideNudge = getNudgeValue(tallestMember, member[sizeCross], alignInside)
+
+        nextPos = nextPos + marginStartValue
+        local memberX = isVertical and insideNudge or nextPos
+        local memberY = isVertical and nextPos or insideNudge
 
         member.x = memberX
         member.y = memberY
 
-        nextPos = nextPos + member[sizeMain] + style.margin[marginEnd] + gap
-
-        tallestMember = math.max(tallestMember, member[sizeCross])
+        nextPos = nextPos + member[sizeMain] + marginEndValue + gap
     end
 
     local lineSizeMain = nextPos - gap
@@ -449,7 +459,7 @@ local function memberIsLessTall(a, b) return a.height < b.height end
 ---@param usableSpaceHeight number
 ---@param gap number
 ---@param lineIsVertical boolean
-local function growMembers(members, usableSpaceWidth, usableSpaceHeight, gap, lineIsVertical)
+local function growLineMembers(members, usableSpaceWidth, usableSpaceHeight, gap, lineIsVertical)
     local sortFunction = lineIsVertical and memberIsLessTall or memberIsLessWide
     local usableSpaceMain = lineIsVertical and usableSpaceHeight or usableSpaceWidth
     local usableSpaceCross = lineIsVertical and usableSpaceWidth or usableSpaceHeight
@@ -480,8 +490,8 @@ local function growMembers(members, usableSpaceWidth, usableSpaceHeight, gap, li
 
         -- Grow the cross axis
         if member.element.style[growCross] then
-            local currentWidth = member.width
-            member[sizeCross] = math.max(currentWidth, usableSpaceCross)
+            local currentSizeCross = member[sizeCross]
+            member[sizeCross] = math.max(currentSizeCross, usableSpaceCross)
         end
     end
 
@@ -489,7 +499,6 @@ local function growMembers(members, usableSpaceWidth, usableSpaceHeight, gap, li
 
     for memberIndex = #growingMembers, 1, -1 do
         local member = growingMembers[memberIndex]
-        local style = member.element.style
 
         local assignedSize = usableSpaceMain / memberIndex
         if member[sizeMain] <= assignedSize then
@@ -505,35 +514,41 @@ local function growMembers(members, usableSpaceWidth, usableSpaceHeight, gap, li
     end
 end
 
----@param lineMembers PapayuiLiveMember[]
----@param alignVertical number
+---@param members PapayuiLiveMember[]
+---@param x number
+---@param y number
+---@param width number
+---@param height number
 ---@param alignHorizontal number
----@param alignInside number
----@param usableSpaceWidth number
----@param usableSpaceHeight number
----@param usedSpaceWidth number
----@param usedSpaceHeight number
----@param lineIsVertical boolean
-local function alignLine(lineMembers, alignHorizontal, alignVertical, alignInside, usableSpaceWidth, usableSpaceHeight, usedSpaceWidth, usedSpaceHeight, lineIsVertical)
-    local alignMain = lineIsVertical and alignVertical or alignHorizontal
-    local alignCross = lineIsVertical and alignHorizontal or alignVertical
-    local usableSpaceMain = lineIsVertical and usableSpaceHeight or usableSpaceWidth
-    local usableSpaceCross = lineIsVertical and usableSpaceWidth or usableSpaceHeight
-    local usedSpaceMain = lineIsVertical and usedSpaceHeight or usedSpaceWidth
-    local usedSpaceCross = lineIsVertical and usedSpaceWidth or usedSpaceHeight
+---@param alignVertical number
+local function alignMembers(members, x, y, width, height, alignHorizontal, alignVertical)
 
-    local mainNudge = getNudgeValue(usableSpaceMain, usedSpaceMain, alignMain)
-    local crossNudge = getNudgeValue(usableSpaceCross, usedSpaceCross, alignCross)
-    local sizeCross = lineIsVertical and "width" or "height"
-    for memberIndex = 1, #lineMembers do
-        local member = lineMembers[memberIndex]
+    -- Get space taken up by members
+    local leftmostPoint = math.huge
+    local topmostPoint = math.huge
+    local rightmostPoint = -math.huge
+    local bottommostPoint = -math.huge
+    for memberIndex = 1, #members do
+        local member = members[memberIndex]
 
-        -- Alignment inside line
-        local insideNudge = getNudgeValue(usedSpaceCross, member[sizeCross], alignInside)
-        local crossNudgeFull = crossNudge + insideNudge
+        local memberMargin = member.element.style.margin
+        local memberX = member.x
+        local memberY = member.y
+        local memberWidth = member.width
+        local memberHeight = member.height
 
-        local xNudge = lineIsVertical and crossNudgeFull or mainNudge
-        local yNudge = lineIsVertical and mainNudge or crossNudgeFull
+        leftmostPoint = math.min(leftmostPoint, -memberMargin[1])
+        topmostPoint = math.min(topmostPoint, -memberMargin[2])
+        rightmostPoint = math.max(rightmostPoint, memberX + memberWidth + memberMargin[3])
+        bottommostPoint = math.max(bottommostPoint, memberY + memberHeight + memberMargin[4])
+    end
+    local contentWidth = rightmostPoint - leftmostPoint
+    local contentHeight = bottommostPoint - topmostPoint
+
+    local xNudge = x + getNudgeValue(width, contentWidth, alignHorizontal) - leftmostPoint -- Top left point subtraction
+    local yNudge = y + getNudgeValue(height, contentHeight, alignVertical) - topmostPoint  -- to start at [0; 0]
+    for memberIndex = 1, #members do
+        local member = members[memberIndex]
 
         member.x = member.x + xNudge
         member.y = member.y + yNudge
@@ -561,18 +576,15 @@ function papayui.layouts.singlerow(parentMember, flipAxis)
     local usableSpaceHeight = parentMember.height - style.padding[2] - style.padding[4]
 
     local outMembers = generateMembers(children)
-    growMembers(outMembers, usableSpaceWidth, usableSpaceHeight, gap, flipAxis)
-    local lineSizeMain, lineSizeCross = layMembersInLine(outMembers, originX, originY, gap, flipAxis)
-    local usedSpaceWidth = flipAxis and lineSizeCross or lineSizeMain
-    local usedSpaceHeight = flipAxis and lineSizeMain or lineSizeCross
-    alignLine(outMembers, alignHorizontal, alignVertical, alignInside, usableSpaceWidth, usableSpaceHeight, usedSpaceWidth, usedSpaceHeight, flipAxis)
+    growLineMembers(outMembers, usableSpaceWidth, usableSpaceHeight, gap, flipAxis)
+    layMembersInLine(outMembers, gap, alignInside, flipAxis)
+    alignMembers(outMembers, originX, originY, usableSpaceWidth, usableSpaceHeight, alignHorizontal, alignVertical)
 
     return outMembers
 end
 
 function papayui.layouts.singlecolumn(parentMember)
     return papayui.layouts.singlerow(parentMember, true)
-    
 end
 
 return papayui
