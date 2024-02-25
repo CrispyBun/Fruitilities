@@ -19,6 +19,8 @@ papayui.colors.title = {1, 1, 1}
 ---| '"none"' # The elements are not displayed
 ---| '"singlerow"' # A single horizontal row of elements
 ---| '"singlecolumn"' # A single vertical column of elements
+---| '"rows"' # Horizontal rows of elements
+---| '"columns"' # Vertical columns of elements
 
 ---@alias PapayuiAlignment
 ---| '"start"' # Aligns to the left or top
@@ -156,7 +158,7 @@ end
 --------------------------------------------------
 --- ### papayui.newUI(rootElement)
 --- Creates a new usable UI, using the given element as the main parent element. Can specify an X and Y location for the UI.
----@param rootElement PapayuiElement
+---@param rootElement PapayuiElement The root element of the whole UI
 ---@param x? number The X coordinate of the UI (Default is 0)
 ---@param y? number The Y coordinate of the UI (Default is 0)
 ---@return PapayuiUI
@@ -302,7 +304,7 @@ end
 --- ### ElementStyle:setLayout(layout, alignHorizontal, alignVertical)
 --- Sets the style's layout as well as alignment.
 --- 
---- If verticalAlign isn't supplied, it is set to the same align is horizontalAlign. <br>
+--- If verticalAlign isn't supplied, it is set to the same align as horizontalAlign.  
 --- If alignInside isn't supplied, it will set itself to be same as the align on the cross axis, based on the selected layout.
 ---@param layout PapayuiElementLayout
 ---@param alignHorizontal PapayuiAlignment
@@ -313,7 +315,7 @@ function ElementStyle:setLayout(layout, alignHorizontal, alignVertical, alignIns
 
     if not alignInside then
         local alignCross = alignVertical
-        if layout == "singlecolumn" then
+        if layout == "singlecolumn" or layout == "columns" then
             alignCross = alignHorizontal
         end
         alignInside = alignCross
@@ -330,7 +332,8 @@ end
 --- Returns a copy of the style
 ---@return PapayuiElementStyle
 function ElementStyle:clone()
-    return deepCopy(self)
+    local copiedTable = deepCopy(self)
+    return setmetatable(copiedTable, ElementStyleMT)
 end
 
 -- Element methods ---------------------------------------------------------------------------------
@@ -459,7 +462,8 @@ local function memberIsLessTall(a, b) return a.height < b.height end
 ---@param usableSpaceHeight number
 ---@param gap number
 ---@param lineIsVertical boolean
-local function growLineMembers(members, usableSpaceWidth, usableSpaceHeight, gap, lineIsVertical)
+---@param dontFillCrossSpace? boolean
+local function growLineMembers(members, usableSpaceWidth, usableSpaceHeight, gap, lineIsVertical, dontFillCrossSpace)
     local sortFunction = lineIsVertical and memberIsLessTall or memberIsLessWide
     local usableSpaceMain = lineIsVertical and usableSpaceHeight or usableSpaceWidth
     local usableSpaceCross = lineIsVertical and usableSpaceWidth or usableSpaceHeight
@@ -469,6 +473,14 @@ local function growLineMembers(members, usableSpaceWidth, usableSpaceHeight, gap
     local growCross = lineIsVertical and "growHorizontal" or "growVertical"
     local marginStart = lineIsVertical and 2 or 1
     local marginEnd = lineIsVertical and 4 or 3
+
+    if dontFillCrossSpace then
+        local tallestMember = 0
+        for memberIndex = 1, #members do
+            tallestMember = math.max(tallestMember, members[memberIndex][sizeCross])
+        end
+        usableSpaceCross = tallestMember
+    end
 
     -- Exclude the gaps between elements from being usable for space distribution
     usableSpaceMain = usableSpaceMain - (#members - 1) * gap
@@ -515,6 +527,46 @@ local function growLineMembers(members, usableSpaceWidth, usableSpaceHeight, gap
 end
 
 ---@param members PapayuiLiveMember[]
+---@param usableSpaceMain number
+---@param gap number
+---@param mainAxisIsVertical boolean
+---@return PapayuiLiveMember[][]
+local function splitMembersToLines(members, usableSpaceMain, gap, mainAxisIsVertical)
+    local sizeMain = mainAxisIsVertical and "height" or "width"
+    local marginStart = mainAxisIsVertical and 2 or 1
+    local marginEnd = mainAxisIsVertical and 4 or 3
+
+    local lines = {}
+    local currentLineIndex = 1
+    local currentLineSize = 0
+    for memberIndex = 1, #members do
+        local member = members[memberIndex]
+        local memberMargin = member.element.style.margin
+
+        local memberSize = member[sizeMain] + memberMargin[marginStart] + memberMargin[marginEnd]
+
+        if not lines[currentLineIndex] then
+            -- Prevent 0 members on line
+            -- (would cause an infinite loop of a member always being too big)
+            lines[currentLineIndex] = {member}
+        else
+            -- Add member if it still fits or start a new one
+            if currentLineSize + memberSize <= usableSpaceMain then
+                local currentLine = lines[currentLineIndex]
+                currentLine[#currentLine+1] = member
+            else
+                currentLineIndex = currentLineIndex + 1
+                currentLineSize = 0
+                lines[currentLineIndex] = {member}
+            end
+        end
+
+        currentLineSize = currentLineSize + memberSize + gap
+    end
+    return lines
+end
+
+---@param members PapayuiLiveMember[]
 ---@param x number
 ---@param y number
 ---@param width number
@@ -537,8 +589,8 @@ local function alignMembers(members, x, y, width, height, alignHorizontal, align
         local memberWidth = member.width
         local memberHeight = member.height
 
-        leftmostPoint = math.min(leftmostPoint, -memberMargin[1])
-        topmostPoint = math.min(topmostPoint, -memberMargin[2])
+        leftmostPoint = math.min(leftmostPoint, memberX - memberMargin[1])
+        topmostPoint = math.min(topmostPoint, memberY - memberMargin[2])
         rightmostPoint = math.max(rightmostPoint, memberX + memberWidth + memberMargin[3])
         bottommostPoint = math.max(bottommostPoint, memberY + memberHeight + memberMargin[4])
     end
@@ -553,6 +605,8 @@ local function alignMembers(members, x, y, width, height, alignHorizontal, align
         member.x = member.x + xNudge
         member.y = member.y + yNudge
     end
+
+    return contentWidth, contentHeight
 end
 
 ---@type table<string, fun(member: PapayuiLiveMember, ...?): PapayuiLiveMember[]>
@@ -585,6 +639,54 @@ end
 
 function papayui.layouts.singlecolumn(parentMember)
     return papayui.layouts.singlerow(parentMember, true)
+end
+
+function papayui.layouts.rows(parentMember, flipAxis)
+    local style = parentMember.element.style
+    local children = parentMember.element.children
+    local originX = parentMember.x + style.padding[1]
+    local originY = parentMember.y + style.padding[2]
+    local gapMain = flipAxis and style.gap[2] or style.gap[1]
+    local gapCross = flipAxis and style.gap[1] or style.gap[2]
+
+    local alignHorizontal = alignEnum[style.alignHorizontal]
+    local alignVertical = alignEnum[style.alignVertical]
+    local alignInside = alignEnum[style.alignInside]
+    local usableSpaceWidth = parentMember.width - style.padding[1] - style.padding[3]
+    local usableSpaceHeight = parentMember.height - style.padding[2] - style.padding[4]
+    local usableSpaceMain =  flipAxis and usableSpaceHeight or usableSpaceWidth
+
+    local outMembers = {}
+    local generatedMembers = generateMembers(children)
+    local lines = splitMembersToLines(generatedMembers, usableSpaceMain, gapMain, flipAxis)
+
+    local lineOffset = 0
+    for lineIndex = 1, #lines do
+        local line = lines[lineIndex]
+        growLineMembers(line, usableSpaceWidth, usableSpaceHeight, gapMain, flipAxis, true)
+        layMembersInLine(line, gapMain, alignInside, flipAxis)
+
+        local lineX = flipAxis and lineOffset or 0
+        local lineY = flipAxis and 0 or lineOffset
+        local alignX = flipAxis and -1 or alignHorizontal
+        local alignY = flipAxis and alignVertical or -1
+
+        local lineWidth, lineHeight = alignMembers(line, lineX, lineY, usableSpaceWidth, usableSpaceHeight, alignX, alignY)
+        local lineSizeCross = flipAxis and lineWidth or lineHeight
+        lineOffset = lineOffset + lineSizeCross + gapCross
+
+        for memberIndex = 1, #line do
+            outMembers[#outMembers+1] = line[memberIndex]
+        end
+    end
+
+    alignMembers(outMembers, originX, originY, usableSpaceWidth, usableSpaceHeight, alignHorizontal, alignVertical)
+
+    return outMembers
+end
+
+function papayui.layouts.columns(parentMember)
+    return papayui.layouts.rows(parentMember, true)
 end
 
 return papayui
