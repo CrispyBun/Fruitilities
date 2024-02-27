@@ -46,6 +46,7 @@ papayui.colors.title = {1, 1, 1}
 ---@field alignVertical PapayuiAlignment The vertical alignment of the element's children
 ---@field alignInside PapayuiAlignment The alignment of all the individual child elements within a line
 ---@field gap number[] The gap between its child elements in the layout, in the format {horizontal, vertical}
+---@field maxLineElements (number|nil)|(number|nil)[] Sets a limit to the amount of elements that can be present in a given row/column. If set to a number, all lines get this limit. If set to an array of numbers, each array index corresponds to a given line index. Nil for unlimited.
 local ElementStyle = {}
 local ElementStyleMT = {__index = ElementStyle}
 
@@ -530,20 +531,29 @@ end
 ---@param usableSpaceMain number
 ---@param gap number
 ---@param mainAxisIsVertical boolean
+---@param maxLineElements? number|table
 ---@return PapayuiLiveMember[][]
-local function splitMembersToLines(members, usableSpaceMain, gap, mainAxisIsVertical)
+local function splitMembersToLines(members, usableSpaceMain, gap, mainAxisIsVertical, maxLineElements)
     local sizeMain = mainAxisIsVertical and "height" or "width"
     local marginStart = mainAxisIsVertical and 2 or 1
     local marginEnd = mainAxisIsVertical and 4 or 3
 
+    maxLineElements = maxLineElements or math.huge
+
     local lines = {}
     local currentLineIndex = 1
     local currentLineSize = 0
+    local currentMemberIndex = 1
     for memberIndex = 1, #members do
         local member = members[memberIndex]
         local memberMargin = member.element.style.margin
 
         local memberSize = member[sizeMain] + memberMargin[marginStart] + memberMargin[marginEnd]
+        local maxMemberIndex = type(maxLineElements) == "number" and maxLineElements or maxLineElements[currentLineIndex]
+        maxMemberIndex = maxMemberIndex or math.huge
+
+        local memberFits = (currentLineSize + memberSize <= usableSpaceMain) and (currentMemberIndex <= maxMemberIndex)
+        currentMemberIndex = currentMemberIndex + 1
 
         if not lines[currentLineIndex] then
             -- Prevent 0 members on line
@@ -551,12 +561,13 @@ local function splitMembersToLines(members, usableSpaceMain, gap, mainAxisIsVert
             lines[currentLineIndex] = {member}
         else
             -- Add member if it still fits or start a new one
-            if currentLineSize + memberSize <= usableSpaceMain then
+            if memberFits then
                 local currentLine = lines[currentLineIndex]
                 currentLine[#currentLine+1] = member
             else
                 currentLineIndex = currentLineIndex + 1
                 currentLineSize = 0
+                currentMemberIndex = 2 -- 2 because we're already adding the first
                 lines[currentLineIndex] = {member}
             end
         end
@@ -648,6 +659,7 @@ function papayui.layouts.rows(parentMember, flipAxis)
     local originY = parentMember.y + style.padding[2]
     local gapMain = flipAxis and style.gap[2] or style.gap[1]
     local gapCross = flipAxis and style.gap[1] or style.gap[2]
+    local maxLineMembers = style.maxLineElements
 
     local alignHorizontal = alignEnum[style.alignHorizontal]
     local alignVertical = alignEnum[style.alignVertical]
@@ -658,7 +670,7 @@ function papayui.layouts.rows(parentMember, flipAxis)
 
     local outMembers = {}
     local generatedMembers = generateMembers(children)
-    local lines = splitMembersToLines(generatedMembers, usableSpaceMain, gapMain, flipAxis)
+    local lines = splitMembersToLines(generatedMembers, usableSpaceMain, gapMain, flipAxis, maxLineMembers)
 
     local lineOffset = 0
     for lineIndex = 1, #lines do
