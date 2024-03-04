@@ -48,6 +48,8 @@ papayui.scale = 1
 ---@field alignHorizontal PapayuiAlignment The horizontal alignment of the element's children
 ---@field alignVertical PapayuiAlignment The vertical alignment of the element's children
 ---@field alignInside PapayuiAlignment The alignment of all the individual child elements within a line
+---@field scrollHorizontal boolean Whether or not any horizontal overflow in the element's children should scroll
+---@field scrollVertical boolean Whether or not any vertical overflow in the element's children should scroll
 ---@field gap number[] The gap between its child elements in the layout, in the format {horizontal, vertical}
 ---@field maxLineElements (number|nil)|(number|nil)[] Sets a limit to the amount of elements that can be present in a given row/column. If set to a number, all lines get this limit. If set to an array of numbers, each array index corresponds to a given line index. Nil for unlimited.
 ---@field ignoreScale boolean Determines if papayui.scale has an effect on the size of this element (useful to enable for root elements which fill screen space)
@@ -75,6 +77,10 @@ local UIMT = {__index = UI}
 ---@field y number The y position of the element
 ---@field width number The actual width of the element
 ---@field height number The actual height of the element
+---@field scrollX number The amount of scroll in the X direction
+---@field scrollY number The amount of scroll in the Y direction
+local LiveMember = {}
+local LiveMemberMT = {__index = LiveMember}
 
 -- Element creation --------------------------------------------------------------------------------
 
@@ -108,6 +114,8 @@ function papayui.newElementStyle(mixins)
         alignHorizontal = "start",
         alignVertical = "start",
         alignInside = "start",
+        scrollHorizontal = false,
+        scrollVertical = false,
         gap = {0, 0},
         ignoreScale = false
     }
@@ -174,15 +182,7 @@ function papayui.newUI(rootElement, x, y)
         members = {}
     }
 
-    local rootScale = rootElement.style.ignoreScale and 1 or papayui.scale
-    ---@type PapayuiLiveMember
-    local rootMember = {
-        element = rootElement,
-        x = x or 0,
-        y = y or 0,
-        width = rootElement.style.width * rootScale,
-        height = rootElement.style.height * rootScale
-    }
+    local rootMember = papayui.newLiveMember(rootElement, x, y)
 
     local memberQueueFirst = {value = rootMember, next = nil}
     local memberQueueLast = memberQueueFirst
@@ -403,15 +403,7 @@ local function generateMembers(elements)
     local members = {}
     for elementIndex = 1, #elements do
         local element = elements[elementIndex]
-        local style = element.style
-        local scale = style.ignoreScale and 1 or papayui.scale
-        members[elementIndex] = {
-            element = element,
-            x = 0,
-            y = 0,
-            width = style.width * scale,
-            height = style.height * scale
-        }
+        members[elementIndex] = papayui.newLiveMember(element)
     end
     return members
 end
@@ -707,5 +699,34 @@ end
 function papayui.layouts.columns(parentMember)
     return papayui.layouts.rows(parentMember, true)
 end
+
+-- Members -----------------------------------------------------------------------------------------
+
+--- Used internally by the library
+---@param element PapayuiElement
+---@param x? number
+---@param y? number
+---@return PapayuiLiveMember
+function papayui.newLiveMember(element, x, y)
+    x = x or 0
+    y = y or 0
+    local style = element.style
+    local scale = style.ignoreScale and 1 or papayui.scale
+
+    ---@type PapayuiLiveMember
+    local member = {
+        element = element,
+        x = x,
+        y = y,
+        width = style.width * scale,
+        height = style.height * scale,
+        scrollX = 0,
+        scrollY = 0
+    }
+
+    return setmetatable(member, LiveMemberMT)
+end
+
+-- Fin ---------------------------------------------------------------------------------------------
 
 return papayui
