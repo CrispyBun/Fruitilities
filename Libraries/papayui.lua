@@ -13,6 +13,9 @@ papayui.colors.hover = {0.5, 0.5, 1}
 papayui.colors.text = {0.9, 0.9, 0.9}
 papayui.colors.title = {1, 1, 1}
 
+-- Change and then refresh any UIs
+papayui.scale = 1
+
 -- Class definitions -------------------------------------------------------------------------------
 
 ---@alias PapayuiElementLayout
@@ -47,6 +50,7 @@ papayui.colors.title = {1, 1, 1}
 ---@field alignInside PapayuiAlignment The alignment of all the individual child elements within a line
 ---@field gap number[] The gap between its child elements in the layout, in the format {horizontal, vertical}
 ---@field maxLineElements (number|nil)|(number|nil)[] Sets a limit to the amount of elements that can be present in a given row/column. If set to a number, all lines get this limit. If set to an array of numbers, each array index corresponds to a given line index. Nil for unlimited.
+---@field ignoreScale boolean Determines if papayui.scale has an effect on the size of this element (useful to enable for root elements which fill screen space)
 local ElementStyle = {}
 local ElementStyleMT = {__index = ElementStyle}
 
@@ -104,7 +108,8 @@ function papayui.newElementStyle(mixins)
         alignHorizontal = "start",
         alignVertical = "start",
         alignInside = "start",
-        gap = {0, 0}
+        gap = {0, 0},
+        ignoreScale = false
     }
 
     if mixins then
@@ -169,13 +174,14 @@ function papayui.newUI(rootElement, x, y)
         members = {}
     }
 
+    local rootScale = rootElement.style.ignoreScale and 1 or papayui.scale
     ---@type PapayuiLiveMember
     local rootMember = {
         element = rootElement,
         x = x or 0,
         y = y or 0,
-        width = rootElement.style.width,
-        height = rootElement.style.height
+        width = rootElement.style.width * rootScale,
+        height = rootElement.style.height * rootScale
     }
 
     local memberQueueFirst = {value = rootMember, next = nil}
@@ -398,12 +404,13 @@ local function generateMembers(elements)
     for elementIndex = 1, #elements do
         local element = elements[elementIndex]
         local style = element.style
+        local scale = style.ignoreScale and 1 or papayui.scale
         members[elementIndex] = {
             element = element,
             x = 0,
             y = 0,
-            width = style.width,
-            height = style.height
+            width = style.width * scale,
+            height = style.height * scale
         }
     end
     return members
