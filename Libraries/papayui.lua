@@ -73,6 +73,7 @@ local UIMT = {__index = UI}
 --- The instanced element in an actual UI, with a state. You don't really have to worry about these, they're used internally
 ---@class PapayuiLiveMember
 ---@field element PapayuiElement The element this is an instance of
+---@field parent? PapayuiLiveMember The parent of this member
 ---@field x number The x position of the element
 ---@field y number The y position of the element
 ---@field width number The actual width of the element
@@ -219,7 +220,7 @@ function UI:draw()
     local members = self.members
     for memberIndex = 1, #members do
         local member = members[memberIndex]
-        member.element:draw(member.x, member.y, member.width, member.height)
+        member.element:draw(member:getBounds())
     end
 end
 
@@ -346,7 +347,7 @@ end
 -- Element methods ---------------------------------------------------------------------------------
 
 ---@param x? number The X coordinate to draw at (Default is 0)
----@param y? number The Y coordinate to daw at (Default is 0)
+---@param y? number The Y coordinate to draw at (Default is 0)
 ---@param width? number The width to draw the element as (Default is element's width)
 ---@param height? number The height to draw the element as (Default is the element's height)
 function Element:draw(x, y, width, height)
@@ -397,13 +398,14 @@ local function getNudgeValue(usableSpace, usedSpace, align)
 end
 
 ---@param elements PapayuiElement[]
+---@param parentMember PapayuiLiveMember
 ---@return PapayuiLiveMember[]
-local function generateMembers(elements)
+local function generateMembers(elements, parentMember)
     ---@type PapayuiLiveMember[]
     local members = {}
     for elementIndex = 1, #elements do
         local element = elements[elementIndex]
-        members[elementIndex] = papayui.newLiveMember(element)
+        members[elementIndex] = papayui.newLiveMember(element, 0, 0, parentMember)
     end
     return members
 end
@@ -639,7 +641,7 @@ function papayui.layouts.singlerow(parentMember, flipAxis)
     local usableSpaceWidth = parentMember.width - style.padding[1] - style.padding[3]
     local usableSpaceHeight = parentMember.height - style.padding[2] - style.padding[4]
 
-    local outMembers = generateMembers(children)
+    local outMembers = generateMembers(children, parentMember)
     growLineMembers(outMembers, usableSpaceWidth, usableSpaceHeight, gap, flipAxis)
     layMembersInLine(outMembers, gap, alignInside, flipAxis)
     alignMembers(outMembers, originX, originY, usableSpaceWidth, usableSpaceHeight, alignHorizontal, alignVertical)
@@ -668,7 +670,7 @@ function papayui.layouts.rows(parentMember, flipAxis)
     local usableSpaceMain =  flipAxis and usableSpaceHeight or usableSpaceWidth
 
     local outMembers = {}
-    local generatedMembers = generateMembers(children)
+    local generatedMembers = generateMembers(children, parentMember)
     local lines = splitMembersToLines(generatedMembers, usableSpaceMain, gapMain, flipAxis, maxLineMembers)
 
     local lineOffset = 0
@@ -706,8 +708,9 @@ end
 ---@param element PapayuiElement
 ---@param x? number
 ---@param y? number
+---@param parent? PapayuiLiveMember
 ---@return PapayuiLiveMember
-function papayui.newLiveMember(element, x, y)
+function papayui.newLiveMember(element, x, y, parent)
     x = x or 0
     y = y or 0
     local style = element.style
@@ -721,10 +724,34 @@ function papayui.newLiveMember(element, x, y)
         width = style.width * scale,
         height = style.height * scale,
         scrollX = 0,
-        scrollY = 0
+        scrollY = 0,
+        parent = parent
     }
 
     return setmetatable(member, LiveMemberMT)
+end
+
+---@param addX? number Addition to the scrollX
+---@param addY? number Addition to the scrollY
+---@return number scrollX
+---@return number scrollY
+function LiveMember:getScroll(addX, addY)
+    addX = addX or 0
+    addY = addY or 0
+    local parent = self.parent
+    local x, y = self.scrollX + addX, self.scrollY + addY
+
+    if parent then return parent:getScroll(x, y) end
+    return x, y
+end
+
+function LiveMember:getBounds()
+    local xOffset, yOffset = 0, 0
+    if self.parent then xOffset, yOffset = self.parent:getScroll() end
+
+    local x, y = self.x + xOffset, self.y + yOffset
+    local width, height = self.width, self.height
+    return x, y, width, height
 end
 
 -- Fin ---------------------------------------------------------------------------------------------
