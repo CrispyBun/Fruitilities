@@ -51,6 +51,7 @@ papayui.scale = 1
 ---@field scrollHorizontal boolean Whether or not any horizontal overflow in the element's children should scroll
 ---@field scrollVertical boolean Whether or not any vertical overflow in the element's children should scroll
 ---@field gap number[] The gap between its child elements in the layout, in the format {horizontal, vertical}
+---@field cropContent boolean Whether or not overflow in the element's content should be cropped
 ---@field maxLineElements (number|nil)|(number|nil)[] Sets a limit to the amount of elements that can be present in a given row/column. If set to a number, all lines get this limit. If set to an array of numbers, each array index corresponds to a given line index. Nil for unlimited.
 ---@field ignoreScale boolean Determines if papayui.scale has an effect on the size of this element (useful to enable for root elements which fill screen space)
 local ElementStyle = {}
@@ -118,6 +119,7 @@ function papayui.newElementStyle(mixins)
         scrollHorizontal = false,
         scrollVertical = false,
         gap = {0, 0},
+        cropContent = false,
         ignoreScale = false
     }
 
@@ -434,7 +436,21 @@ function papayui.drawRectangle(x, y, width, height, color)
     love.graphics.rectangle("fill", x, y, width, height)
     love.graphics.setColor(cr, cg, cb, ca)
 end
-if not love then papayui.drawRectangle = emptyFunction end
+
+function papayui.setCrop(x, y, width, height)
+    if not (x or y or width or height) then return love.graphics.setScissor() end
+    if width < 0 or height < 0 then return love.graphics.setScissor(0,0,0,0) end
+    
+    return love.graphics.setScissor(x, y, width, height)
+end
+
+papayui.getCrop = love.graphics.getScissor
+
+if not love then
+    papayui.drawRectangle = emptyFunction
+    papayui.getCrop = emptyFunction
+    papayui.setCrop = emptyFunction
+end
 
 -- Element layouts ---------------------------------------------------------------------------------
 
@@ -789,7 +805,12 @@ function papayui.newLiveMember(element, x, y, parent)
 end
 
 function LiveMember:draw()
+    local cropX, cropY, cropWidth, cropHeight = papayui.getCrop()
+    if self.parent then papayui.setCrop(self.parent:getCropArea()) end
+
     self.element:draw(self:getBounds())
+
+    papayui.setCrop(cropX, cropY, cropWidth, cropHeight)
 end
 
 ---@param addX? number Addition to the scrollX
@@ -817,6 +838,44 @@ function LiveMember:getBounds()
     local x, y = self.x + xOffset, self.y + yOffset
     local width, height = self.width, self.height
     return x, y, width, height
+end
+
+---@param overlapX1? number
+---@param overlapY1? number
+---@param overlapX2? number
+---@param overlapY2? number
+---@return number? cropX
+---@return number? cropY
+---@return number? cropWidth
+---@return number? cropHeight
+function LiveMember:getCropArea(overlapX1, overlapY1, overlapX2, overlapY2)
+    local style = self.element.style
+    if not style.cropContent then
+        if self.parent then
+            return self.parent:getCropArea(overlapX1, overlapY1, overlapX2, overlapY2)
+        end
+        if not (overlapX1 and overlapY1 and overlapX2 and overlapY2) then return end
+        return overlapX1, overlapY1, overlapX2 - overlapX1, overlapY2 - overlapY1
+    end
+
+    local x, y, width, height = self:getBounds()
+    local contentX1 = x + style.padding[1]
+    local contentY1 = y + style.padding[2]
+    local contentX2 = contentX1 + width - style.padding[1] - style.padding[3]
+    local contentY2 = contentY1 + height - style.padding[2] - style.padding[4]
+
+    overlapX1 = overlapX1 or contentX1
+    overlapY1 = overlapY1 or contentY1
+    overlapX2 = overlapX2 or contentX2
+    overlapY2 = overlapY2 or contentY2
+
+    contentX1 = math.max(contentX1, overlapX1)
+    contentY1 = math.max(contentY1, overlapY1)
+    contentX2 = math.min(contentX2, overlapX2)
+    contentY2 = math.min(contentY2, overlapY2)
+
+    if self.parent then return self.parent:getCropArea(contentX1, contentY1, contentX2, contentY2) end
+    return contentX1, contentY1, contentX2 - contentX1, contentY2 - contentY1
 end
 
 -- Fin ---------------------------------------------------------------------------------------------
