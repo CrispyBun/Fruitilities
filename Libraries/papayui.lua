@@ -220,7 +220,7 @@ function UI:draw()
     local members = self.members
     for memberIndex = 1, #members do
         local member = members[memberIndex]
-        member.element:draw(member:getBounds())
+        member:draw()
     end
 end
 
@@ -788,6 +788,10 @@ function papayui.newLiveMember(element, x, y, parent)
     return setmetatable(member, LiveMemberMT)
 end
 
+function LiveMember:draw()
+    self.element:draw(self:getBounds())
+end
+
 ---@param addX? number Addition to the scrollX
 ---@param addY? number Addition to the scrollY
 ---@return number scrollX
@@ -802,6 +806,10 @@ function LiveMember:getScroll(addX, addY)
     return x, y
 end
 
+---@return number x
+---@return number y
+---@return number width
+---@return number height
 function LiveMember:getBounds()
     local xOffset, yOffset = 0, 0
     if self.parent then xOffset, yOffset = self.parent:getScroll() end
