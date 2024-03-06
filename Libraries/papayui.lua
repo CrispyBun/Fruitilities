@@ -336,6 +336,46 @@ function ElementStyle:setLayout(layout, alignHorizontal, alignVertical, alignIns
 end
 
 --------------------------------------------------
+--- ### ElementStyle:setScroll(horizontalScroll, verticalScroll)
+--- Sets the style's enabled horizontal and vertical scrolling.
+---
+--- If only the first value is supplied, it is applied to both horizontal and vertical scroll.
+---@param horizontalScroll boolean
+---@param verticalScroll? boolean
+function ElementStyle:setScroll(horizontalScroll, verticalScroll)
+    if verticalScroll == nil then verticalScroll = horizontalScroll end
+    self.scrollHorizontal = horizontalScroll
+    self.scrollVertical = verticalScroll
+end
+
+--------------------------------------------------
+--- ### ElementStyle:setSize(width, height)
+--- Sets the style's size.
+---
+--- If only one number is supplied, both the horizontal and vertical size is set to it.  
+--- If no number is supplied, the size in both axis is set to 0.
+---@param width? number
+---@param height? number
+function ElementStyle:setSize(width, height)
+    width = width or 0
+    height = height or width
+    self.width = width
+    self.height = height
+end
+
+--------------------------------------------------
+--- ### ElementStyle:setColor(color, colorHover)
+--- Sets the element's color and/or its hover color.
+---
+--- If a color is not supplied, it is to nil (no color)
+---@param color? string
+---@param colorHover? string
+function ElementStyle:setColor(color, colorHover)
+    self.color = color
+    self.colorHover = colorHover
+end
+
+--------------------------------------------------
 --- ### ElementStyle:clone()
 --- Returns a copy of the style
 ---@return PapayuiElementStyle
