@@ -266,8 +266,10 @@ end
 ---@param top? number
 ---@param right? number
 ---@param bottom? number
+---@return PapayuiElementStyle
 function ElementStyle:setPadding(left, top, right, bottom)
     self.padding = generateDirectionalValue(left, top, right, bottom)
+    return self
 end
 
 --------------------------------------------------
@@ -277,8 +279,10 @@ end
 ---@param top? number
 ---@param right? number
 ---@param bottom? number
+---@return PapayuiElementStyle
 function ElementStyle:setMargin(left, top, right, bottom)
     self.margin = generateDirectionalValue(left, top, right, bottom)
+    return self
 end
 
 --------------------------------------------------
@@ -289,10 +293,12 @@ end
 --- If no number is supplied, the gap is set to 0.
 ---@param horizontalGap? number
 ---@param verticalGap? number
+---@return PapayuiElementStyle
 function ElementStyle:setGap(horizontalGap, verticalGap)
     horizontalGap = horizontalGap or 0
     verticalGap = verticalGap or horizontalGap
     self.gap = {horizontalGap, verticalGap}
+    return self
 end
 
 --------------------------------------------------
@@ -302,10 +308,12 @@ end
 --- If only the first value is supplied, it is applied to both horizontal and vertical grow.
 ---@param horizontalGrow boolean
 ---@param verticalGrow? boolean
+---@return PapayuiElementStyle
 function ElementStyle:setGrow(horizontalGrow, verticalGrow)
     if verticalGrow == nil then verticalGrow = horizontalGrow end
     self.growHorizontal = horizontalGrow
     self.growVertical = verticalGrow
+    return self
 end
 
 --------------------------------------------------
@@ -318,6 +326,7 @@ end
 ---@param alignHorizontal PapayuiAlignment
 ---@param alignVertical? PapayuiAlignment
 ---@param alignInside? PapayuiAlignment
+---@return PapayuiElementStyle
 function ElementStyle:setLayout(layout, alignHorizontal, alignVertical, alignInside)
     alignVertical = alignVertical or alignHorizontal
 
@@ -333,6 +342,8 @@ function ElementStyle:setLayout(layout, alignHorizontal, alignVertical, alignIns
     self.alignHorizontal = alignHorizontal
     self.alignVertical = alignVertical
     self.alignInside = alignInside
+
+    return self
 end
 
 --------------------------------------------------
@@ -342,10 +353,12 @@ end
 --- If only the first value is supplied, it is applied to both horizontal and vertical scroll.
 ---@param horizontalScroll boolean
 ---@param verticalScroll? boolean
+---@return PapayuiElementStyle
 function ElementStyle:setScroll(horizontalScroll, verticalScroll)
     if verticalScroll == nil then verticalScroll = horizontalScroll end
     self.scrollHorizontal = horizontalScroll
     self.scrollVertical = verticalScroll
+    return self
 end
 
 --------------------------------------------------
@@ -356,11 +369,13 @@ end
 --- If no number is supplied, the size in both axis is set to 0.
 ---@param width? number
 ---@param height? number
+---@return PapayuiElementStyle
 function ElementStyle:setSize(width, height)
     width = width or 0
     height = height or width
     self.width = width
     self.height = height
+    return self
 end
 
 --------------------------------------------------
@@ -370,9 +385,11 @@ end
 --- If a color is not supplied, it is to nil (no color)
 ---@param color? string
 ---@param colorHover? string
+---@return PapayuiElementStyle
 function ElementStyle:setColor(color, colorHover)
     self.color = color
     self.colorHover = colorHover
+    return self
 end
 
 --------------------------------------------------
