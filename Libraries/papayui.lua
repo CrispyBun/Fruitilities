@@ -16,7 +16,7 @@ papayui.colors.title = {1, 1, 1}
 -- Change and then refresh any UIs
 papayui.scale = 1
 
--- Class definitions -------------------------------------------------------------------------------
+-- Definitions -------------------------------------------------------------------------------------
 
 ---@alias PapayuiElementLayout
 ---| '"none"' # The elements are not displayed
@@ -68,6 +68,8 @@ local ElementMT = {__index = Element}
 
 ---@class PapayuiUI
 ---@field members PapayuiLiveMember[] All the elements in the UI, in the drawn order
+---@field selectedMember? PapayuiLiveMember The member that is currently selected
+---@field actionDown boolean If the action key is currently down (set automatically by the appropriate methods)
 local UI = {}
 local UIMT = {__index = UI}
 
@@ -182,7 +184,9 @@ end
 function papayui.newUI(rootElement, x, y)
     ---@type PapayuiUI
     local ui = {
-        members = {}
+        members = {},
+        selectedMember = nil,
+        actionDown = false
     }
 
     local rootMember = papayui.newLiveMember(rootElement, x, y)
@@ -216,13 +220,50 @@ end
 -- UI methods --------------------------------------------------------------------------------------
 
 --------------------------------------------------
---- ### UI.draw()
+--- ### UI:draw()
 --- Draws the UI.
 function UI:draw()
     local members = self.members
+    local selectedMember = self.selectedMember
     for memberIndex = 1, #members do
         local member = members[memberIndex]
-        member:draw()
+        member:draw(member == selectedMember)
+    end
+end
+
+--------------------------------------------------
+--- ### UI:navigate(direction)
+--- Instructs the UI to change the currently selected element
+---@param direction "left"|"up"|"right"|"down"
+function UI:navigate(direction)
+    if not self.selectedMember then
+        self.selectedMember = self:findFirstSelectable()
+        return
+    end
+end
+
+--------------------------------------------------
+--- ### UI:actionPress()
+--- Tells the UI that the action key (typically enter, left click, etc.) has been pressed
+function UI:actionPress()
+    self.actionDown = true
+end
+
+--------------------------------------------------
+--- ### UI:actionRelease()
+--- Tells the UI that the action key has been released
+function UI:actionRelease()
+    self.actionDown = false
+end
+
+--------------------------------------------------
+--- Returns the first selectable member it finds. Used internally.
+---@return PapayuiLiveMember?
+function UI:findFirstSelectable()
+    local members = self.members
+    for memberIndex = 1, #members do
+        local member = members[memberIndex]
+        if member:isSelectable() then return member end
     end
 end
 
@@ -409,7 +450,8 @@ end
 ---@param y? number The Y coordinate to draw at (Default is 0)
 ---@param width? number The width to draw the element as (Default is element's width)
 ---@param height? number The height to draw the element as (Default is the element's height)
-function Element:draw(x, y, width, height)
+---@param isSelected? boolean If the element should be drawn as if it was selected (hovered over)
+function Element:draw(x, y, width, height, isSelected)
     local style = self.style
     x = x or 0
     y = y or 0
@@ -417,6 +459,9 @@ function Element:draw(x, y, width, height)
     height = height or style.height
 
     local color = papayui.colors[style.color]
+    local colorHover = papayui.colors[style.colorHover]
+    if isSelected and colorHover then color = colorHover end
+
     if style.color and not color then
         color = {1, 0, 0} -- "Invalid color" redness
     end
@@ -804,11 +849,13 @@ function papayui.newLiveMember(element, x, y, parent)
     return setmetatable(member, LiveMemberMT)
 end
 
-function LiveMember:draw()
+---@param isSelected? boolean
+function LiveMember:draw(isSelected)
     local cropX, cropY, cropWidth, cropHeight = papayui.getCrop()
     if self.parent then papayui.setCrop(self.parent:getCropArea()) end
 
-    self.element:draw(self:getBounds())
+    local x, y, width, height = self:getBounds()
+    self.element:draw(x, y, width, height, isSelected)
 
     papayui.setCrop(cropX, cropY, cropWidth, cropHeight)
 end
@@ -876,6 +923,11 @@ function LiveMember:getCropArea(overlapX1, overlapY1, overlapX2, overlapY2)
 
     if self.parent then return self.parent:getCropArea(contentX1, contentY1, contentX2, contentY2) end
     return contentX1, contentY1, contentX2 - contentX1, contentY2 - contentY1
+end
+
+function LiveMember:isSelectable()
+    if self.element.style.colorHover then return true end
+    return false
 end
 
 -- Fin ---------------------------------------------------------------------------------------------
