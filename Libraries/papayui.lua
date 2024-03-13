@@ -275,7 +275,9 @@ function UI:findDefaultSelectable()
     local members = self.members
     for memberIndex = 1, #members do
         local member = members[memberIndex]
-        if member:isSelectable() then return member end
+        local _, _, croppedWidth, croppedHeight = member:getCroppedBounds()
+
+        if member:isSelectable() and croppedWidth > 0 and croppedHeight > 0 then return member end
     end
 end
 
@@ -948,6 +950,24 @@ function LiveMember:getCropArea(overlapX1, overlapY1, overlapX2, overlapY2)
     return contentX1, contentY1, contentX2 - contentX1, contentY2 - contentY1
 end
 
+---@return number
+---@return number
+---@return number
+---@return number
+function LiveMember:getCroppedBounds()
+    local x, y, width, height = self:getBounds()
+    local parent = self.parent
+    if not parent then return x, y, width, height end
+
+    local cropX, cropY, cropWidth, cropHeight = parent:getCropArea(x, y, x + width, y + height)
+    if cropX and cropY and cropWidth and cropHeight then
+        return cropX, cropY, cropWidth, cropHeight
+    end
+
+    -- Technically it can't ever get here but it makes the language server happy to do it this way
+    return x, y, width, height
+end
+
 function LiveMember:isSelectable()
     if self.element.style.colorHover then return true end
     return false
@@ -960,7 +980,9 @@ function LiveMember:selectAny()
         local member = stack[#stack]
         stack[#stack] = nil
 
-        if member:isSelectable() then return member end
+        local _, _, croppedWidth, croppedHeight = member:getCroppedBounds()
+        if member:isSelectable() and croppedWidth > 0 and croppedHeight > 0 then return member end
+
         for childIndex = #member.children, 1, -1  do
             local child = member.children[childIndex]
             stack[#stack+1] = child
