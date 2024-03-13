@@ -77,12 +77,14 @@ local UIMT = {__index = UI}
 ---@class PapayuiLiveMember
 ---@field element PapayuiElement The element this is an instance of
 ---@field parent? PapayuiLiveMember The parent of this member
+---@field children PapayuiLiveMember[] The children of this member
 ---@field x number The x position of the element
 ---@field y number The y position of the element
 ---@field width number The actual width of the element
 ---@field height number The actual height of the element
 ---@field scrollX number The amount of scroll in the X direction
 ---@field scrollY number The amount of scroll in the Y direction
+---@field nav (PapayuiLiveMember?)[] {navLeft, navUp, navRight, navDown}
 local LiveMember = {}
 local LiveMemberMT = {__index = LiveMember}
 
@@ -231,15 +233,25 @@ function UI:draw()
     end
 end
 
+local dirEnum = { left = 1, up = 2, right = 3, down = 4 }
 --------------------------------------------------
 --- ### UI:navigate(direction)
 --- Instructs the UI to change the currently selected element
 ---@param direction "left"|"up"|"right"|"down"
 function UI:navigate(direction)
-    if not self.selectedMember then
-        self.selectedMember = self:findFirstSelectable()
+    local selectedMember = self.selectedMember
+    if not selectedMember then
+        self.selectedMember = self:findDefaultSelectable()
         return
     end
+
+    local dir = dirEnum[direction]
+    if not dir then error("Invalid direction: " .. tostring(direction), 2) end
+
+    -- todo: user defined navigation
+
+    local nextSelected = selectedMember:forwardNavigation(selectedMember, dir)
+    self.selectedMember = nextSelected or selectedMember
 end
 
 --------------------------------------------------
@@ -259,7 +271,7 @@ end
 --------------------------------------------------
 --- Returns the first selectable member it finds. Used internally.
 ---@return PapayuiLiveMember?
-function UI:findFirstSelectable()
+function UI:findDefaultSelectable()
     local members = self.members
     for memberIndex = 1, #members do
         local member = members[memberIndex]
@@ -485,7 +497,7 @@ end
 function papayui.setCrop(x, y, width, height)
     if not (x or y or width or height) then return love.graphics.setScissor() end
     if width < 0 or height < 0 then return love.graphics.setScissor(0,0,0,0) end
-    
+
     return love.graphics.setScissor(x, y, width, height)
 end
 
@@ -519,11 +531,15 @@ end
 ---@param parentMember PapayuiLiveMember
 ---@return PapayuiLiveMember[]
 local function generateMembers(elements, parentMember)
+    local parentChildren = parentMember.children
     ---@type PapayuiLiveMember[]
     local members = {}
     for elementIndex = 1, #elements do
         local element = elements[elementIndex]
-        members[elementIndex] = papayui.newLiveMember(element, 0, 0, parentMember)
+
+        local member = papayui.newLiveMember(element, 0, 0, parentMember)
+        members[elementIndex] = member
+        parentChildren[#parentChildren+1] = member
     end
     return members
 end
@@ -538,11 +554,16 @@ local function layMembersInLine(members, gap, alignInside, isVertical)
     local marginEnd = isVertical and 4 or 3
     local sizeMain = isVertical and "height" or "width"
     local sizeCross = isVertical and "width" or "height"
+    local navPrev = marginStart
+    local navNext = marginEnd
 
-    -- Find tallest member
+    -- Find tallest member and set inline navigation
     local tallestMember = 0
     for memberIndex = 1, #members do
-        tallestMember = math.max(tallestMember, members[memberIndex][sizeCross])
+        local member = members[memberIndex]
+        tallestMember = math.max(tallestMember, member[sizeCross])
+        if memberIndex > 1 then member.nav[navPrev] = members[memberIndex-1] end
+        if memberIndex < #members then member.nav[navNext] = members[memberIndex+1] end
     end
 
     -- Lay them out
@@ -837,13 +858,15 @@ function papayui.newLiveMember(element, x, y, parent)
     ---@type PapayuiLiveMember
     local member = {
         element = element,
+        children = {},
         x = x,
         y = y,
         width = style.width * scale,
         height = style.height * scale,
         scrollX = 0,
         scrollY = 0,
-        parent = parent
+        parent = parent,
+        nav = {}
     }
 
     return setmetatable(member, LiveMemberMT)
@@ -928,6 +951,42 @@ end
 function LiveMember:isSelectable()
     if self.element.style.colorHover then return true end
     return false
+end
+
+---@return PapayuiLiveMember?
+function LiveMember:selectAny()
+    local stack = {self}
+    while #stack > 0 do
+        local member = stack[#stack]
+        stack[#stack] = nil
+
+        if member:isSelectable() then return member end
+        for childIndex = #member.children, 1, -1  do
+            local child = member.children[childIndex]
+            stack[#stack+1] = child
+        end
+    end
+    return nil
+end
+
+---@param source PapayuiLiveMember
+---@param direction 1|2|3|4
+---@return PapayuiLiveMember?
+function LiveMember:forwardNavigation(source, direction)
+    if self.nav[direction] then return self.nav[direction]:select(source, direction) end
+    if self.parent then return self.parent:forwardNavigation(source, direction) end
+end
+
+---@param source PapayuiLiveMember
+---@param direction 1|2|3|4
+---@return PapayuiLiveMember?
+function LiveMember:select(source, direction)
+    if self:isSelectable() then return self end
+
+    local selectedChild = self:selectAny()
+    if selectedChild then return selectedChild end
+
+    return self:forwardNavigation(source, direction)
 end
 
 -- Fin ---------------------------------------------------------------------------------------------
