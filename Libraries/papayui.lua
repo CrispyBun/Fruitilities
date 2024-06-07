@@ -481,34 +481,36 @@ function Element:draw(x, y, width, height, isSelected)
     end
 
     if color then
-        papayui.drawRectangle(x, y, width, height, color)
+        papayui.graphics.drawRectangle(x, y, width, height, color)
     end
 end
 
 -- Abstraction for possible usage outside LÖVE -----------------------------------------------------
 
-local emptyFunction = function () end
+-- Can be replaced with functions to perform these actions in non-love2d environments
+papayui.graphics = {}
 
-function papayui.drawRectangle(x, y, width, height, color)
+function papayui.graphics.drawRectangle(x, y, width, height, color)
     local cr, cg, cb, ca = love.graphics.getColor()
     love.graphics.setColor(color)
     love.graphics.rectangle("fill", x, y, width, height)
     love.graphics.setColor(cr, cg, cb, ca)
 end
 
-function papayui.setCrop(x, y, width, height)
+function papayui.graphics.setCrop(x, y, width, height)
     if not (x or y or width or height) then return love.graphics.setScissor() end
     if width < 0 or height < 0 then return love.graphics.setScissor(0,0,0,0) end
 
     return love.graphics.setScissor(x, y, width, height)
 end
 
-papayui.getCrop = love.graphics.getScissor
+papayui.graphics.getCrop = love.graphics.getScissor
 
+local emptyFunction = function () end
 if not love then
-    papayui.drawRectangle = emptyFunction
-    papayui.getCrop = emptyFunction
-    papayui.setCrop = emptyFunction
+    papayui.graphics.drawRectangle = emptyFunction
+    papayui.graphics.getCrop = emptyFunction
+    papayui.graphics.setCrop = emptyFunction
 end
 
 -- Element layouts ---------------------------------------------------------------------------------
@@ -876,13 +878,13 @@ end
 
 ---@param isSelected? boolean
 function LiveMember:draw(isSelected)
-    local cropX, cropY, cropWidth, cropHeight = papayui.getCrop()
-    if self.parent then papayui.setCrop(self.parent:getCropArea()) end
+    local cropX, cropY, cropWidth, cropHeight = papayui.graphics.getCrop()
+    if self.parent then papayui.graphics.setCrop(self.parent:getCropArea()) end
 
     local x, y, width, height = self:getBounds()
     self.element:draw(x, y, width, height, isSelected)
 
-    papayui.setCrop(cropX, cropY, cropWidth, cropHeight)
+    papayui.graphics.setCrop(cropX, cropY, cropWidth, cropHeight)
 end
 
 ---@param addX? number Addition to the scrollX
