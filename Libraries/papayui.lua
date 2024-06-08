@@ -764,6 +764,66 @@ local function alignMembers(members, x, y, width, height, alignHorizontal, align
     return contentWidth, contentHeight
 end
 
+---@param member PapayuiLiveMember
+---@param otherMembers PapayuiLiveMember[]
+---@param axisIsVertical boolean
+---@return PapayuiLiveMember?
+local function findLargestAxisOverlap(member, otherMembers, axisIsVertical)
+    local position = axisIsVertical and "y" or "x"
+    local size = axisIsVertical and "height" or "width"
+
+    local selfPosition = member[position]
+    local selfSize = member[size]
+
+    local maxOverlap = 0
+    local maxOverlapMember
+
+    for otherMemberIndex = 1, #otherMembers do
+        local otherMember = otherMembers[otherMemberIndex]
+        local otherMemberPosition = otherMember[position]
+        local otherMemberSize = otherMember[size]
+
+        local a1, a2 = selfPosition, selfPosition + selfSize
+        local b1, b2 = otherMemberPosition, otherMemberPosition + otherMemberSize
+
+        local overlapStart = math.max(a1, b1)
+        local overlapEnd   = math.min(a2, b2)
+
+        local overlap = overlapEnd - overlapStart
+        if overlap > maxOverlap then
+            maxOverlap = overlap
+            maxOverlapMember = otherMember
+        end
+    end
+
+    return maxOverlapMember
+end
+
+---@param lines PapayuiLiveMember[][]
+---@param mainAxisIsVertical boolean
+local function assignCrossAxisLineNavigation(lines, mainAxisIsVertical)
+    local navPrev = mainAxisIsVertical and 1 or 2
+    local navNext = mainAxisIsVertical and 3 or 4
+
+    for lineIndex = 1, #lines do
+        local line = lines[lineIndex]
+        local prevLine = lines[lineIndex-1]
+        local nextLine = lines[lineIndex+1]
+
+        for lineMemberIndex = 1, #line do
+            local member = line[lineMemberIndex]
+            if prevLine then
+                local prevMember = findLargestAxisOverlap(member, prevLine, mainAxisIsVertical)
+                if prevMember then member.nav[navPrev] = prevMember end
+            end
+            if nextLine then
+                local nextMember = findLargestAxisOverlap(member, nextLine, mainAxisIsVertical)
+                if nextMember then member.nav[navNext] = nextMember end
+            end
+        end
+    end
+end
+
 ---@type table<string, fun(member: PapayuiLiveMember, ...?): PapayuiLiveMember[]>
 papayui.layouts = {}
 
@@ -822,6 +882,7 @@ function papayui.layouts.rows(parentMember, flipAxis)
         growLineMembers(line, usableSpaceWidth, usableSpaceHeight, gapMain, flipAxis, true)
         layMembersInLine(line, gapMain, alignInside, flipAxis)
 
+        -- Align the line on the main axis, relative to its assigned position
         local lineX = flipAxis and lineOffset or 0
         local lineY = flipAxis and 0 or lineOffset
         local alignX = flipAxis and -1 or alignHorizontal
@@ -831,11 +892,13 @@ function papayui.layouts.rows(parentMember, flipAxis)
         local lineSizeCross = flipAxis and lineWidth or lineHeight
         lineOffset = lineOffset + lineSizeCross + gapCross
 
+        -- Insert line into output members
         for memberIndex = 1, #line do
             outMembers[#outMembers+1] = line[memberIndex]
         end
     end
 
+    assignCrossAxisLineNavigation(lines, flipAxis)
     alignMembers(outMembers, originX, originY, usableSpaceWidth, usableSpaceHeight, alignHorizontal, alignVertical)
 
     return outMembers
@@ -993,6 +1056,8 @@ function LiveMember:selectAny()
     return nil
 end
 
+--- Passes the navigation request forward.  
+--- Call `select` on element in the given direction (if known) or forward navigation to parent (if there is one)
 ---@param source PapayuiLiveMember
 ---@param direction 1|2|3|4
 ---@return PapayuiLiveMember?
@@ -1001,6 +1066,7 @@ function LiveMember:forwardNavigation(source, direction)
     if self.parent then return self.parent:forwardNavigation(source, direction) end
 end
 
+--- Return self or a child if a selectable element is present, or simply forward navigation if not
 ---@param source PapayuiLiveMember
 ---@param direction 1|2|3|4
 ---@return PapayuiLiveMember?
