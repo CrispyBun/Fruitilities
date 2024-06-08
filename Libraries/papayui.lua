@@ -69,9 +69,10 @@ local ElementMT = {__index = Element}
 ---@class PapayuiUI
 ---@field members PapayuiLiveMember[] All the elements in the UI, in the drawn order
 ---@field selectedMember? PapayuiLiveMember The member that is currently selected
+---@field lastSelection? PapayuiLiveMember The last element that was selected
 ---@field actionDown boolean If the action key is currently down (set automatically by the appropriate methods)
----@field cursorX number The cursor X coordinate (used internally)
----@field cursorY number The cursor Y coordinate (used internally)
+---@field cursorX number The cursor X coordinate
+---@field cursorY number The cursor Y coordinate
 local UI = {}
 local UIMT = {__index = UI}
 
@@ -188,6 +189,7 @@ function papayui.newUI(rootElement, x, y)
     local ui = {
         members = {},
         selectedMember = nil,
+        lastSelection = nil,
         actionDown = false,
         cursorX = 0,
         cursorY = 0
@@ -243,7 +245,7 @@ local dirEnum = { left = 1, up = 2, right = 3, down = 4 }
 function UI:navigate(direction)
     local selectedMember = self.selectedMember
     if not selectedMember then
-        self.selectedMember = self:findDefaultSelectable()
+        self:select(self:findDefaultSelectable())
         return
     end
 
@@ -253,7 +255,7 @@ function UI:navigate(direction)
     -- todo: user defined navigation
 
     local nextSelected = selectedMember:forwardNavigation(selectedMember, dir)
-    self.selectedMember = nextSelected or selectedMember
+    self:select(nextSelected or selectedMember)
 end
 
 --------------------------------------------------
@@ -267,7 +269,7 @@ function UI:updateCursor(x, y)
     self.cursorY = y
 
     if self.actionDown then
-        self.selectedMember = nil
+        self:select()
         return
     end
 
@@ -277,12 +279,12 @@ function UI:updateCursor(x, y)
         local memberX, memberY, memberWidth, memberHeight = member:getCroppedBounds()
         if x > memberX and y > memberY and x < memberX + memberWidth and y < memberY + memberHeight then
             if member:isSelectable() then
-                self.selectedMember = member
+                self:select(member)
                 foundSelection = true
             end
         end
     end
-    if not foundSelection then self.selectedMember = nil end
+    if not foundSelection then self:select() end
 end
 
 --------------------------------------------------
@@ -300,9 +302,20 @@ function UI:actionRelease()
 end
 
 --------------------------------------------------
+--- ### UI:select(member)
+--- Makes the member considered selected by the UI. If no member is supplied, the currently selected member gets deselected.
+---@param member? PapayuiLiveMember
+function UI:select(member)
+    self.selectedMember = member
+    self.lastSelection = member or self.lastSelection
+end
+
+--------------------------------------------------
 --- Returns the first selectable member it finds. Used internally.
 ---@return PapayuiLiveMember?
 function UI:findDefaultSelectable()
+    if self.lastSelection then return self.lastSelection end
+
     local members = self.members
     for memberIndex = 1, #members do
         local member = members[memberIndex]
