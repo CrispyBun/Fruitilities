@@ -1099,21 +1099,47 @@ function LiveMember:isSelectable()
     return false
 end
 
+--- Tries to select self or any child. If provided, will find the selection closest to the source member.
+---@param source? PapayuiLiveMember
 ---@return PapayuiLiveMember?
-function LiveMember:selectAny()
+function LiveMember:selectAny(source)
+    local sourceX, sourceY
+    local closestMemberDistance = math.huge
+    local closestMember
+    if source then
+        local x, y, w, h = source:getBounds()
+        sourceX = x + w / 2
+        sourceY = y + h / 2
+    end
+
     local stack = {self}
     while #stack > 0 do
         local member = stack[#stack]
         stack[#stack] = nil
 
-        local _, _, croppedWidth, croppedHeight = member:getCroppedBounds()
-        if member:isSelectable() and croppedWidth > 0 and croppedHeight > 0 then return member end
+        local croppedX, croppedY, croppedWidth, croppedHeight = member:getCroppedBounds()
+        local canSelect = member:isSelectable() and croppedWidth > 0 and croppedHeight > 0
+        if canSelect and not source then return member end
+
+        if canSelect and sourceX and sourceY then
+            local memberX = croppedX + croppedWidth / 2
+            local memberY = croppedY + croppedHeight / 2
+            local offsetX = memberX - sourceX
+            local offsetY = memberY - sourceY
+            local distanceSquared = offsetX * offsetX + offsetY * offsetY
+            if distanceSquared < closestMemberDistance then
+                closestMemberDistance = distanceSquared
+                closestMember = member
+            end
+        end
 
         for childIndex = #member.children, 1, -1  do
             local child = member.children[childIndex]
             stack[#stack+1] = child
         end
     end
+
+    if closestMember then return closestMember end
     return nil
 end
 
@@ -1134,7 +1160,7 @@ end
 function LiveMember:select(source, direction)
     if self:isSelectable() then return self end
 
-    local selectedChild = self:selectAny()
+    local selectedChild = self:selectAny(source)
     if selectedChild then return selectedChild end
 
     return self:forwardNavigation(source, direction)
