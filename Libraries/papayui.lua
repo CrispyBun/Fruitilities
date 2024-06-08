@@ -94,8 +94,10 @@ local LiveMemberMT = {__index = LiveMember}
 --- ### papayui.newElementStyle()
 --- Creates a new blank papayui element style.
 ---
---- Optionally, you can supply an array of tables, each of which can contain values for the style.
---- If values are present in multiple of these tables, the last table in the list has priority.
+--- Optionally, you can supply mixins to set the style.  
+--- * A mixin can be a table containing values for the style, such as `{width = 10, height = 10}`.  
+--- * A mixin can also be an array of other mixins, such as `{mixin1, mixin2, mixin3}`.  
+--- * Lastly, a mixin can be a combination of the two, such as `{width = 10, height = 10, [1] = mixin2, [2] = mixin3}`.
 ---
 --- Example usage:
 --- ```
@@ -105,7 +107,7 @@ local LiveMemberMT = {__index = LiveMember}
 --- style.color = "background"
 --- style.layout = "singlecolumn"
 --- ```
----@param mixins? table[]
+---@param mixins? table
 ---@return PapayuiElementStyle
 function papayui.newElementStyle(mixins)
     ---@type PapayuiElementStyle
@@ -128,11 +130,7 @@ function papayui.newElementStyle(mixins)
     }
 
     if mixins then
-        for mixinIndex = 1, #mixins do
-            for key, value in pairs(mixins[mixinIndex]) do
-                style[key] = value
-            end
-        end
+        papayui.applyMixins(style, mixins)
     end
 
     return setmetatable(style, ElementStyleMT)
@@ -152,7 +150,7 @@ end
 --------------------------------------------------
 --- ### papayui.newElement()
 --- Creates a new blank papayui element.
---- You can give it a style and behavior, but if not provided, they will be default blank ones (no visual style, no behavior)
+--- You can give it a style and behavior, but if not provided, default blank ones will be generated (no visual style, no behavior)
 ---
 --- Example usage:
 --- ```
@@ -178,7 +176,7 @@ end
 
 --------------------------------------------------
 --- ### papayui.newUI(rootElement)
---- Creates a new usable UI, using the given element as the main parent element. Can specify an X and Y location for the UI.
+--- Creates a new usable UI, using the given element as the topmost parent element. Can specify an X and Y location for the UI.
 ---@param rootElement PapayuiElement The root element of the whole UI
 ---@param x? number The X coordinate of the UI (Default is 0)
 ---@param y? number The Y coordinate of the UI (Default is 0)
@@ -482,6 +480,36 @@ function Element:draw(x, y, width, height, isSelected)
 
     if color then
         papayui.graphics.drawRectangle(x, y, width, height, color)
+    end
+end
+
+-- Misc stuff --------------------------------------------------------------------------------------
+
+--- Used internally by the library.  
+--- Applies mixins onto the receiving table (copies the mixins' values to it).  
+--- * A mixin can be a table containing values, such as `{width = 10, height = 10}`.  
+--- * A mixin can also be an array of other mixins, such as `{mixin1, mixin2, mixin3}`.  
+--- * Lastly, a mixin can be a combination of the two, such as `{width = 10, height = 10, [1] = mixin2, [2] = mixin3}`.
+---@param receivingTable table
+---@param mixins table
+function papayui.applyMixins(receivingTable, mixins)
+    local mixinQueueFirst = {value = mixins, next = nil}
+    local mixinQueueLast = mixinQueueFirst
+    while mixinQueueFirst do
+        local mixin = mixinQueueFirst.value
+
+        for _, queuedMixin in ipairs(mixin) do
+            mixinQueueLast.next = {value = queuedMixin, next = nil}
+            mixinQueueLast = mixinQueueLast.next
+        end
+
+        for key, value in pairs(mixin) do
+            if type(key) == "string" then
+                receivingTable[key] = value
+            end
+        end
+
+        mixinQueueFirst = mixinQueueFirst.next
     end
 end
 
