@@ -70,8 +70,8 @@ local ElementMT = {__index = Element}
 ---@field members PapayuiLiveMember[] All the elements in the UI, in the drawn order
 ---@field selectedMember? PapayuiLiveMember The member that is currently selected
 ---@field actionDown boolean If the action key is currently down (set automatically by the appropriate methods)
----@field cursorXPrevious number The previous cursor X coordinate (used internally)
----@field cursorYPrevious number The previous cursor Y coordinate (used internally)
+---@field cursorX number The cursor X coordinate (used internally)
+---@field cursorY number The cursor Y coordinate (used internally)
 local UI = {}
 local UIMT = {__index = UI}
 
@@ -189,8 +189,8 @@ function papayui.newUI(rootElement, x, y)
         members = {},
         selectedMember = nil,
         actionDown = false,
-        cursorXPrevious = 0,
-        cursorYPrevious = 0
+        cursorX = 0,
+        cursorY = 0
     }
 
     local rootMember = papayui.newLiveMember(rootElement, x, y)
@@ -262,9 +262,9 @@ end
 ---@param x number
 ---@param y number
 function UI:updateCursor(x, y)
-    if x == self.cursorXPrevious and y == self.cursorYPrevious then return end
-    self.cursorXPrevious = x
-    self.cursorYPrevious = y
+    if x == self.cursorX and y == self.cursorY then return end
+    self.cursorX = x
+    self.cursorY = y
 
     if self.actionDown then
         self.selectedMember = nil
