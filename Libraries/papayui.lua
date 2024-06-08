@@ -16,6 +16,10 @@ papayui.colors.title = {1, 1, 1}
 -- Change and then refresh any UIs
 papayui.scale = 1
 
+-- Configure scrolling strength
+papayui.scrollSpeed = 300
+papayui.scrollVelocityPreservation = 0.9
+
 -- Definitions -------------------------------------------------------------------------------------
 
 ---@alias PapayuiElementLayout
@@ -87,6 +91,8 @@ local UIMT = {__index = UI}
 ---@field height number The actual height of the element
 ---@field scrollX number The amount of scroll in the X direction
 ---@field scrollY number The amount of scroll in the Y direction
+---@field scrollVelocityX number The scroll velocity in the X direction
+---@field scrollVelocityY number The scroll velocity in the Y direction
 ---@field nav (PapayuiLiveMember?)[] {navLeft, navUp, navRight, navDown}
 local LiveMember = {}
 local LiveMemberMT = {__index = LiveMember}
@@ -237,6 +243,57 @@ function UI:draw()
     end
 end
 
+local defaultDeltaTime = 1/60
+--------------------------------------------------
+--- ### UI:update(dt)
+--- Updates the dynamically changing elements of the UI, such as scrolling.  
+--- If the UI doesn't contain any such elements, calling update is not necessary.  
+---@param dt? number
+function UI:update(dt)
+    dt = dt or defaultDeltaTime
+
+    local members = self.members
+    for memberIndex = 1, #members do
+        local member = members[memberIndex]
+        local style = member.element.style
+
+        if style.scrollHorizontal or style.scrollVertical then
+            local scrollX = member.scrollX
+            local scrollY = member.scrollY
+            local scrollVelocityX = member.scrollVelocityX
+            local scrollVelocityY = member.scrollVelocityY
+
+            member.scrollX = scrollX + scrollVelocityX * dt
+            member.scrollY = scrollY + scrollVelocityY * dt
+            member.scrollVelocityX = scrollVelocityX * papayui.scrollVelocityPreservation
+            member.scrollVelocityY = scrollVelocityY * papayui.scrollVelocityPreservation
+
+            -- Make slow portions of scrolling look less jittery
+            if math.abs(member.scrollX - scrollX) < 1 then member.scrollVelocityX = 0 end
+            if math.abs(member.scrollY - scrollY) < 1 then member.scrollVelocityY = 0 end
+
+            -- Cap scroll to limits
+            local minScrollX, minScrollY, maxScrollX, maxScrollY = member:getScrollLimits()
+            if member.scrollY > maxScrollY then
+                member.scrollVelocityY = 0
+                member.scrollY = maxScrollY
+            end
+            if member.scrollY < minScrollY then
+                member.scrollVelocityY = 0
+                member.scrollY = minScrollY
+            end
+            if member.scrollX > maxScrollX then
+                member.scrollVelocityX = 0
+                member.scrollX = maxScrollX
+            end
+            if member.scrollX < minScrollX then
+                member.scrollVelocityX = 0
+                member.scrollX = minScrollX
+            end
+        end
+    end
+end
+
 local dirEnum = { left = 1, up = 2, right = 3, down = 4 }
 --------------------------------------------------
 --- ### UI:navigate(direction)
@@ -302,6 +359,38 @@ function UI:actionRelease()
 end
 
 --------------------------------------------------
+--- ### UI:scroll(scrollX, scrollY)
+--- Tells the UI how much the user is scrolling in each given direction (1 would correspond to one mouse wheel movement).  
+--- Each direction is optional - if not supplied, no scroll input is applied in that direction.
+---@param scrollX? number
+---@param scrollY? number
+function UI:scroll(scrollX, scrollY)
+    scrollX = scrollX or 0
+    scrollY = scrollY or 0
+
+    local cursorX, cursorY = self.cursorX, self.cursorY
+
+    for memberIndex = #self.members, 1, -1 do
+        if scrollX == 0 and scrollY == 0 then break end
+
+        local member = self.members[memberIndex]
+        local memberX, memberY, memberWidth, memberHeight = member:getCroppedBounds()
+
+        if cursorX > memberX and cursorY > memberY and cursorX < memberX + memberWidth and cursorY < memberY + memberHeight then
+            if scrollX ~= 0 and member.element.style.scrollHorizontal then
+                member.scrollVelocityX = papayui.scrollSpeed * scrollX
+                scrollX = 0
+            end
+
+            if scrollY ~= 0 and member.element.style.scrollVertical then
+                member.scrollVelocityY = papayui.scrollSpeed * scrollY
+                scrollY = 0
+            end
+        end
+    end
+end
+
+--------------------------------------------------
 --- ### UI:select(member)
 --- Makes the member considered selected by the UI. If no member is supplied, the currently selected member gets deselected.
 ---@param member? PapayuiLiveMember
@@ -314,7 +403,10 @@ end
 --- Returns the first selectable member it finds. Used internally.
 ---@return PapayuiLiveMember?
 function UI:findDefaultSelectable()
-    if self.lastSelection then return self.lastSelection end
+    if self.lastSelection then
+        local _, _, croppedWidth, croppedHeight = self.lastSelection:getCroppedBounds()
+        if croppedWidth > 0 and croppedHeight > 0 then return self.lastSelection end
+    end
 
     local members = self.members
     for memberIndex = 1, #members do
@@ -1006,6 +1098,8 @@ function papayui.newLiveMember(element, x, y, parent)
         height = style.height * scale,
         scrollX = 0,
         scrollY = 0,
+        scrollVelocityX = 0,
+        scrollVelocityY = 0,
         parent = parent,
         nav = {}
     }
@@ -1038,6 +1132,7 @@ function LiveMember:getScroll(addX, addY)
     return x, y
 end
 
+--- Gets the area this member takes up (before any cropping by other members)
 ---@return number x
 ---@return number y
 ---@return number width
@@ -1051,6 +1146,7 @@ function LiveMember:getBounds()
     return x, y, width, height
 end
 
+--- Gets the area this member crops its contents to, optionally also overlapping it with the input area
 ---@param overlapX1? number
 ---@param overlapY1? number
 ---@param overlapX2? number
@@ -1089,10 +1185,11 @@ function LiveMember:getCropArea(overlapX1, overlapY1, overlapX2, overlapY2)
     return contentX1, contentY1, contentX2 - contentX1, contentY2 - contentY1
 end
 
----@return number
----@return number
----@return number
----@return number
+--- Returns the area the member takes up after being cropped by the other members
+---@return number x
+---@return number y
+---@return number width
+---@return number height
 function LiveMember:getCroppedBounds()
     local x, y, width, height = self:getBounds()
     local parent = self.parent
@@ -1107,9 +1204,55 @@ function LiveMember:getCroppedBounds()
     return x, y, width, height
 end
 
+---@return boolean
 function LiveMember:isSelectable()
     if self.element.style.colorHover then return true end
     return false
+end
+
+---@return number minX
+---@return number minY
+---@return number maxX
+---@return number maxY
+function LiveMember:getScrollLimits()
+    if #self.children == 0 then return 0,0,0,0 end
+
+    local padding = self.element.style.padding
+    local x1, y1 = self.x, self.y
+    local x2, y2 = x1 + self.width, y1 + self.height
+    x1 = x1 + padding[1]
+    y1 = y1 + padding[2]
+    x2 = x2 - padding[3]
+    y2 = y2 - padding[4]
+
+    local contentX1 = math.huge
+    local contentY1 = math.huge
+    local contentX2 = -math.huge
+    local contentY2 = -math.huge
+    local children = self.children
+    for childIndex = 1, #children do
+        local child = children[childIndex]
+
+        local childMargin = child.element.style.margin
+        local childX1, childY1 = child.x, child.y
+        local childX2, childY2 = childX1 + child.width, childY1 + child.height
+        childX1 = childX1 - childMargin[1]
+        childY1 = childY1 - childMargin[2]
+        childX2 = childX2 + childMargin[3]
+        childY2 = childY2 + childMargin[4]
+
+        contentX1 = math.min(contentX1, childX1)
+        contentY1 = math.min(contentY1, childY1)
+        contentX2 = math.max(contentX2, childX2)
+        contentY2 = math.max(contentY2, childY2)
+    end
+
+    local minX = math.min(x2 - contentX2, 0)
+    local minY = math.min(y2 - contentY2, 0)
+    local maxX = math.max(x1 - contentX1, 0)
+    local maxY = math.max(y1 - contentY1, 0)
+
+    return minX, minY, maxX, maxY
 end
 
 --- Tries to select self or any child. If provided, will find the selection closest to the source member.
