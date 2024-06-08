@@ -70,6 +70,8 @@ local ElementMT = {__index = Element}
 ---@field members PapayuiLiveMember[] All the elements in the UI, in the drawn order
 ---@field selectedMember? PapayuiLiveMember The member that is currently selected
 ---@field actionDown boolean If the action key is currently down (set automatically by the appropriate methods)
+---@field cursorXPrevious number The previous cursor X coordinate (used internally)
+---@field cursorYPrevious number The previous cursor Y coordinate (used internally)
 local UI = {}
 local UIMT = {__index = UI}
 
@@ -186,7 +188,9 @@ function papayui.newUI(rootElement, x, y)
     local ui = {
         members = {},
         selectedMember = nil,
-        actionDown = false
+        actionDown = false,
+        cursorXPrevious = 0,
+        cursorYPrevious = 0
     }
 
     local rootMember = papayui.newLiveMember(rootElement, x, y)
@@ -250,6 +254,35 @@ function UI:navigate(direction)
 
     local nextSelected = selectedMember:forwardNavigation(selectedMember, dir)
     self.selectedMember = nextSelected or selectedMember
+end
+
+--------------------------------------------------
+--- ### UI:updateCursor(x, y)
+--- Updates the input cursor location
+---@param x number
+---@param y number
+function UI:updateCursor(x, y)
+    if x == self.cursorXPrevious and y == self.cursorYPrevious then return end
+    self.cursorXPrevious = x
+    self.cursorYPrevious = y
+
+    if self.actionDown then
+        self.selectedMember = nil
+        return
+    end
+
+    local foundSelection = false
+    for memberIndex = 1, #self.members do
+        local member = self.members[memberIndex]
+        local memberX, memberY, memberWidth, memberHeight = member:getCroppedBounds()
+        if x > memberX and y > memberY and x < memberX + memberWidth and y < memberY + memberHeight then
+            if member:isSelectable() then
+                self.selectedMember = member
+                foundSelection = true
+            end
+        end
+    end
+    if not foundSelection then self.selectedMember = nil end
 end
 
 --------------------------------------------------
