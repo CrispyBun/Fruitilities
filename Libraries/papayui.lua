@@ -302,7 +302,7 @@ local dirEnum = { left = 1, up = 2, right = 3, down = 4 }
 function UI:navigate(direction)
     local selectedMember = self.selectedMember
     if not selectedMember then
-        self:select(self:findDefaultSelectable())
+        self:select(self:findDefaultSelectable(), true)
         return
     end
 
@@ -312,7 +312,7 @@ function UI:navigate(direction)
     -- todo: user defined navigation
 
     local nextSelected = selectedMember:forwardNavigation(selectedMember, dir)
-    self:select(nextSelected or selectedMember)
+    self:select(nextSelected or selectedMember, true)
 end
 
 --------------------------------------------------
@@ -336,7 +336,7 @@ function UI:updateCursor(x, y)
         local memberX, memberY, memberWidth, memberHeight = member:getCroppedBounds()
         if x > memberX and y > memberY and x < memberX + memberWidth and y < memberY + memberHeight then
             if member:isSelectable() then
-                self:select(member)
+                self:select(member, true)
                 foundSelection = true
             end
         end
@@ -408,11 +408,17 @@ end
 
 --------------------------------------------------
 --- ### UI:select(member)
---- Makes the member considered selected by the UI. If no member is supplied, the currently selected member gets deselected.
----@param member? PapayuiLiveMember
-function UI:select(member)
+--- Used internally but can also be used externally, however note that the function takes the instanced PapayuiLiveMember as the input, not a PapayuiElement.
+---
+--- Makes the member considered selected by the UI. If no member is supplied, the currently selected member gets deselected.  
+--- Can optionally scroll elements to put the newly selected element into view.
+---@param member? PapayuiLiveMember The member to select
+---@param scrollToView? boolean Whether or not to scroll the selected element into view
+function UI:select(member, scrollToView)
     self.selectedMember = member
     self.lastSelection = member or self.lastSelection
+
+    if scrollToView and member then member:scrollToView() end
 end
 
 --------------------------------------------------
@@ -638,6 +644,7 @@ function Element:draw(x, y, width, height, isSelected)
 end
 
 -- Misc stuff --------------------------------------------------------------------------------------
+-- Exported by the module since they could be useful
 
 --- Used internally by the library.  
 --- Applies mixins onto the receiving table (copies the mixins' values to it).  
@@ -665,6 +672,35 @@ function papayui.applyMixins(receivingTable, mixins)
 
         mixinQueueFirst = mixinQueueFirst.next
     end
+end
+
+--- Used internally by the library.  
+--- Returns the area where the two input areas overlap.
+---@param aX number
+---@param aY number
+---@param aWidth number
+---@param aHeight number
+---@param bX number
+---@param bY number
+---@param bWidth number
+---@param bHeight number
+---@return number x
+---@return number y
+---@return number width
+---@return number height
+function papayui.overlapAreas(aX, aY, aWidth, aHeight, bX, bY, bWidth, bHeight)
+    local ax1, ay1 = aX, aY
+    local ax2, ay2 = ax1 + aWidth, ay1 + aHeight
+
+    local bx1, by1 = bX, bY
+    local bx2, by2 = bx1 + bWidth, by1 + bHeight
+
+    local x1 = math.max(ax1, bx1)
+    local y1 = math.max(ay1, by1)
+    local x2 = math.min(ax2, bx2)
+    local y2 = math.min(ay2, by2)
+
+    return x1, y1, x2 - x1, y2 - y1
 end
 
 -- Abstraction for possible usage outside LÖVE -----------------------------------------------------
@@ -1162,6 +1198,36 @@ function LiveMember:getBounds()
     return x, y, width, height
 end
 
+--- Gets the same area as in getBounds(), but shrinks it by the member's padding
+---@return number x
+---@return number y
+---@return number width
+---@return number height
+function LiveMember:getInnerBounds()
+    local padding = self.element.style.padding
+    local x, y, width, height = self:getBounds()
+    return
+        x + padding[1],
+        y + padding[2],
+        width - padding[1] - padding[3],
+        height - padding[2] - padding[4]
+end
+
+--- Gets the same area as in getBounds(), but grows it by the member's margin
+---@return number x
+---@return number y
+---@return number width
+---@return number height
+function LiveMember:getOuterBounds()
+    local margin = self.element.style.margin
+    local x, y, width, height = self:getBounds()
+    return
+        x - margin[1],
+        y - margin[2],
+        width + margin[1] + margin[3],
+        height + margin[2] + margin[4]
+end
+
 --- Gets the area this member crops its contents to, optionally also overlapping it with the input area
 ---@param overlapX1? number
 ---@param overlapY1? number
@@ -1271,6 +1337,39 @@ function LiveMember:getScrollLimits()
     return minX, minY, maxX, maxY
 end
 
+--- Scrolls the parent elements so this element is fully visible
+function LiveMember:scrollToView()
+    local member = self
+
+    local memberX, memberY, memberWidth, memberHeight = member:getOuterBounds()
+    local x1, y1, x2, y2 = memberX, memberY, memberX + memberWidth, memberY + memberHeight
+
+    local parent = member.parent
+    while parent do
+        local parentStyle = parent.element.style
+        local parentX, parentY, parentWidth, parentHeight = parent:getInnerBounds()
+        local px1, py1, px2, py2 = parentX, parentY, parentX + parentWidth, parentY + parentHeight
+
+        local offsetX, offsetY = 0, 0
+        offsetX = offsetX + math.max(px1 - x1, 0)
+        offsetY = offsetY + math.max(py1 - y1, 0)
+        offsetX = offsetX + math.min(px2 - x2, 0)
+        offsetY = offsetY + math.min(py2 - y2, 0)
+
+        if parentStyle.scrollHorizontal then
+            parent.scrollX = parent.scrollX + offsetX
+            x1 = x1 + offsetX
+            x2 = x2 + offsetX
+        end
+        if parentStyle.scrollVertical then
+            parent.scrollY = parent.scrollY + offsetY
+            y1 = y1 + offsetY
+            y2 = y2 + offsetY
+        end
+        parent = parent.parent
+    end
+end
+
 --- Tries to select self or any child. If provided, will find the selection closest to the source member.
 ---@param source? PapayuiLiveMember
 ---@return PapayuiLiveMember?
@@ -1284,12 +1383,17 @@ function LiveMember:selectAny(source)
         sourceY = y + h / 2
     end
 
+    local boundsX, boundsY, boundsWidth, boundsHeight = self:getInnerBounds()
+
     local stack = {self}
     while #stack > 0 do
         local member = stack[#stack]
         stack[#stack] = nil
 
-        local croppedX, croppedY, croppedWidth, croppedHeight = member:getCroppedBounds()
+        -- Only crop the elements to the initial element's inner area, higher parents can't be taken into account
+        local memberX, memberY, memberWidth, memberHeight = member:getBounds()
+        local croppedX, croppedY, croppedWidth, croppedHeight = papayui.overlapAreas(memberX, memberY, memberWidth, memberHeight, boundsX, boundsY, boundsWidth, boundsHeight)
+
         local canSelect = member:isSelectable() and croppedWidth > 0 and croppedHeight > 0
         if canSelect and not source then return member end
 
