@@ -17,8 +17,8 @@ papayui.colors.title = {1, 1, 1}
 papayui.scale = 1
 
 -- Configure scrolling strength
-papayui.scrollSpeed = 300
-papayui.scrollVelocityPreservation = 0.9
+papayui.scrollSpeed = 10
+papayui.scrollFriction = 0.1
 
 -- Definitions -------------------------------------------------------------------------------------
 
@@ -251,6 +251,7 @@ local defaultDeltaTime = 1/60
 ---@param dt? number
 function UI:update(dt)
     dt = dt or defaultDeltaTime
+    local dtNormalised = dt / defaultDeltaTime
 
     local members = self.members
     for memberIndex = 1, #members do
@@ -263,14 +264,14 @@ function UI:update(dt)
             local scrollVelocityX = member.scrollVelocityX
             local scrollVelocityY = member.scrollVelocityY
 
-            member.scrollX = scrollX + scrollVelocityX * dt
-            member.scrollY = scrollY + scrollVelocityY * dt
-            member.scrollVelocityX = scrollVelocityX * papayui.scrollVelocityPreservation
-            member.scrollVelocityY = scrollVelocityY * papayui.scrollVelocityPreservation
+            member.scrollX = scrollX + scrollVelocityX * dtNormalised
+            member.scrollY = scrollY + scrollVelocityY * dtNormalised
+            member.scrollVelocityX = scrollVelocityX - (scrollVelocityX * papayui.scrollFriction) * dtNormalised
+            member.scrollVelocityY = scrollVelocityY - (scrollVelocityY * papayui.scrollFriction) * dtNormalised
 
             -- Make slow portions of scrolling look less jittery
-            if math.abs(member.scrollX - scrollX) < 1 then member.scrollVelocityX = 0 end
-            if math.abs(member.scrollY - scrollY) < 1 then member.scrollVelocityY = 0 end
+            if math.abs(member.scrollX - scrollX) < 0.25 then member.scrollVelocityX = 0 end
+            if math.abs(member.scrollY - scrollY) < 0.25 then member.scrollVelocityY = 0 end
 
             -- Cap scroll to limits
             local minScrollX, minScrollY, maxScrollX, maxScrollY = member:getScrollLimits()
