@@ -19,6 +19,7 @@ papayui.scale = 1
 -- Configure scrolling strength
 papayui.scrollSpeed = 10
 papayui.scrollFriction = 0.1
+papayui.buttonScrollOvershoot = 10 -- how many pixel to try to (roughly) overshoot when scrolling using button input
 
 -- Definitions -------------------------------------------------------------------------------------
 
@@ -270,8 +271,8 @@ function UI:update(dt)
             member.scrollVelocityY = scrollVelocityY - (scrollVelocityY * papayui.scrollFriction) * dtNormalised
 
             -- Make slow portions of scrolling look less jittery
-            if math.abs(member.scrollX - scrollX) < 0.25 then member.scrollVelocityX = 0 end
-            if math.abs(member.scrollY - scrollY) < 0.25 then member.scrollVelocityY = 0 end
+            if math.abs(member.scrollX - scrollX) < 0.25 * dtNormalised then member.scrollVelocityX = 0 end
+            if math.abs(member.scrollY - scrollY) < 0.25 * dtNormalised then member.scrollVelocityY = 0 end
 
             -- Cap scroll to limits
             local minScrollX, minScrollY, maxScrollX, maxScrollY = member:getScrollLimits()
@@ -395,12 +396,12 @@ function UI:scroll(scrollX, scrollY)
                 or scrollY > 0 and currentScrollY < maxScrollY
 
             if canScrollX then
-                member.scrollVelocityX = papayui.scrollSpeed * scrollX
+                member.scrollVelocityX = papayui.scrollSpeed * papayui.scale * scrollX
                 scrollX = 0
             end
 
             if canScrollY then
-                member.scrollVelocityY = papayui.scrollSpeed * scrollY
+                member.scrollVelocityY = papayui.scrollSpeed * papayui.scale * scrollY
                 scrollY = 0
             end
         end
@@ -645,7 +646,7 @@ function Element:draw(x, y, width, height, isSelected)
 end
 
 -- Misc stuff --------------------------------------------------------------------------------------
--- Exported by the module since they could be useful
+-- Some are exported by the module since they could be useful
 
 --- Used internally by the library.  
 --- Applies mixins onto the receiving table (copies the mixins' values to it).  
@@ -702,6 +703,33 @@ function papayui.overlapAreas(aX, aY, aWidth, aHeight, bX, bY, bWidth, bHeight)
     local y2 = math.min(ay2, by2)
 
     return x1, y1, x2 - x1, y2 - y1
+end
+
+---@param targetDistanceTravelled number
+---@param friction number
+---@param highestAttempt? integer
+---@param simulationTime? integer
+---@return number
+local function predictNeededScrollVelocity(targetDistanceTravelled, friction, highestAttempt, simulationTime)
+    highestAttempt = highestAttempt or 1000
+    simulationTime = simulationTime or 300
+
+    if targetDistanceTravelled == 0 then return 0 end
+
+    for attempt = 1, highestAttempt do
+        local initialVelocity = attempt * (targetDistanceTravelled > 0 and 1 or -1)
+
+        local velocity = initialVelocity
+        local result = 0
+        for velocityIteration = 1, simulationTime do
+            result = result + velocity
+            velocity = velocity - (velocity * friction)
+        end
+
+        if math.abs(result) >= math.abs(targetDistanceTravelled) then return initialVelocity end
+    end
+
+    return highestAttempt
 end
 
 -- Abstraction for possible usage outside LÖVE -----------------------------------------------------
@@ -1358,12 +1386,24 @@ function LiveMember:scrollToView()
         offsetY = offsetY + math.min(py2 - y2, 0)
 
         if parentStyle.scrollHorizontal then
-            parent.scrollX = parent.scrollX + offsetX
+            local targetVelocity = offsetX
+            if targetVelocity > 0 then targetVelocity = targetVelocity + papayui.buttonScrollOvershoot end
+            if targetVelocity < 0 then targetVelocity = targetVelocity - papayui.buttonScrollOvershoot end
+            local velocity = 0
+            if targetVelocity ~= 0 then velocity = predictNeededScrollVelocity(targetVelocity, papayui.scrollFriction) end
+
+            parent.scrollVelocityX = velocity
             x1 = x1 + offsetX
             x2 = x2 + offsetX
         end
         if parentStyle.scrollVertical then
-            parent.scrollY = parent.scrollY + offsetY
+            local targetVelocity = offsetY
+            if targetVelocity > 0 then targetVelocity = targetVelocity + papayui.buttonScrollOvershoot end
+            if targetVelocity < 0 then targetVelocity = targetVelocity - papayui.buttonScrollOvershoot end
+            local velocity = 0
+            if targetVelocity ~= 0 then velocity = predictNeededScrollVelocity(targetVelocity, papayui.scrollFriction) end
+
+            parent.scrollVelocityY = velocity
             y1 = y1 + offsetY
             y2 = y2 + offsetY
         end
