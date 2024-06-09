@@ -376,13 +376,29 @@ function UI:scroll(scrollX, scrollY)
         local member = self.members[memberIndex]
         local memberX, memberY, memberWidth, memberHeight = member:getCroppedBounds()
 
-        if cursorX > memberX and cursorY > memberY and cursorX < memberX + memberWidth and cursorY < memberY + memberHeight then
-            if scrollX ~= 0 and member.element.style.scrollHorizontal then
+        local cursorInBounds = cursorX > memberX and cursorY > memberY and cursorX < memberX + memberWidth and cursorY < memberY + memberHeight
+
+        if cursorInBounds then
+
+            local minScrollX, minScrollY, maxScrollX, maxScrollY = member:getScrollLimits()
+            local currentScrollX, currentScrollY = member.scrollX, member.scrollY
+
+            local canScrollX =
+                   member.element.style.scrollHorizontal and
+                   scrollX < 0 and currentScrollX > minScrollX
+                or scrollX > 0 and currentScrollX < maxScrollX
+
+            local canScrollY =
+                   member.element.style.scrollVertical and
+                   scrollY < 0 and currentScrollY > minScrollY
+                or scrollY > 0 and currentScrollY < maxScrollY
+
+            if canScrollX then
                 member.scrollVelocityX = papayui.scrollSpeed * scrollX
                 scrollX = 0
             end
 
-            if scrollY ~= 0 and member.element.style.scrollVertical then
+            if canScrollY then
                 member.scrollVelocityY = papayui.scrollSpeed * scrollY
                 scrollY = 0
             end
