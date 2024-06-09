@@ -336,7 +336,7 @@ function UI:updateCursor(x, y)
         local memberX, memberY, memberWidth, memberHeight = member:getCroppedBounds()
         if x > memberX and y > memberY and x < memberX + memberWidth and y < memberY + memberHeight then
             if member:isSelectable() then
-                self:select(member, true)
+                self:select(member)
                 foundSelection = true
             end
         end
