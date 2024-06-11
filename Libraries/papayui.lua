@@ -347,9 +347,11 @@ function UI:updateCursor(x, y)
     if self.actionDown then
         self:select()
 
-        local hoveredMember = self.touchDraggedMember or self:findElementAtCoordinate(x, y)
-        if hoveredMember then hoveredMember:scrollRecursively(x - xPrevious, y - yPrevious, false, 1) end
-        self.touchDraggedMember = hoveredMember
+        if papayui.touchScrollingEnabled then
+            local hoveredMember = self.touchDraggedMember or self:findElementAtCoordinate(x, y)
+            if hoveredMember then hoveredMember:scrollRecursively(x - xPrevious, y - yPrevious, false, 1) end
+            self.touchDraggedMember = hoveredMember
+        end
 
         return
     end
