@@ -16,10 +16,10 @@ papayui.colors.title = {1, 1, 1}
 -- Change and then refresh any UIs
 papayui.scale = 1
 
--- Configure scrolling strength
-papayui.scrollSpeed = 10
-papayui.scrollFriction = 0.1
-papayui.buttonScrollOvershoot = 10 -- how many pixel to try to (roughly) overshoot when scrolling using button input
+papayui.scrollSpeed = 10              -- Sets the speed of scrolling using scroll input
+papayui.scrollFriction = 0.1          -- How fast the scrolling slows down
+papayui.buttonScrollOvershoot = 10    -- How many pixels to try to (roughly) overshoot when scrolling using button input
+papayui.touchScrollingEnabled = true -- Whether or not holding down the action key and dragging the cursor can scroll
 
 -- Definitions -------------------------------------------------------------------------------------
 
@@ -78,6 +78,8 @@ local ElementMT = {__index = Element}
 ---@field actionDown boolean If the action key is currently down (set automatically by the appropriate methods)
 ---@field cursorX number The cursor X coordinate
 ---@field cursorY number The cursor Y coordinate
+---@field grabbedScrollX? number The X coordinate of where a touch scrolling event started
+---@field grabbedScrollY? number The Y coordinate of where a touch scrolling event started
 local UI = {}
 local UIMT = {__index = UI}
 
@@ -199,7 +201,9 @@ function papayui.newUI(rootElement, x, y)
         lastSelection = nil,
         actionDown = false,
         cursorX = 0,
-        cursorY = 0
+        cursorY = 0,
+        grabbedScrollX = nil,
+        grabbedScrollY = nil
     }
 
     local rootMember = papayui.newLiveMember(rootElement, x, y)
@@ -249,6 +253,8 @@ local defaultDeltaTime = 1/60
 --- ### UI:update(dt)
 --- Updates the dynamically changing elements of the UI, such as scrolling.  
 --- If the UI doesn't contain any such elements, calling update is not necessary.  
+---
+--- If deltatime isn't supplied, assumes a constant 60 updates per second.
 ---@param dt? number
 function UI:update(dt)
     dt = dt or defaultDeltaTime
@@ -324,13 +330,25 @@ end
 ---@param y number
 function UI:updateCursor(x, y)
     if x == self.cursorX and y == self.cursorY then return end
+    local xPrevious = self.cursorX
+    local yPrevious = self.cursorY
     self.cursorX = x
     self.cursorY = y
 
     if self.actionDown then
         self:select()
+
+        -- Simulate a scroll input
+
+        if not self.grabbedScrollX then self.grabbedScrollX = x end
+        if not self.grabbedScrollY then self.grabbedScrollY = y end
+
+        self:scrollAt(self.grabbedScrollX, self.grabbedScrollY, x - xPrevious, y - yPrevious, true)
+
         return
     end
+    self.grabbedScrollX = nil
+    self.grabbedScrollY = nil
 
     local foundSelection = false
     for memberIndex = 1, #self.members do
@@ -363,14 +381,31 @@ end
 --------------------------------------------------
 --- ### UI:scroll(scrollX, scrollY)
 --- Tells the UI how much the user is scrolling in each given direction (1 would correspond to one mouse wheel movement).  
---- Each direction is optional - if not supplied, no scroll input is applied in that direction.
+--- Each direction is optional - if not supplied, no scroll input is applied in that direction.  
+--- If ignoreVelocity is set to true, no velocity is applied, and the scroller is moved instantly.
 ---@param scrollX? number
 ---@param scrollY? number
-function UI:scroll(scrollX, scrollY)
+---@param ignoreVelocity? boolean
+function UI:scroll(scrollX, scrollY, ignoreVelocity)
+    return self:scrollAt(self.cursorX, self.cursorY, scrollX, scrollY, ignoreVelocity)
+end
+
+--------------------------------------------------
+--- ### UI:scrollAt(x, y, scrollX, scrollY, ignoreVelocity)
+--- Tells the UI to scroll at a specific location.  
+--- For most purposes, UI:scroll() will suffice, as it scrolls at the current cursor position.
+---@param x number The X position to scroll at
+---@param y number The Y position to scroll at
+---@param scrollX? number The amount to scroll in the X direction
+---@param scrollY? number The amount to scroll in the Y direction
+---@param ignoreVelocity? boolean If true, no velocity is applied, and the scroller is moved instantly.
+---@param speed? number Optionally override the scrolling speed
+function UI:scrollAt(x, y, scrollX, scrollY, ignoreVelocity, speed)
     scrollX = scrollX or 0
     scrollY = scrollY or 0
+    speed = speed or papayui.scrollSpeed * papayui.scale
 
-    local cursorX, cursorY = self.cursorX, self.cursorY
+    local cursorX, cursorY = x, y
 
     for memberIndex = #self.members, 1, -1 do
         if scrollX == 0 and scrollY == 0 then break end
@@ -381,27 +416,27 @@ function UI:scroll(scrollX, scrollY)
         local cursorInBounds = cursorX > memberX and cursorY > memberY and cursorX < memberX + memberWidth and cursorY < memberY + memberHeight
 
         if cursorInBounds then
+            local style = member.element.style
 
             local minScrollX, minScrollY, maxScrollX, maxScrollY = member:getScrollLimits()
             local currentScrollX, currentScrollY = member.scrollX, member.scrollY
 
-            local canScrollX =
-                   member.element.style.scrollHorizontal and
-                   scrollX < 0 and currentScrollX > minScrollX
-                or scrollX > 0 and currentScrollX < maxScrollX
-
-            local canScrollY =
-                   member.element.style.scrollVertical and
-                   scrollY < 0 and currentScrollY > minScrollY
-                or scrollY > 0 and currentScrollY < maxScrollY
+            local cappedScrollX = papayui.moveWithinRange(minScrollX, maxScrollX, currentScrollX, scrollX)
+            local cappedScrollY = papayui.moveWithinRange(minScrollY, maxScrollY, currentScrollY, scrollY)
+            local canScrollX = style.scrollHorizontal and cappedScrollX ~= 0
+            local canScrollY = style.scrollVertical and cappedScrollY ~= 0
 
             if canScrollX then
-                member.scrollVelocityX = papayui.scrollSpeed * papayui.scale * scrollX
+                local strength = speed * scrollX
+                if ignoreVelocity then member.scrollX = currentScrollX + cappedScrollX
+                else member.scrollVelocityX = strength end
                 scrollX = 0
             end
 
             if canScrollY then
-                member.scrollVelocityY = papayui.scrollSpeed * papayui.scale * scrollY
+                local strength = speed * scrollY
+                if ignoreVelocity then member.scrollY = currentScrollY + cappedScrollY
+                else member.scrollVelocityY = strength end
                 scrollY = 0
             end
         end
@@ -703,6 +738,28 @@ function papayui.overlapAreas(aX, aY, aWidth, aHeight, bX, bY, bWidth, bHeight)
     local y2 = math.min(ay2, by2)
 
     return x1, y1, x2 - x1, y2 - y1
+end
+
+--- Used internally by the library.  
+---
+--- Changes the currentValue by the moveAmount, but only within the specified range - the moveAmount gets shortened if needed.  
+---
+--- Returns the adjusted moveAmount.
+---@param rangeMin number
+---@param rangeMax number
+---@param currentValue number
+---@param moveAmount number
+---@return number moveAmount
+function papayui.moveWithinRange(rangeMin, rangeMax, currentValue, moveAmount)
+    if rangeMax < rangeMin then return 0 end
+    if moveAmount == 0 then return 0 end
+    if moveAmount < 0 and currentValue < rangeMin then return 0 end
+    if moveAmount > 0 and currentValue > rangeMax then return 0 end
+
+    if moveAmount > 0 then return math.min(currentValue + moveAmount, rangeMax) - currentValue end
+    if moveAmount < 0 then return math.max(currentValue + moveAmount, rangeMin) - currentValue end
+
+    return 0
 end
 
 ---@param targetDistanceTravelled number
@@ -1321,6 +1378,7 @@ function LiveMember:isSelectable()
     return false
 end
 
+--- Gets the mininmum and maximum values for each axis stating how far in that direction the member can scroll
 ---@return number minX
 ---@return number minY
 ---@return number maxX
