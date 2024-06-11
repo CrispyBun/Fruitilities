@@ -69,6 +69,7 @@ local ElementStyleMT = {__index = ElementStyle}
 ---@field style PapayuiElementStyle The style this element uses
 ---@field behavior PapayuiElementBehavior The behavior this element uses
 ---@field children PapayuiElement[] The children of this element (can be empty)
+---@field importance number When finding a default element to select, the element with the highest importance gets picked
 local Element = {}
 local ElementMT = {__index = Element}
 
@@ -180,7 +181,8 @@ function papayui.newElement(style, behavior)
     local element = {
         style = style,
         behavior = behavior,
-        children = {}
+        children = {},
+        importance = 0
     }
 
     return setmetatable(element, ElementMT)
@@ -465,13 +467,23 @@ function UI:findDefaultSelectable()
         if croppedWidth > 0 and croppedHeight > 0 then return self.lastSelection end
     end
 
+    local bestCandidate = nil
+    local bestCandidateImportance = -math.huge
+
     local members = self.members
     for memberIndex = 1, #members do
         local member = members[memberIndex]
         local _, _, croppedWidth, croppedHeight = member:getCroppedBounds()
 
-        if member:isSelectable() and croppedWidth > 0 and croppedHeight > 0 then return member end
+        if member:isSelectable() and croppedWidth > 0 and croppedHeight > 0 then
+            if member.element.importance > bestCandidateImportance then
+                bestCandidate = member
+                bestCandidateImportance = member.element.importance
+            end
+        end
     end
+
+    return bestCandidate
 end
 
 --------------------------------------------------
