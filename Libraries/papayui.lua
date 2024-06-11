@@ -78,7 +78,7 @@ local ElementMT = {__index = Element}
 ---@field actionDown boolean If the action key is currently down (set automatically by the appropriate methods)
 ---@field cursorX number The cursor X coordinate
 ---@field cursorY number The cursor Y coordinate
----@field isTouchDragging boolean If an element is currently being scrolled using touch input
+---@field touchDraggedMember? PapayuiLiveMember The member that is currently being being scrolled using touch input
 local UI = {}
 local UIMT = {__index = UI}
 
@@ -201,7 +201,7 @@ function papayui.newUI(rootElement, x, y)
         actionDown = false,
         cursorX = 0,
         cursorY = 0,
-        isTouchDragging = false
+        touchDraggedMember = nil
     }
 
     local rootMember = papayui.newLiveMember(rootElement, x, y)
@@ -270,7 +270,7 @@ function UI:update(dt)
             local scrollVelocityY = member.scrollVelocityY
 
             -- While touch dragging, velocity is ignored
-            if self.isTouchDragging then
+            if self.touchDraggedMember then
                 member.scrollX = scrollX + scrollVelocityX
                 member.scrollY = scrollY + scrollVelocityY
                 member.scrollVelocityX = 0
@@ -347,15 +347,14 @@ function UI:updateCursor(x, y)
     if self.actionDown then
         self:select()
 
-        -- Simulate a scroll input
-
-        self:scrollAt(x, y, x - xPrevious, y - yPrevious, false, 1)
-        self.isTouchDragging = true
+        local hoveredMember = self.touchDraggedMember or self:findElementAtCoordinate(x, y)
+        if hoveredMember then hoveredMember:scrollRecursively(x - xPrevious, y - yPrevious, false, 1) end
+        self.touchDraggedMember = hoveredMember
 
         return
     end
     -- Turn off touch dragging here just in case ui:actionRelease() isn't used for whatever reason
-    self.isTouchDragging = false
+    self.touchDraggedMember = nil
 
     local foundSelection = false
     for memberIndex = 1, #self.members do
@@ -383,7 +382,7 @@ end
 --- Tells the UI that the action key has been released
 function UI:actionRelease()
     self.actionDown = false
-    self.isTouchDragging = false
+    self.touchDraggedMember = nil
 end
 
 --------------------------------------------------
@@ -460,6 +459,23 @@ function UI:findDefaultSelectable()
         local _, _, croppedWidth, croppedHeight = member:getCroppedBounds()
 
         if member:isSelectable() and croppedWidth > 0 and croppedHeight > 0 then return member end
+    end
+end
+
+--------------------------------------------------
+--- Returns the (topmost) member at the given coordinate. Used internally.
+---@param x number
+---@param y number
+---@return PapayuiLiveMember?
+function UI:findElementAtCoordinate(x, y)
+    local members = self.members
+    for memberIndex = #members, 1, -1 do
+        local member = members[memberIndex]
+
+        local memberX, memberY, memberWidth, memberHeight = member:getCroppedBounds()
+
+        local inBounds = x > memberX and y > memberY and x < memberX + memberWidth and y < memberY + memberHeight
+        if inBounds then return member end
     end
 end
 
@@ -1496,6 +1512,24 @@ function LiveMember:scroll(scrollX, scrollY, ignoreVelocity, speed)
     end
 
     return scrolledX, scrolledY
+end
+
+--- Attempts to scroll the member, or recursively tries the same on its parent elements if it can't.
+---@param scrollX? number The amount to scroll in the X axis
+---@param scrollY? number The amount to scroll in the Y axis
+---@param ignoreVelocity? boolean If true, no velocity is applied, and the scroller is moved instantly.
+---@param speed? number Optionally override the scrolling speed
+function LiveMember:scrollRecursively(scrollX, scrollY, ignoreVelocity, speed)
+    scrollX = scrollX or 0
+    scrollY = scrollY or 0
+
+    local member = self
+    while member and (scrollX ~= 0 or scrollY ~= 0) do
+        local scrolledX, scrolledY = member:scroll(scrollX, scrollY, ignoreVelocity, speed)
+        if scrolledX then scrollX = 0 end
+        if scrolledY then scrollY = 0 end
+        member = member.parent
+    end
 end
 
 --- Tries to select self or any child. If provided, will find the selection closest to the source member.
