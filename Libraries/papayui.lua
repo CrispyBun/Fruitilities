@@ -19,7 +19,7 @@ papayui.scale = 1
 papayui.scrollSpeed = 10              -- Sets the speed of scrolling using scroll input
 papayui.scrollFriction = 0.1          -- How fast the scrolling slows down
 papayui.buttonScrollOvershoot = 10    -- How many pixels to try to (roughly) overshoot when scrolling using button input
-papayui.touchScrollingEnabled = true -- Whether or not holding down the action key and dragging the cursor can scroll
+papayui.touchScrollingEnabled = true  -- Whether or not holding down the action key and dragging the cursor can scroll
 
 -- Definitions -------------------------------------------------------------------------------------
 
@@ -78,8 +78,7 @@ local ElementMT = {__index = Element}
 ---@field actionDown boolean If the action key is currently down (set automatically by the appropriate methods)
 ---@field cursorX number The cursor X coordinate
 ---@field cursorY number The cursor Y coordinate
----@field grabbedScrollX? number The X coordinate of where a touch scrolling event started
----@field grabbedScrollY? number The Y coordinate of where a touch scrolling event started
+---@field isTouchDragging boolean If an element is currently being scrolled using touch input
 local UI = {}
 local UIMT = {__index = UI}
 
@@ -202,8 +201,7 @@ function papayui.newUI(rootElement, x, y)
         actionDown = false,
         cursorX = 0,
         cursorY = 0,
-        grabbedScrollX = nil,
-        grabbedScrollY = nil
+        isTouchDragging = false
     }
 
     local rootMember = papayui.newLiveMember(rootElement, x, y)
@@ -270,6 +268,17 @@ function UI:update(dt)
             local scrollY = member.scrollY
             local scrollVelocityX = member.scrollVelocityX
             local scrollVelocityY = member.scrollVelocityY
+
+            -- While touch dragging, velocity is ignored
+            if self.isTouchDragging then
+                member.scrollX = scrollX + scrollVelocityX
+                member.scrollY = scrollY + scrollVelocityY
+                member.scrollVelocityX = 0
+                member.scrollVelocityY = 0
+
+                scrollX, scrollY = member.scrollX, member.scrollY
+                scrollVelocityX, scrollVelocityY = 0, 0
+            end
 
             member.scrollX = scrollX + scrollVelocityX * dtNormalised
             member.scrollY = scrollY + scrollVelocityY * dtNormalised
@@ -340,15 +349,13 @@ function UI:updateCursor(x, y)
 
         -- Simulate a scroll input
 
-        if not self.grabbedScrollX then self.grabbedScrollX = x end
-        if not self.grabbedScrollY then self.grabbedScrollY = y end
-
-        self:scrollAt(self.grabbedScrollX, self.grabbedScrollY, x - xPrevious, y - yPrevious, true)
+        self:scrollAt(x, y, x - xPrevious, y - yPrevious, false, 1)
+        self.isTouchDragging = true
 
         return
     end
-    self.grabbedScrollX = nil
-    self.grabbedScrollY = nil
+    -- Turn off touch dragging here just in case ui:actionRelease() isn't used for whatever reason
+    self.isTouchDragging = false
 
     local foundSelection = false
     for memberIndex = 1, #self.members do
@@ -376,6 +383,7 @@ end
 --- Tells the UI that the action key has been released
 function UI:actionRelease()
     self.actionDown = false
+    self.isTouchDragging = false
 end
 
 --------------------------------------------------
