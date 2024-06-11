@@ -16,8 +16,9 @@ papayui.colors.title = {1, 1, 1}
 -- Change and then refresh any UIs
 papayui.scale = 1
 
-papayui.scrollSpeed = 10              -- Sets the speed of scrolling using scroll input
-papayui.scrollFriction = 0.1          -- How fast the scrolling slows down
+papayui.scrollSpeed = 100             -- The maximum scrolling speed
+papayui.scrollSpeedStep = 5           -- How much scroll speed is added on each scroll input
+papayui.scrollFriction = 0.2          -- How fast the scrolling slows down
 papayui.buttonScrollOvershoot = 10    -- How many pixels to try to (roughly) overshoot when scrolling using button input
 papayui.touchScrollingEnabled = true  -- Whether or not holding down the action key and dragging the cursor can scroll
 
@@ -264,6 +265,15 @@ function UI:update(dt)
         local style = member.element.style
 
         if style.scrollHorizontal or style.scrollVertical then
+
+            -- Cap velocity to max speed
+            if math.abs(member.scrollVelocityX) > papayui.scrollSpeed then
+                member.scrollVelocityX = member.scrollVelocityX > 0 and papayui.scrollSpeed or -papayui.scrollSpeed
+            end
+            if math.abs(member.scrollVelocityY) > papayui.scrollSpeed then
+                member.scrollVelocityY = member.scrollVelocityY > 0 and papayui.scrollSpeed or -papayui.scrollSpeed
+            end
+
             local scrollX = member.scrollX
             local scrollY = member.scrollY
             local scrollVelocityX = member.scrollVelocityX
@@ -1484,7 +1494,7 @@ end
 function LiveMember:scroll(scrollX, scrollY, ignoreVelocity, speed)
     scrollX = scrollX or 0
     scrollY = scrollY or 0
-    speed = speed or papayui.scrollSpeed * papayui.scale
+    speed = speed or papayui.scrollSpeedStep * papayui.scale
 
     local style = self.element.style
 
@@ -1502,14 +1512,14 @@ function LiveMember:scroll(scrollX, scrollY, ignoreVelocity, speed)
     if canScrollX then
         local strength = speed * scrollX
         if ignoreVelocity then self.scrollX = currentScrollX + cappedScrollX
-        else self.scrollVelocityX = strength end
+        else self.scrollVelocityX = self.scrollVelocityX + strength end
         scrolledX = true
     end
 
     if canScrollY then
         local strength = speed * scrollY
         if ignoreVelocity then self.scrollY = currentScrollY + cappedScrollY
-        else self.scrollVelocityY = strength end
+        else self.scrollVelocityY = self.scrollVelocityY + strength end
         scrolledY = true
     end
 
