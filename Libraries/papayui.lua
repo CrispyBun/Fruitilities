@@ -1360,11 +1360,11 @@ function LiveMember:getCropArea(overlapX1, overlapY1, overlapX2, overlapY2)
         return overlapX1, overlapY1, overlapX2 - overlapX1, overlapY2 - overlapY1
     end
 
-    local x, y, width, height = self:getBounds()
-    local contentX1 = x + style.padding[1]
-    local contentY1 = y + style.padding[2]
-    local contentX2 = contentX1 + width - style.padding[1] - style.padding[3]
-    local contentY2 = contentY1 + height - style.padding[2] - style.padding[4]
+    local x, y, width, height = self:getInnerBounds()
+    local contentX1 = x
+    local contentY1 = y
+    local contentX2 = contentX1 + width
+    local contentY2 = contentY1 + height
 
     overlapX1 = overlapX1 or contentX1
     overlapY1 = overlapY1 or contentY1
