@@ -404,14 +404,13 @@ end
 --- For most purposes, UI:scroll() will suffice, as it scrolls at the current cursor position.
 ---@param x number The X position to scroll at
 ---@param y number The Y position to scroll at
----@param scrollX? number The amount to scroll in the X direction
----@param scrollY? number The amount to scroll in the Y direction
+---@param scrollX? number The amount to scroll in the X axis
+---@param scrollY? number The amount to scroll in the Y axis
 ---@param ignoreVelocity? boolean If true, no velocity is applied, and the scroller is moved instantly.
 ---@param speed? number Optionally override the scrolling speed
 function UI:scrollAt(x, y, scrollX, scrollY, ignoreVelocity, speed)
     scrollX = scrollX or 0
     scrollY = scrollY or 0
-    speed = speed or papayui.scrollSpeed * papayui.scale
 
     local cursorX, cursorY = x, y
 
@@ -424,29 +423,9 @@ function UI:scrollAt(x, y, scrollX, scrollY, ignoreVelocity, speed)
         local cursorInBounds = cursorX > memberX and cursorY > memberY and cursorX < memberX + memberWidth and cursorY < memberY + memberHeight
 
         if cursorInBounds then
-            local style = member.element.style
-
-            local minScrollX, minScrollY, maxScrollX, maxScrollY = member:getScrollLimits()
-            local currentScrollX, currentScrollY = member.scrollX, member.scrollY
-
-            local cappedScrollX = papayui.moveWithinRange(minScrollX, maxScrollX, currentScrollX, scrollX)
-            local cappedScrollY = papayui.moveWithinRange(minScrollY, maxScrollY, currentScrollY, scrollY)
-            local canScrollX = style.scrollHorizontal and cappedScrollX ~= 0
-            local canScrollY = style.scrollVertical and cappedScrollY ~= 0
-
-            if canScrollX then
-                local strength = speed * scrollX
-                if ignoreVelocity then member.scrollX = currentScrollX + cappedScrollX
-                else member.scrollVelocityX = strength end
-                scrollX = 0
-            end
-
-            if canScrollY then
-                local strength = speed * scrollY
-                if ignoreVelocity then member.scrollY = currentScrollY + cappedScrollY
-                else member.scrollVelocityY = strength end
-                scrollY = 0
-            end
+            local scrolledX, scrolledY = member:scroll(scrollX, scrollY, ignoreVelocity, speed)
+            if scrolledX then scrollX = 0 end
+            if scrolledY then scrollY = 0 end
         end
     end
 end
@@ -1475,6 +1454,48 @@ function LiveMember:scrollToView()
         end
         parent = parent.parent
     end
+end
+
+--- Attempts to scroll by the given amount, outputting booleans for each axis stating whether or not that axis was scrolled.  
+---@param scrollX? number The amount to scroll in the X axis
+---@param scrollY? number The amount to scroll in the Y axis
+---@param ignoreVelocity? boolean If true, no velocity is applied, and the scroller is moved instantly.
+---@param speed? number Optionally override the scrolling speed
+---@return boolean scrolledX
+---@return boolean scrolledY
+function LiveMember:scroll(scrollX, scrollY, ignoreVelocity, speed)
+    scrollX = scrollX or 0
+    scrollY = scrollY or 0
+    speed = speed or papayui.scrollSpeed * papayui.scale
+
+    local style = self.element.style
+
+    local scrolledX = false
+    local scrolledY = false
+
+    local minScrollX, minScrollY, maxScrollX, maxScrollY = self:getScrollLimits()
+    local currentScrollX, currentScrollY = self.scrollX, self.scrollY
+
+    local cappedScrollX = papayui.moveWithinRange(minScrollX, maxScrollX, currentScrollX, scrollX)
+    local cappedScrollY = papayui.moveWithinRange(minScrollY, maxScrollY, currentScrollY, scrollY)
+    local canScrollX = style.scrollHorizontal and cappedScrollX ~= 0
+    local canScrollY = style.scrollVertical and cappedScrollY ~= 0
+
+    if canScrollX then
+        local strength = speed * scrollX
+        if ignoreVelocity then self.scrollX = currentScrollX + cappedScrollX
+        else self.scrollVelocityX = strength end
+        scrolledX = true
+    end
+
+    if canScrollY then
+        local strength = speed * scrollY
+        if ignoreVelocity then self.scrollY = currentScrollY + cappedScrollY
+        else self.scrollVelocityY = strength end
+        scrolledY = true
+    end
+
+    return scrolledX, scrolledY
 end
 
 --- Tries to select self or any child. If provided, will find the selection closest to the source member.
