@@ -206,33 +206,13 @@ function papayui.newUI(rootElement, x, y)
         cursorY = math.huge,
         touchDraggedMember = nil
     }
+    setmetatable(ui, UIMT)
 
     local rootMember = papayui.newLiveMember(rootElement, x, y)
+    ui.members[1] = rootMember
+    ui:refresh()
 
-    local memberQueueFirst = {value = rootMember, next = nil}
-    local memberQueueLast = memberQueueFirst
-    while memberQueueFirst do
-        ---@type PapayuiLiveMember
-        local member = memberQueueFirst.value
-        local layout = member.element.style.layout
-
-        if layout and papayui.layouts[layout] then
-            ---@type PapayuiLiveMember[]
-            local addedMembers = papayui.layouts[layout](member)
-
-            for addedIndex = 1, #addedMembers do
-                local addedMember = addedMembers[addedIndex]
-                local nextQueueItem = {value = addedMember, next = nil}
-                memberQueueLast.next = nextQueueItem
-                memberQueueLast = nextQueueItem
-            end
-        end
-
-        ui.members[#ui.members+1] = member
-        memberQueueFirst = memberQueueFirst.next
-    end
-
-    return setmetatable(ui, UIMT)
+    return ui
 end
 
 -- UI methods --------------------------------------------------------------------------------------
@@ -321,6 +301,59 @@ function UI:update(dt)
             end
         end
     end
+end
+
+--------------------------------------------------
+--- ### UI:refresh()
+--- Redraws the entire UI.  
+---
+--- If any changes were made that affect positioning (such as papayui.scale or changing the elements' sizes or layouts), this method needs to be called to apply those changes to the UI.  
+--- Scrolling does not need to have refresh called.
+---
+--- The function only regenerates members when it needs to. If all of the UI's children stay the exact same, the actual member instances won't be overwritten by new ones, therefore remembering things like scrolling.
+function UI:refresh()
+    local rootMember = self.members[1]
+    if not rootMember then return end
+
+    self.members = {}
+
+    local memberQueueFirst = {value = rootMember, next = nil}
+    local memberQueueLast = memberQueueFirst
+    while memberQueueFirst do
+        ---@type PapayuiLiveMember
+        local member = memberQueueFirst.value
+        local layout = member.element.style.layout
+
+        if layout and papayui.layouts[layout] then
+            ---@type PapayuiLiveMember[]
+            local addedMembers = papayui.layouts[layout](member)
+
+            for addedIndex = 1, #addedMembers do
+                local addedMember = addedMembers[addedIndex]
+                local nextQueueItem = {value = addedMember, next = nil}
+                memberQueueLast.next = nextQueueItem
+                memberQueueLast = nextQueueItem
+            end
+        end
+
+        self.members[#self.members+1] = member
+        memberQueueFirst = memberQueueFirst.next
+    end
+
+    local selectedFound = false
+    local lastSelectionFound = false
+    local touchDraggedFound = false
+    for memberIndex = 1, #self.members do
+        if selectedFound and lastSelectionFound and touchDraggedFound then break end
+
+        local member = self.members[memberIndex]
+        selectedFound = selectedFound or member == self.selectedMember
+        lastSelectionFound = lastSelectionFound or member == self.lastSelection
+        touchDraggedFound = touchDraggedFound or member == self.touchDraggedMember
+    end
+    if not selectedFound then self.selectedMember = nil end
+    if not lastSelectionFound then self.lastSelection = nil end
+    if not touchDraggedFound then self.touchDraggedMember = nil end
 end
 
 local dirEnum = { left = 1, up = 2, right = 3, down = 4 }
@@ -518,6 +551,19 @@ function UI:findMemberAtCoordinate(x, y)
         local inBounds = x > memberX and y > memberY and x < memberX + memberWidth and y < memberY + memberHeight
         if inBounds then return member end
     end
+end
+
+--------------------------------------------------
+--- ### UI:memberIsPresent(member)
+--- Checks if the given member is present in the UI
+---@param member PapayuiLiveMember
+---@return boolean
+function UI:memberIsPresent(member)
+    local members = self.members
+    for memberIndex = 1, #members do
+        if members[memberIndex] == member then return true end
+    end
+    return false
 end
 
 -- Style methods -----------------------------------------------------------------------------------
@@ -879,19 +925,31 @@ local function getNudgeValue(usableSpace, usedSpace, align)
     return (align * unusedSpace + unusedSpace) / 2
 end
 
----@param elements PapayuiElement[]
 ---@param parentMember PapayuiLiveMember
 ---@return PapayuiLiveMember[]
-local function generateMembers(elements, parentMember)
-    local parentChildren = parentMember.children
+local function generateChildMembers(parentMember)
+    local elements = parentMember.element.children
+    local previousChildren = parentMember.children
+    local elementsAreIdentical = parentMember:childElementsAreIdentical(elements)
+
+    parentMember.children = {}
+
     ---@type PapayuiLiveMember[]
     local members = {}
     for elementIndex = 1, #elements do
         local element = elements[elementIndex]
 
-        local member = papayui.newLiveMember(element, 0, 0, parentMember)
+        local member
+        if elementsAreIdentical then
+            member = previousChildren[elementIndex]
+            member:resetBounds(0, 0)
+            member.nav = {}
+        else
+            member = papayui.newLiveMember(element, 0, 0, parentMember)
+        end
+
         members[elementIndex] = member
-        parentChildren[#parentChildren+1] = member
+        parentMember.children[elementIndex] = member
     end
     return members
 end
@@ -1181,7 +1239,6 @@ end
 
 function papayui.layouts.singlerow(parentMember, flipAxis)
     local style = parentMember.element.style
-    local children = parentMember.element.children
     local originX = parentMember.x + style.padding[1]
     local originY = parentMember.y + style.padding[2]
     local gap = flipAxis and style.gap[2] or style.gap[1]
@@ -1192,7 +1249,7 @@ function papayui.layouts.singlerow(parentMember, flipAxis)
     local usableSpaceWidth = parentMember.width - style.padding[1] - style.padding[3]
     local usableSpaceHeight = parentMember.height - style.padding[2] - style.padding[4]
 
-    local outMembers = generateMembers(children, parentMember)
+    local outMembers = generateChildMembers(parentMember)
     growLineMembers(outMembers, usableSpaceWidth, usableSpaceHeight, gap, flipAxis)
     layMembersInLine(outMembers, gap, alignInside, flipAxis)
     alignMembers(outMembers, originX, originY, usableSpaceWidth, usableSpaceHeight, alignHorizontal, alignVertical)
@@ -1206,7 +1263,6 @@ end
 
 function papayui.layouts.rows(parentMember, flipAxis)
     local style = parentMember.element.style
-    local children = parentMember.element.children
     local originX = parentMember.x + style.padding[1]
     local originY = parentMember.y + style.padding[2]
     local gapMain = flipAxis and style.gap[2] or style.gap[1]
@@ -1221,7 +1277,7 @@ function papayui.layouts.rows(parentMember, flipAxis)
     local usableSpaceMain =  flipAxis and usableSpaceHeight or usableSpaceWidth
 
     local outMembers = {}
-    local generatedMembers = generateMembers(children, parentMember)
+    local generatedMembers = generateChildMembers(parentMember)
     local lines = splitMembersToLines(generatedMembers, usableSpaceMain, gapMain, flipAxis, maxLineMembers)
 
     local lineOffset = 0
@@ -1420,6 +1476,33 @@ function LiveMember:getCroppedBounds(highestParent)
 
     -- Technically it can't ever get here but it makes the language server happy to do it this way
     return x, y, width, height
+end
+
+--- Resets the member's bounds to default values or sets them to new ones
+---@param x? number
+---@param y? number
+---@param width? number
+---@param height? number
+function LiveMember:resetBounds(x, y, width, height)
+    local style = self.element.style
+    local scale = style.ignoreScale and 1 or papayui.scale
+    self.x = x or 0
+    self.y = y or 0
+    self.width = (width or style.width) * scale
+    self.height = (height or style.height) * scale
+end
+
+--- Checks if the member's children are of the same instances and in the same order as the input elements
+---@param elements PapayuiElement[]
+---@return boolean
+function LiveMember:childElementsAreIdentical(elements)
+    local children = self.children
+    if #children ~= #elements then return false end
+    for childIndex = 1, #children do
+        local child = children[childIndex]
+        if child.element ~= elements[childIndex] then return false end
+    end
+    return true
 end
 
 ---@return boolean
