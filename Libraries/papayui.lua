@@ -248,14 +248,6 @@ function UI:update(dt)
 
         if style.scrollHorizontal or style.scrollVertical then
 
-            -- Cap velocity to max speed
-            if math.abs(member.scrollVelocityX) > papayui.scrollSpeed then
-                member.scrollVelocityX = member.scrollVelocityX > 0 and papayui.scrollSpeed or -papayui.scrollSpeed
-            end
-            if math.abs(member.scrollVelocityY) > papayui.scrollSpeed then
-                member.scrollVelocityY = member.scrollVelocityY > 0 and papayui.scrollSpeed or -papayui.scrollSpeed
-            end
-
             local scrollX = member.scrollX
             local scrollY = member.scrollY
             local scrollVelocityX = member.scrollVelocityX
@@ -395,7 +387,7 @@ function UI:updateCursor(x, y)
 
         if papayui.touchScrollingEnabled then
             local hoveredMember = self.touchDraggedMember or self:findMemberAtCoordinate(x, y)
-            if hoveredMember then hoveredMember:scrollRecursively(x - xPrevious, y - yPrevious, false, 1) end
+            if hoveredMember then hoveredMember:scrollRecursively(x - xPrevious, y - yPrevious, false, true, 1) end
             self.touchDraggedMember = hoveredMember
         end
 
@@ -446,16 +438,17 @@ function UI:scroll(scrollX, scrollY, ignoreVelocity)
 end
 
 --------------------------------------------------
---- ### UI:scrollAt(x, y, scrollX, scrollY, ignoreVelocity)
+--- ### UI:scrollAt(x, y, scrollX, scrollY, ignoreMaxSpeed, ignoreVelocity)
 --- Tells the UI to scroll at a specific location.  
 --- For most purposes, UI:scroll() will suffice, as it scrolls at the current cursor position.
 ---@param x number The X position to scroll at
 ---@param y number The Y position to scroll at
 ---@param scrollX? number The amount to scroll in the X axis
 ---@param scrollY? number The amount to scroll in the Y axis
----@param ignoreVelocity? boolean If true, no velocity is applied, and the scroller is moved instantly.
+---@param ignoreVelocity? boolean If true, no velocity is applied, and the scroller is moved instantly
+---@param ignoreMaxSpeed? boolean If true, the applied speed won't be limited by max scrolling speed
 ---@param speed? number Optionally override the scrolling speed
-function UI:scrollAt(x, y, scrollX, scrollY, ignoreVelocity, speed)
+function UI:scrollAt(x, y, scrollX, scrollY, ignoreVelocity, ignoreMaxSpeed, speed)
     scrollX = scrollX or 0
     scrollY = scrollY or 0
 
@@ -470,7 +463,7 @@ function UI:scrollAt(x, y, scrollX, scrollY, ignoreVelocity, speed)
         local cursorInBounds = cursorX > memberX and cursorY > memberY and cursorX < memberX + memberWidth and cursorY < memberY + memberHeight
 
         if cursorInBounds then
-            local scrolledX, scrolledY = member:scroll(scrollX, scrollY, ignoreVelocity, speed)
+            local scrolledX, scrolledY = member:scroll(scrollX, scrollY, ignoreVelocity, ignoreMaxSpeed, speed)
             if scrolledX then scrollX = 0 end
             if scrolledY then scrollY = 0 end
         end
@@ -1607,11 +1600,12 @@ end
 --- Attempts to scroll by the given amount, outputting booleans for each axis stating whether or not that axis was scrolled.  
 ---@param scrollX? number The amount to scroll in the X axis
 ---@param scrollY? number The amount to scroll in the Y axis
----@param ignoreVelocity? boolean If true, no velocity is applied, and the scroller is moved instantly.
+---@param ignoreVelocity? boolean If true, no velocity is applied, and the scroller is moved instantly
+---@param ignoreMaxSpeed? boolean If true, the applied speed won't be limited by max scrolling speed
 ---@param speed? number Optionally override the scrolling speed
 ---@return boolean scrolledX
 ---@return boolean scrolledY
-function LiveMember:scroll(scrollX, scrollY, ignoreVelocity, speed)
+function LiveMember:scroll(scrollX, scrollY, ignoreVelocity, ignoreMaxSpeed, speed)
     scrollX = scrollX or 0
     scrollY = scrollY or 0
     speed = speed or papayui.scrollSpeedStep * papayui.scale
@@ -1631,15 +1625,17 @@ function LiveMember:scroll(scrollX, scrollY, ignoreVelocity, speed)
 
     if canScrollX then
         local strength = speed * scrollX
+        local addedVelocity = ignoreMaxSpeed and strength or papayui.moveWithinRange(-papayui.scrollSpeed, papayui.scrollSpeed, self.scrollVelocityX, strength)
         if ignoreVelocity then self.scrollX = currentScrollX + cappedScrollX
-        else self.scrollVelocityX = self.scrollVelocityX + strength end
+        else self.scrollVelocityX = self.scrollVelocityX + addedVelocity end
         scrolledX = true
     end
 
     if canScrollY then
         local strength = speed * scrollY
+        local addedVelocity = ignoreMaxSpeed and strength or papayui.moveWithinRange(-papayui.scrollSpeed, papayui.scrollSpeed, self.scrollVelocityY, strength)
         if ignoreVelocity then self.scrollY = currentScrollY + cappedScrollY
-        else self.scrollVelocityY = self.scrollVelocityY + strength end
+        else self.scrollVelocityY = self.scrollVelocityY + addedVelocity end
         scrolledY = true
     end
 
@@ -1649,15 +1645,16 @@ end
 --- Attempts to scroll the member, or recursively tries the same on its parent elements if it can't.
 ---@param scrollX? number The amount to scroll in the X axis
 ---@param scrollY? number The amount to scroll in the Y axis
----@param ignoreVelocity? boolean If true, no velocity is applied, and the scroller is moved instantly.
+---@param ignoreVelocity? boolean If true, no velocity is applied, and the scroller is moved instantly
+---@param ignoreMaxSpeed? boolean If true, the applied speed won't be limited by max scrolling speed
 ---@param speed? number Optionally override the scrolling speed
-function LiveMember:scrollRecursively(scrollX, scrollY, ignoreVelocity, speed)
+function LiveMember:scrollRecursively(scrollX, scrollY, ignoreVelocity, ignoreMaxSpeed, speed)
     scrollX = scrollX or 0
     scrollY = scrollY or 0
 
     local member = self
     while member and (scrollX ~= 0 or scrollY ~= 0) do
-        local scrolledX, scrolledY = member:scroll(scrollX, scrollY, ignoreVelocity, speed)
+        local scrolledX, scrolledY = member:scroll(scrollX, scrollY, ignoreVelocity, ignoreMaxSpeed, speed)
         if scrolledX then scrollX = 0 end
         if scrolledY then scrollY = 0 end
         member = member.parent
