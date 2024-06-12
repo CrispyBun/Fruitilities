@@ -360,7 +360,7 @@ function UI:updateCursor(x, y)
         self:select()
 
         if papayui.touchScrollingEnabled then
-            local hoveredMember = self.touchDraggedMember or self:findElementAtCoordinate(x, y)
+            local hoveredMember = self.touchDraggedMember or self:findMemberAtCoordinate(x, y)
             if hoveredMember then hoveredMember:scrollRecursively(x - xPrevious, y - yPrevious, false, 1) end
             self.touchDraggedMember = hoveredMember
         end
@@ -459,6 +459,23 @@ function UI:select(member, scrollToView)
 end
 
 --------------------------------------------------
+--- ### UI:findMember(elementOrFunction)
+--- Finds and returns a PapayuiLiveMember.  
+---
+--- * When supplied with a PapayuiElement, returns the member instanced from that element.  
+--- * When supplied with a function, the function gets called on each member, passing the member into the function, and returns the element the function returns true for.
+---@param elementOrFunction PapayuiElement|fun(member: PapayuiLiveMember): boolean
+function UI:findMember(elementOrFunction)
+    local isFunction = type(elementOrFunction) == "function"
+    local members = self.members
+    for memberIndex = 1, #members do
+        local member = members[memberIndex]
+        local found = isFunction and elementOrFunction(member) or member.element == elementOrFunction
+        if found then return member end
+    end
+end
+
+--------------------------------------------------
 --- Returns the first selectable member it finds. Used internally.
 ---@return PapayuiLiveMember?
 function UI:findDefaultSelectable()
@@ -491,7 +508,7 @@ end
 ---@param x number
 ---@param y number
 ---@return PapayuiLiveMember?
-function UI:findElementAtCoordinate(x, y)
+function UI:findMemberAtCoordinate(x, y)
     local members = self.members
     for memberIndex = #members, 1, -1 do
         local member = members[memberIndex]
