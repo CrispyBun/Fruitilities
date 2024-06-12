@@ -202,8 +202,8 @@ function papayui.newUI(rootElement, x, y)
         selectedMember = nil,
         lastSelection = nil,
         actionDown = false,
-        cursorX = 0,
-        cursorY = 0,
+        cursorX = math.huge,
+        cursorY = math.huge,
         touchDraggedMember = nil
     }
 
