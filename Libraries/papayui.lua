@@ -315,6 +315,7 @@ function UI:refresh()
     local rootMember = self.members[1]
     if not rootMember then return end
 
+    rootMember:resetBounds(rootMember.x, rootMember.y)
     self.members = {}
 
     local memberQueueFirst = {value = rootMember, next = nil}
@@ -944,6 +945,7 @@ local function generateChildMembers(parentMember)
             member = previousChildren[elementIndex]
             member:resetBounds(0, 0)
             member.nav = {}
+            member.parent = parentMember
         else
             member = papayui.newLiveMember(element, 0, 0, parentMember)
         end
