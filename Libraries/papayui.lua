@@ -1342,19 +1342,24 @@ function LiveMember:getOuterBounds()
 end
 
 --- Gets the area this member crops its contents to, optionally also overlapping it with the input area
----@param overlapX1? number
----@param overlapY1? number
----@param overlapX2? number
----@param overlapY2? number
+---@param overlapX1? number Left side of area to overlap with
+---@param overlapY1? number Top side of area to overlap with
+---@param overlapX2? number Right side of area to overlap with
+---@param overlapY2? number Bottom side of area to overlap with
+---@param highestParent? PapayuiLiveMember If supplied, this member will be considered the root member, and its parents' crop values won't be considered
 ---@return number? cropX
 ---@return number? cropY
 ---@return number? cropWidth
 ---@return number? cropHeight
-function LiveMember:getCropArea(overlapX1, overlapY1, overlapX2, overlapY2)
+function LiveMember:getCropArea(overlapX1, overlapY1, overlapX2, overlapY2, highestParent)
+    local parent = self.parent
     local style = self.element.style
+
+    if self == highestParent then parent = nil end
+
     if not style.cropContent then
-        if self.parent then
-            return self.parent:getCropArea(overlapX1, overlapY1, overlapX2, overlapY2)
+        if parent then
+            return parent:getCropArea(overlapX1, overlapY1, overlapX2, overlapY2)
         end
         if not (overlapX1 and overlapY1 and overlapX2 and overlapY2) then return end
         return overlapX1, overlapY1, overlapX2 - overlapX1, overlapY2 - overlapY1
@@ -1376,21 +1381,22 @@ function LiveMember:getCropArea(overlapX1, overlapY1, overlapX2, overlapY2)
     contentX2 = math.min(contentX2, overlapX2)
     contentY2 = math.min(contentY2, overlapY2)
 
-    if self.parent then return self.parent:getCropArea(contentX1, contentY1, contentX2, contentY2) end
+    if parent then return parent:getCropArea(contentX1, contentY1, contentX2, contentY2) end
     return contentX1, contentY1, contentX2 - contentX1, contentY2 - contentY1
 end
 
 --- Returns the area the member takes up after being cropped by the other members
+---@param highestParent? PapayuiLiveMember If supplied, this member will be considered the root member, and its parents' crop values won't be considered
 ---@return number x
 ---@return number y
 ---@return number width
 ---@return number height
-function LiveMember:getCroppedBounds()
+function LiveMember:getCroppedBounds(highestParent)
     local x, y, width, height = self:getBounds()
     local parent = self.parent
     if not parent then return x, y, width, height end
 
-    local cropX, cropY, cropWidth, cropHeight = parent:getCropArea(x, y, x + width, y + height)
+    local cropX, cropY, cropWidth, cropHeight = parent:getCropArea(x, y, x + width, y + height, highestParent)
     if cropX and cropY and cropWidth and cropHeight then
         return cropX, cropY, cropWidth, cropHeight
     end
@@ -1569,16 +1575,13 @@ function LiveMember:selectAny(source)
         sourceY = y + h / 2
     end
 
-    local boundsX, boundsY, boundsWidth, boundsHeight = self:getInnerBounds()
-
     local stack = {self}
     while #stack > 0 do
         local member = stack[#stack]
         stack[#stack] = nil
 
-        -- Only crop the elements to the initial element's inner area, higher parents can't be taken into account
-        local memberX, memberY, memberWidth, memberHeight = member:getBounds()
-        local croppedX, croppedY, croppedWidth, croppedHeight = papayui.overlapAreas(memberX, memberY, memberWidth, memberHeight, boundsX, boundsY, boundsWidth, boundsHeight)
+        -- Only crop the elements up to the initial element's inner area, higher parents can't be taken into account
+        local croppedX, croppedY, croppedWidth, croppedHeight = member:getCroppedBounds(self)
 
         local canSelect = member:isSelectable() and croppedWidth > 0 and croppedHeight > 0
         if canSelect and not source then return member end
