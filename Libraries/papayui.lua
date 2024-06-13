@@ -767,7 +767,6 @@ end
 -- Misc stuff --------------------------------------------------------------------------------------
 -- Some are exported by the module since they could be useful
 
---- Used internally by the library.  
 --- Applies mixins onto the receiving table (copies the mixins' values to it).  
 --- * A mixin can be a table containing values, such as `{width = 10, height = 10}`.  
 --- * A mixin can also be an array of other mixins, such as `{mixin1, mixin2, mixin3}`.  
@@ -795,7 +794,6 @@ function papayui.applyMixins(receivingTable, mixins)
     end
 end
 
---- Used internally by the library.  
 --- Returns the area where the two input areas overlap.
 ---@param aX number
 ---@param aY number
@@ -824,8 +822,6 @@ function papayui.overlapAreas(aX, aY, aWidth, aHeight, bX, bY, bWidth, bHeight)
     return x1, y1, x2 - x1, y2 - y1
 end
 
---- Used internally by the library.  
----
 --- Changes the currentValue by the moveAmount, but only within the specified range - the moveAmount gets shortened if needed.  
 ---
 --- Returns the adjusted moveAmount.
@@ -843,6 +839,66 @@ function papayui.moveWithinRange(rangeMin, rangeMax, currentValue, moveAmount)
     if moveAmount > 0 then return math.min(currentValue + moveAmount, rangeMax) - currentValue end
     if moveAmount < 0 then return math.max(currentValue + moveAmount, rangeMin) - currentValue end
 
+    return 0
+end
+
+--- Gets the distance between 2 rectangles
+---@param aX number
+---@param aY number
+---@param aWidth number
+---@param aHeight number
+---@param bX number
+---@param bY number
+---@param bWidth number
+---@param bHeight number
+---@return number distance
+function papayui.rectangleDistance(aX, aY, aWidth, aHeight, bX, bY, bWidth, bHeight)
+    local ax1, ay1 = aX, aY
+    local ax2, ay2 = ax1 + aWidth, ay1 + aHeight
+
+    local bx1, by1 = bX, bY
+    local bx2, by2 = bx1 + bWidth, by1 + bHeight
+
+    -- Relationship of rectangle B to rectangle A
+    local left   = bx2 < ax1
+    local top    = by2 < ay1
+    local right  = bx1 > ax2
+    local bottom = by1 > ay2
+
+    -- This approach is very wordy but at least it has 5 scenarios with no sqrt
+
+    if top and left then
+        local xDiff = bx2 - ax1
+        local yDiff = by2 - ay1
+        return math.sqrt(xDiff * xDiff + yDiff * yDiff)
+    end
+    if top and right then
+        local xDiff = bx1 - ax2
+        local yDiff = by2 - ay1
+        return math.sqrt(xDiff * xDiff + yDiff * yDiff)
+    end
+    if bottom and left then
+        local xDiff = bx2 - ax1
+        local yDiff = by1 - ay2
+        return math.sqrt(xDiff * xDiff + yDiff * yDiff)
+    end
+    if bottom and right then
+        local xDiff = bx1 - ax2
+        local yDiff = by1 - ay2
+        return math.sqrt(xDiff * xDiff + yDiff * yDiff)
+    end
+    if left then
+        return ax1 - bx2
+    end
+    if top then
+        return ay1 - by2
+    end
+    if right then
+        return bx1 - ay2
+    end
+    if bottom then
+        return by1 - ay2
+    end
     return 0
 end
 
@@ -1165,32 +1221,42 @@ local function alignMembers(members, x, y, width, height, alignHorizontal, align
     return contentWidth, contentHeight
 end
 
+---@param member1 PapayuiLiveMember
+---@param member2 PapayuiLiveMember
+---@param axisIsVertical boolean
+---@return number
+local function getAxisOverlap(member1, member2, axisIsVertical)
+    local position = axisIsVertical and "y" or "x"
+    local size = axisIsVertical and "height" or "width"
+
+    local position1 = member1[position]
+    local size1 = member1[size]
+
+    local position2 = member2[position]
+    local size2 = member2[size]
+
+    local a1, a2 = position1, position1 + size1
+    local b1, b2 = position2, position2 + size2
+
+    local overlapStart = math.max(a1, b1)
+    local overlapEnd   = math.min(a2, b2)
+
+    local overlap = overlapEnd - overlapStart
+    return overlap
+end
+
 ---@param member PapayuiLiveMember
 ---@param otherMembers PapayuiLiveMember[]
 ---@param axisIsVertical boolean
 ---@return PapayuiLiveMember?
 local function findLargestAxisOverlap(member, otherMembers, axisIsVertical)
-    local position = axisIsVertical and "y" or "x"
-    local size = axisIsVertical and "height" or "width"
-
-    local selfPosition = member[position]
-    local selfSize = member[size]
-
     local maxOverlap = 0
     local maxOverlapMember
 
     for otherMemberIndex = 1, #otherMembers do
         local otherMember = otherMembers[otherMemberIndex]
-        local otherMemberPosition = otherMember[position]
-        local otherMemberSize = otherMember[size]
 
-        local a1, a2 = selfPosition, selfPosition + selfSize
-        local b1, b2 = otherMemberPosition, otherMemberPosition + otherMemberSize
-
-        local overlapStart = math.max(a1, b1)
-        local overlapEnd   = math.min(a2, b2)
-
-        local overlap = overlapEnd - overlapStart
+        local overlap = getAxisOverlap(member, otherMember, axisIsVertical)
         if overlap > maxOverlap then
             maxOverlap = overlap
             maxOverlapMember = otherMember
@@ -1665,13 +1731,12 @@ end
 ---@param source? PapayuiLiveMember
 ---@return PapayuiLiveMember?
 function LiveMember:selectAny(source)
-    local sourceX, sourceY
+    local sourceX, sourceY, sourceWidth, sourceHeight
     local closestMemberDistance = math.huge
+    local closestMemberOverlap = 0
     local closestMember
     if source then
-        local x, y, w, h = source:getBounds()
-        sourceX = x + w / 2
-        sourceY = y + h / 2
+        sourceX, sourceY, sourceWidth, sourceHeight = source:getBounds()
     end
 
     local stack = {self}
@@ -1685,15 +1750,22 @@ function LiveMember:selectAny(source)
         local canSelect = member:isSelectable() and croppedWidth > 0 and croppedHeight > 0
         if canSelect and not source then return member end
 
-        if canSelect and sourceX and sourceY then
-            local memberX = croppedX + croppedWidth / 2
-            local memberY = croppedY + croppedHeight / 2
-            local offsetX = memberX - sourceX
-            local offsetY = memberY - sourceY
-            local distanceSquared = offsetX * offsetX + offsetY * offsetY
-            if distanceSquared < closestMemberDistance then
-                closestMemberDistance = distanceSquared
+        if canSelect and source and sourceX and sourceY and sourceWidth and sourceHeight then
+            local distance = papayui.rectangleDistance(sourceX, sourceY, sourceWidth, sourceHeight, croppedX, croppedY, croppedWidth, croppedHeight)
+
+            local overlapAxisIsVertical = croppedX + croppedWidth < sourceX or croppedX > sourceX + sourceWidth
+            local overlap = getAxisOverlap(source, member, overlapAxisIsVertical)
+            overlap = math.max(0, overlap)
+
+            -- Find closest, break ties using amount of overlapping area
+            -- Not perfect, but nothing is going to solve 100% of possible layouts
+            local overwriteClosest = false
+            overwriteClosest = overwriteClosest or distance < closestMemberDistance
+            overwriteClosest = overwriteClosest or distance == closestMemberDistance and overlap > closestMemberOverlap
+            if overwriteClosest then
                 closestMember = member
+                closestMemberDistance = distance
+                closestMemberOverlap = overlap
             end
         end
 
