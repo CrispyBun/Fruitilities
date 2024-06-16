@@ -1,4 +1,5 @@
 local papayui = {}
+local unpack = unpack or table.unpack
 
 -- Global UI values --------------------------------------------------------------------------------
 
@@ -64,6 +65,8 @@ local ElementStyle = {}
 local ElementStyleMT = {__index = ElementStyle}
 
 ---@class PapayuiElementBehavior
+---@field buttonSelectable boolean Whether or not it is possible to navigate to this element using button input (it is not recommended to disable this, it might make certain selection situations odd)
+---@field cursorSelectable boolean Whether or not it is possible to navigate to this element using cursor input
 ---@field action? fun(event: PapayuiEvent) Callback for when this element is selected (action key is pressed on it)
 ---@field onHover? fun(event: PapayuiEvent) Callback for when the element gets hovered over
 ---@field onUnhover? fun(event: PapayuiEvent) Callback for when the element stops being hovered over
@@ -180,7 +183,8 @@ end
 function papayui.newElementBehavior()
     ---@type PapayuiElementBehavior
     local behavior = {
-        action = nil
+        buttonSelectable = true,
+        cursorSelectable = true
     }
     return behavior
 end
@@ -398,7 +402,7 @@ local dirEnum = { left = 1, up = 2, right = 3, down = 4 }
 function UI:navigate(direction)
     local selectedMember = self.selectedMember
     if not selectedMember then
-        self:select(self:findDefaultSelectable(), true)
+        self:select(self:findDefaultSelectable(true), true)
         return
     end
 
@@ -408,6 +412,11 @@ function UI:navigate(direction)
     -- todo: user defined navigation
 
     local nextSelected = selectedMember:forwardNavigation(selectedMember, dir)
+
+    while nextSelected and not nextSelected.element.behavior.buttonSelectable do
+        nextSelected = nextSelected:forwardNavigation(selectedMember, dir)
+    end
+
     self:select(nextSelected or selectedMember, true)
 end
 
@@ -442,7 +451,7 @@ function UI:updateCursor(x, y)
         local member = self.members[memberIndex]
         local memberX, memberY, memberWidth, memberHeight = member:getCroppedBounds()
         if x > memberX and y > memberY and x < memberX + memberWidth and y < memberY + memberHeight then
-            if member:isSelectable() then
+            if member:isSelectable() and member.element.behavior.cursorSelectable then
                 self:select(member)
                 foundSelection = true
             end
@@ -558,8 +567,9 @@ end
 --------------------------------------------------
 --- Returns the first selectable member it finds. Used internally.
 ---@return PapayuiLiveMember?
-function UI:findDefaultSelectable()
-    if self.lastSelection then
+---@param buttonSelectionOnly? boolean
+function UI:findDefaultSelectable(buttonSelectionOnly)
+    if self.lastSelection and (not buttonSelectionOnly or self.lastSelection.element.behavior.buttonSelectable) then
         local _, _, croppedWidth, croppedHeight = self.lastSelection:getCroppedBounds()
         if croppedWidth > 0 and croppedHeight > 0 then return self.lastSelection end
     end
@@ -572,7 +582,7 @@ function UI:findDefaultSelectable()
         local member = members[memberIndex]
         local _, _, croppedWidth, croppedHeight = member:getCroppedBounds()
 
-        if member:isSelectable() and croppedWidth > 0 and croppedHeight > 0 then
+        if member:isSelectable() and croppedWidth > 0 and croppedHeight > 0 and (not buttonSelectionOnly or member.element.behavior.buttonSelectable) then
             if member.element.importance > bestCandidateImportance then
                 bestCandidate = member
                 bestCandidateImportance = member.element.importance
@@ -1811,8 +1821,9 @@ end
 
 --- Tries to select self or any child. If provided, will find the selection closest to the source member.
 ---@param source? PapayuiLiveMember
+---@param notSelf? boolean
 ---@return PapayuiLiveMember?
-function LiveMember:selectAny(source)
+function LiveMember:selectAny(source, notSelf)
     local sourceX, sourceY, sourceWidth, sourceHeight
     local closestMemberDistance = math.huge
     local closestMemberOverlap = 0
@@ -1822,6 +1833,14 @@ function LiveMember:selectAny(source)
     end
 
     local stack = {self}
+    if notSelf then
+        stack[1] = nil
+        for childIndex = #self.children, 1, -1  do
+            local child = self.children[childIndex]
+            stack[#stack+1] = child
+        end
+    end
+
     while #stack > 0 do
         local member = stack[#stack]
         stack[#stack] = nil
