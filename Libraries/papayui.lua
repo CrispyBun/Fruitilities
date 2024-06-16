@@ -492,10 +492,17 @@ end
 ---@param member? PapayuiLiveMember The member to select
 ---@param scrollToView? boolean Whether or not to scroll the selected element into view
 function UI:select(member, scrollToView)
+    local currentSelected = self.selectedMember
+
     self.selectedMember = member
     self.lastSelection = member or self.lastSelection
 
     if scrollToView and member then member:scrollToView() end
+
+    if member ~= currentSelected then
+        if currentSelected then self:triggerCallback("onUnhover", currentSelected) end
+        if member then self:triggerCallback("onHover", member) end
+    end
 end
 
 --------------------------------------------------
