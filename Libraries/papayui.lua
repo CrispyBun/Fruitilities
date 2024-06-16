@@ -990,7 +990,7 @@ function papayui.rectangleDistance(aX, aY, aWidth, aHeight, bX, bY, bWidth, bHei
         return ay1 - by2
     end
     if right then
-        return bx1 - ay2
+        return bx1 - ax2
     end
     if bottom then
         return by1 - ay2
