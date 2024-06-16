@@ -64,6 +64,7 @@ local ElementStyle = {}
 local ElementStyleMT = {__index = ElementStyle}
 
 ---@class PapayuiElementBehavior
+---@field action? fun(event: PapayuiEvent) Callback for when this element is selected (action key is pressed on it)
 
 ---@class PapayuiElement
 ---@field style PapayuiElementStyle The style this element uses
@@ -83,6 +84,10 @@ local ElementMT = {__index = Element}
 ---@field touchDraggedMember? PapayuiLiveMember The member that is currently being being scrolled using touch input
 local UI = {}
 local UIMT = {__index = UI}
+
+---@class PapayuiEvent
+---@field targetMember PapayuiLiveMember The member that the event was triggered for
+---@field targetElement PapayuiElement The element that the event was triggered for
 
 --- The instanced element in an actual UI, with a state. You don't really have to worry about these, they're used internally
 ---@class PapayuiLiveMember
@@ -156,6 +161,7 @@ end
 function papayui.newElementBehavior()
     ---@type PapayuiElementBehavior
     local behavior = {
+        action = nil
     }
     return behavior
 end
@@ -421,8 +427,25 @@ end
 --- ### UI:actionRelease()
 --- Tells the UI that the action key has been released
 function UI:actionRelease()
+    -- Bail if the action isn't down in the first place to prevent wonky behavior with multiple key presses
+    if not self.actionDown then return end
+
     self.actionDown = false
     self.touchDraggedMember = nil
+
+    local selectedMember = self.selectedMember
+    if selectedMember then
+        local behavior = selectedMember.element.behavior
+        if behavior.action then
+            ---@type PapayuiEvent
+            local event = {
+                targetMember = selectedMember,
+                targetElement = selectedMember.element
+            }
+
+            behavior.action(event)
+        end
+    end
 end
 
 --------------------------------------------------
