@@ -90,6 +90,7 @@ local UIMT = {__index = UI}
 ---@class PapayuiEvent
 ---@field targetMember PapayuiLiveMember The member that the event was triggered for
 ---@field targetElement PapayuiElement The element that the event was triggered for
+---@field ui PapayuiUI The UI the event was triggered in
 
 --- The instanced element in an actual UI, with a state. You don't really have to worry about these, they're used internally
 ---@class PapayuiLiveMember
@@ -107,6 +108,18 @@ local UIMT = {__index = UI}
 ---@field nav (PapayuiLiveMember?)[] {navLeft, navUp, navRight, navDown}
 local LiveMember = {}
 local LiveMemberMT = {__index = LiveMember}
+
+-- Global callbacks --------------------------------------------------------------------------------
+
+--- Global callbacks triggered for events from any active UI  
+--- Set these to any callback functions. There are no global callbacks by default.
+---@type table<"action"|"onHover"|"onUnhover", fun(event: PapayuiEvent)>
+papayui.callbacks = {}
+
+-- -- Example callback
+-- function papayui.callbacks.action(event)
+--     print("An element was selected: ", event.targetElement)
+-- end
 
 -- Element creation --------------------------------------------------------------------------------
 
@@ -596,11 +609,13 @@ function UI:triggerCallback(callback, member)
     ---@type PapayuiEvent
     local event = {
         targetMember = member,
-        targetElement = member.element
+        targetElement = member.element,
+        ui = self
     }
 
     local behavior = member.element.behavior
     if behavior[callback] then behavior[callback](event) end
+    if papayui.callbacks[callback] then papayui.callbacks[callback](event) end
 end
 
 -- Style methods -----------------------------------------------------------------------------------
