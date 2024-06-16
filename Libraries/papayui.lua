@@ -80,6 +80,7 @@ local ElementStyleMT = {__index = ElementStyle}
 ---@field behavior PapayuiElementBehavior The behavior this element uses
 ---@field children PapayuiElement[] The children of this element (can be empty)
 ---@field importance number When finding a default element to select, the element with the highest importance gets picked
+---@field data table Any arbitrary data you want to add to this element, mostly to be used in callbacks
 local Element = {}
 local ElementMT = {__index = Element}
 
@@ -97,6 +98,7 @@ local UIMT = {__index = UI}
 ---@class PapayuiEvent
 ---@field targetMember PapayuiLiveMember The member that the event was triggered for
 ---@field targetElement PapayuiElement The element that the event was triggered for
+---@field data table The arbitrary data that was put into the element
 ---@field ui PapayuiUI The UI the event was triggered in
 
 --- The instanced element in an actual UI, with a state. You don't really have to worry about these, they're used internally
@@ -211,7 +213,8 @@ function papayui.newElement(style, behavior)
         style = style,
         behavior = behavior,
         children = {},
-        importance = 0
+        importance = 0,
+        data = {}
     }
 
     return setmetatable(element, ElementMT)
@@ -644,6 +647,7 @@ function UI:triggerCallback(callback, member)
     local event = {
         targetMember = member,
         targetElement = member.element,
+        data = member.element.data,
         ui = self
     }
 
