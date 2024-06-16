@@ -65,6 +65,8 @@ local ElementStyleMT = {__index = ElementStyle}
 
 ---@class PapayuiElementBehavior
 ---@field action? fun(event: PapayuiEvent) Callback for when this element is selected (action key is pressed on it)
+---@field onHover? fun(event: PapayuiEvent) Callback for when the element gets hovered over
+---@field onUnhover? fun(event: PapayuiEvent) Callback for when the element stops being hovered over
 
 ---@class PapayuiElement
 ---@field style PapayuiElementStyle The style this element uses
@@ -433,19 +435,7 @@ function UI:actionRelease()
     self.actionDown = false
     self.touchDraggedMember = nil
 
-    local selectedMember = self.selectedMember
-    if selectedMember then
-        local behavior = selectedMember.element.behavior
-        if behavior.action then
-            ---@type PapayuiEvent
-            local event = {
-                targetMember = selectedMember,
-                targetElement = selectedMember.element
-            }
-
-            behavior.action(event)
-        end
-    end
+    self:triggerCallback("action", self.selectedMember)
 end
 
 --------------------------------------------------
@@ -581,6 +571,29 @@ function UI:memberIsPresent(member)
         if members[memberIndex] == member then return true end
     end
     return false
+end
+
+local callbacks = {
+    action = true,
+    onHover = true,
+    onUnhover = true
+}
+--------------------------------------------------
+--- ### UI:triggerCallback(callback, member)
+--- Triggers the specified callback on the given member
+---@param callback "action"|"onHover"|"onUnhover"
+---@param member PapayuiLiveMember
+function UI:triggerCallback(callback, member)
+    if not callbacks[callback] then error("Unknown callback: " .. tostring(callback), 2) end
+
+    ---@type PapayuiEvent
+    local event = {
+        targetMember = member,
+        targetElement = member.element
+    }
+
+    local behavior = member.element.behavior
+    if behavior[callback] then behavior[callback](event) end
 end
 
 -- Style methods -----------------------------------------------------------------------------------
