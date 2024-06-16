@@ -67,6 +67,8 @@ local ElementStyleMT = {__index = ElementStyle}
 ---@field action? fun(event: PapayuiEvent) Callback for when this element is selected (action key is pressed on it)
 ---@field onHover? fun(event: PapayuiEvent) Callback for when the element gets hovered over
 ---@field onUnhover? fun(event: PapayuiEvent) Callback for when the element stops being hovered over
+---@field onUpdate? fun(event: PapayuiEvent) Callback for each time this element is updated
+---@field onHoveredUpdate? fun(event: PapayuiEvent) Callback for each call to update while this element is hovered over
 ---@field onScrollerHitEnd? fun(event: PapayuiEvent) Callback for when the element scrolls to its limit
 ---@field onScrollerVelocity? fun(event: PapayuiEvent) Callback for each update where the element's scrolling velocity is not zero (in either axis)
 
@@ -115,7 +117,7 @@ local LiveMemberMT = {__index = LiveMember}
 
 --- Global callbacks triggered for events from any active UI  
 --- Set these to any callback functions. There are no global callbacks by default.
----@type table<"action"|"onHover"|"onUnhover"|"onScrollerHitEnd"|"onScrollerVelocity", fun(event: PapayuiEvent)>
+---@type table<"action"|"onHover"|"onUnhover"|"onScrollerHitEnd"|"onScrollerVelocity"|"onUpdate"|"onHoveredUpdate", fun(event: PapayuiEvent)>
 papayui.callbacks = {}
 
 -- -- Example callback
@@ -327,7 +329,11 @@ function UI:update(dt)
                 self:triggerCallback("onScrollerVelocity", member)
             end
         end
+
+        self:triggerCallback("onUpdate", member)
     end
+
+    if self.selectedMember then self:triggerCallback("onHoveredUpdate", self.selectedMember) end
 end
 
 --------------------------------------------------
@@ -612,12 +618,14 @@ local callbacks = {
     onHover = true,
     onUnhover = true,
     onScrollerHitEnd = true,
-    onScrollerVelocity = true
+    onScrollerVelocity = true,
+    onUpdate = true,
+    onHoveredUpdate = true
 }
 --------------------------------------------------
 --- ### UI:triggerCallback(callback, member)
 --- Triggers the specified callback on the given member
----@param callback "action"|"onHover"|"onUnhover"|"onScrollerHitEnd"|"onScrollerVelocity"
+---@param callback "action"|"onHover"|"onUnhover"|"onScrollerHitEnd"|"onScrollerVelocity"|"onUpdate"|"onHoveredUpdate"
 ---@param member PapayuiLiveMember
 function UI:triggerCallback(callback, member)
     if not callbacks[callback] then error("Unknown callback: " .. tostring(callback), 2) end
