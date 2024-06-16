@@ -67,6 +67,8 @@ local ElementStyleMT = {__index = ElementStyle}
 ---@field action? fun(event: PapayuiEvent) Callback for when this element is selected (action key is pressed on it)
 ---@field onHover? fun(event: PapayuiEvent) Callback for when the element gets hovered over
 ---@field onUnhover? fun(event: PapayuiEvent) Callback for when the element stops being hovered over
+---@field onScrollerHitEnd? fun(event: PapayuiEvent) Callback for when the element scrolls to its limit
+---@field onScrollerVelocity? fun(event: PapayuiEvent) Callback for each update where the element's scrolling velocity is not zero (in either axis)
 
 ---@class PapayuiElement
 ---@field style PapayuiElementStyle The style this element uses
@@ -113,7 +115,7 @@ local LiveMemberMT = {__index = LiveMember}
 
 --- Global callbacks triggered for events from any active UI  
 --- Set these to any callback functions. There are no global callbacks by default.
----@type table<"action"|"onHover"|"onUnhover", fun(event: PapayuiEvent)>
+---@type table<"action"|"onHover"|"onUnhover"|"onScrollerHitEnd"|"onScrollerVelocity", fun(event: PapayuiEvent)>
 papayui.callbacks = {}
 
 -- -- Example callback
@@ -295,22 +297,34 @@ function UI:update(dt)
             if math.abs(member.scrollY - scrollY) < 0.25 * dtNormalised then member.scrollVelocityY = 0 end
 
             -- Cap scroll to limits
+            local hitLimit = false
             local minScrollX, minScrollY, maxScrollX, maxScrollY = member:getScrollLimits()
             if member.scrollY > maxScrollY then
                 member.scrollVelocityY = 0
                 member.scrollY = maxScrollY
+                hitLimit = true
             end
             if member.scrollY < minScrollY then
                 member.scrollVelocityY = 0
                 member.scrollY = minScrollY
+                hitLimit = true
             end
             if member.scrollX > maxScrollX then
                 member.scrollVelocityX = 0
                 member.scrollX = maxScrollX
+                hitLimit = true
             end
             if member.scrollX < minScrollX then
                 member.scrollVelocityX = 0
                 member.scrollX = minScrollX
+                hitLimit = true
+            end
+            if hitLimit then
+                self:triggerCallback("onScrollerHitEnd", member)
+            end
+
+            if member.scrollVelocityX ~= 0 or member.scrollVelocityY ~= 0 then
+                self:triggerCallback("onScrollerVelocity", member)
             end
         end
     end
@@ -448,7 +462,7 @@ function UI:actionRelease()
     self.actionDown = false
     self.touchDraggedMember = nil
 
-    self:triggerCallback("action", self.selectedMember)
+    if self.selectedMember then self:triggerCallback("action", self.selectedMember) end
 end
 
 --------------------------------------------------
@@ -596,12 +610,14 @@ end
 local callbacks = {
     action = true,
     onHover = true,
-    onUnhover = true
+    onUnhover = true,
+    onScrollerHitEnd = true,
+    onScrollerVelocity = true
 }
 --------------------------------------------------
 --- ### UI:triggerCallback(callback, member)
 --- Triggers the specified callback on the given member
----@param callback "action"|"onHover"|"onUnhover"
+---@param callback "action"|"onHover"|"onUnhover"|"onScrollerHitEnd"|"onScrollerVelocity"
 ---@param member PapayuiLiveMember
 function UI:triggerCallback(callback, member)
     if not callbacks[callback] then error("Unknown callback: " .. tostring(callback), 2) end
