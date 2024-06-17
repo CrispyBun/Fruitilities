@@ -74,6 +74,8 @@ local ElementStyleMT = {__index = ElementStyle}
 ---@field onHoveredUpdate? fun(event: PapayuiEvent) Callback for each call to update while this element is hovered over
 ---@field onScrollerHitEnd? fun(event: PapayuiEvent) Callback for when the element scrolls to its limit
 ---@field onScrollerVelocity? fun(event: PapayuiEvent) Callback for each update where the element's scrolling velocity is not zero (in either axis)
+local ElementBehavior = {}
+local ElementBehaviorMT = {__index = ElementBehavior}
 
 ---@class PapayuiElement
 ---@field style PapayuiElementStyle The style this element uses
@@ -134,7 +136,7 @@ papayui.callbacks = {}
 
 --------------------------------------------------
 --- ### papayui.newElementStyle()
---- Creates a new blank papayui element style.
+--- Creates a new papayui element style.
 ---
 --- Optionally, you can supply mixins to set the style.  
 --- * A mixin can be a table containing values for the style, such as `{width = 10, height = 10}`.  
@@ -180,15 +182,31 @@ end
 
 --------------------------------------------------
 --- ### papayui.newElementBehavior()
---- Creates a new blank papayui element behavior.
+--- Creates a new papayui element behavior.
+---
+--- Optionally, you can supply mixins, which work the same way as in newElementStyle.  
+---
+--- Example usage:
+--- ```
+--- local behavior = papayui.newElementBehavior()
+--- behavior.cursorSelectable = false
+--- function behavior.action(event)
+---     print("The element was pressed")
+--- end
+--- ```
 ---@return PapayuiElementBehavior
-function papayui.newElementBehavior()
+function papayui.newElementBehavior(mixins)
     ---@type PapayuiElementBehavior
     local behavior = {
         buttonSelectable = true,
         cursorSelectable = true
     }
-    return behavior
+
+    if mixins then
+        papayui.applyMixins(behavior, mixins)
+    end
+
+    return setmetatable(behavior, ElementBehaviorMT)
 end
 
 --------------------------------------------------
