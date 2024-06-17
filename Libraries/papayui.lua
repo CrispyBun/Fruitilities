@@ -358,18 +358,18 @@ function UI:update(dt)
                 hitLimit = true
             end
             if hitLimit then
-                self:triggerCallback("onScrollerHitEnd", member)
+                self:triggerEvent("onScrollerHitEnd", member)
             end
 
             if member.scrollVelocityX ~= 0 or member.scrollVelocityY ~= 0 then
-                self:triggerCallback("onScrollerVelocity", member)
+                self:triggerEvent("onScrollerVelocity", member)
             end
         end
 
-        self:triggerCallback("onUpdate", member)
+        self:triggerEvent("onUpdate", member)
     end
 
-    if self.selectedMember then self:triggerCallback("onHoveredUpdate", self.selectedMember) end
+    if self.selectedMember then self:triggerEvent("onHoveredUpdate", self.selectedMember) end
 end
 
 --------------------------------------------------
@@ -509,7 +509,7 @@ function UI:actionRelease()
     self.actionDown = false
     self.touchDraggedMember = nil
 
-    if self.selectedMember then self:triggerCallback("action", self.selectedMember) end
+    if self.selectedMember then self:triggerEvent("action", self.selectedMember) end
 end
 
 --------------------------------------------------
@@ -574,8 +574,8 @@ function UI:select(member, scrollToView)
     if scrollToView and member then member:scrollToView() end
 
     if member ~= currentSelected then
-        if currentSelected then self:triggerCallback("onUnhover", currentSelected) end
-        if member then self:triggerCallback("onHover", member) end
+        if currentSelected then self:triggerEvent("onUnhover", currentSelected) end
+        if member then self:triggerEvent("onHover", member) end
     end
 end
 
@@ -656,11 +656,11 @@ function UI:memberIsPresent(member)
 end
 
 --------------------------------------------------
---- ### UI:triggerCallback(callback, member)
---- Triggers the specified callback on the given member
+--- ### UI:triggerEvent(eventType, member)
+--- Triggers the specified event on the given member
 ---@param eventType PapayuiEventType
 ---@param member PapayuiLiveMember
-function UI:triggerCallback(eventType, member)
+function UI:triggerEvent(eventType, member)
     ---@type PapayuiEvent
     local event = {
         type = eventType,
