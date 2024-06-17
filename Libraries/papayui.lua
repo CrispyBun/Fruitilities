@@ -851,6 +851,17 @@ function ElementStyle:clone()
     return setmetatable(copiedTable, ElementStyleMT)
 end
 
+-- Behavior methods --------------------------------------------------------------------------------
+
+--------------------------------------------------
+--- ### ElementBehavior:clone()
+--- Returns a copy of the behavior
+---@return PapayuiElementBehavior
+function ElementBehavior:clone()
+    local copiedTable = deepCopy(self)
+    return setmetatable(copiedTable, ElementBehaviorMT)
+end
+
 -- Element methods ---------------------------------------------------------------------------------
 
 ---@param x? number The X coordinate to draw at (Default is 0)
