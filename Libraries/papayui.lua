@@ -703,6 +703,15 @@ local function deepCopy(t, _seenTables)
     return t
 end
 
+local function shallowCopy(t)
+    if type(t) ~= "table" then return t end
+    local copiedTable = {}
+    for key, value in pairs(t) do
+        copiedTable[key] = value
+    end
+    return copiedTable
+end
+
 --------------------------------------------------
 --- ### ElementStyle:setPadding(left, top, right, bottom)
 --- Sets the style's padding.
@@ -863,6 +872,23 @@ function ElementBehavior:clone()
 end
 
 -- Element methods ---------------------------------------------------------------------------------
+
+--------------------------------------------------
+--- ### Element:clone()
+--- Returns a copy of the element
+---@return PapayuiElement
+function Element:clone()
+    ---@type PapayuiElement
+    local clonedElement = {
+        style = self.style:clone(),
+        behavior = self.behavior:clone(),
+        children = {unpack(self.children)},
+        importance = self.importance,
+        data = shallowCopy(self.data)
+    }
+
+    return setmetatable(clonedElement, ElementMT)
+end
 
 ---@param x? number The X coordinate to draw at (Default is 0)
 ---@param y? number The Y coordinate to draw at (Default is 0)
