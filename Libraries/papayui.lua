@@ -51,6 +51,7 @@ papayui.touchScrollingEnabled = true  -- Whether or not holding down the action 
 ---| '"onScrollerVelocity"' # The element's scrolling velocity in either axis is not zero and has been updated
 ---| '"onUpdate"' # The element has been updated
 ---| '"onHoveredUpdate"' # The element is hovered over and has been updated
+---| '"navigate"' # Button navigation was triggered on the element (also used in the PapayuiElement.nav selecting function)
 
 ---@class PapayuiElementStyle
 ---@field width number The width of the element
@@ -91,6 +92,7 @@ local ElementBehaviorMT = {__index = ElementBehavior}
 ---@field style PapayuiElementStyle The style this element uses
 ---@field behavior PapayuiElementBehavior The behavior this element uses
 ---@field children PapayuiElement[] The children of this element (can be empty)
+---@field nav PapayuiNavigation Optionally specified navigation for the element. Each direction (left, up, right, down) can be set. If a direction is left as nil, auto navigation is used.
 ---@field importance number When finding a default element to select, the element with the highest importance gets picked
 ---@field data table Any arbitrary data you want to add to this element, mostly to be used in callbacks
 local Element = {}
@@ -113,6 +115,15 @@ local UIMT = {__index = UI}
 ---@field targetElement PapayuiElement The element that the event was triggered for
 ---@field data table The arbitrary data that was put into the element
 ---@field ui PapayuiUI The UI the event was triggered in
+
+--- Can navigate to either a specific PapayuiElement,
+--- or a function which is checked against all elements, receiving events for both the checked element and the element the navigation originates from.
+--- The element for which the function returns true is selected.
+---@class PapayuiNavigation
+---@field left? PapayuiElement|fun(checkedElementEvent: PapayuiEvent, originEvent: PapayuiEvent): boolean
+---@field up? PapayuiElement|fun(checkedElementEvent: PapayuiEvent, originEvent: PapayuiEvent): boolean
+---@field right? PapayuiElement|fun(checkedElementEvent: PapayuiEvent, originEvent: PapayuiEvent): boolean
+---@field down? PapayuiElement|fun(checkedElementEvent: PapayuiEvent, originEvent: PapayuiEvent): boolean
 
 --- The instanced element in an actual UI, with a state. You don't really have to worry about these, they're used internally
 ---@class PapayuiLiveMember
@@ -242,6 +253,7 @@ function papayui.newElement(style, behavior)
         style = style,
         behavior = behavior,
         children = {},
+        nav = {left = nil, up = nil, right = nil, down = nil},
         importance = 0,
         data = {}
     }
@@ -441,14 +453,22 @@ function UI:navigate(direction)
     local dir = dirEnum[direction]
     if not dir then error("Invalid direction: " .. tostring(direction), 2) end
 
-    -- todo: user defined navigation
+    local definedNav = selectedMember.element.nav[direction]
 
-    local nextSelected = selectedMember:forwardNavigation(selectedMember, dir)
+    ---@type PapayuiLiveMember?
+    local nextSelected
+    if definedNav then
+        nextSelected = self:findMemberAsNavigation(definedNav, selectedMember)
+    else
+        nextSelected = selectedMember:forwardNavigation(selectedMember, dir)
+    end
 
-    while nextSelected and not nextSelected.element.behavior.buttonSelectable do
+    -- Skip past elements we can't select (even if they were selected using definedNav)
+    while nextSelected and (not nextSelected:isSelectable() or not nextSelected.element.behavior.buttonSelectable) do
         nextSelected = nextSelected:forwardNavigation(selectedMember, dir)
     end
 
+    self:triggerEvent("navigate", selectedMember)
     self:select(nextSelected or selectedMember, true)
 end
 
@@ -594,6 +614,49 @@ function UI:findMember(elementOrFunction)
         local found = isFunction and elementOrFunction(member) or member.element == elementOrFunction
         if found then return member end
     end
+end
+
+--------------------------------------------------
+--- Finds a member according to the value in an element.nav
+---@param nav PapayuiElement|fun(checkedElementEvent: PapayuiEvent, originEvent: PapayuiEvent): boolean
+---@param originMember PapayuiLiveMember
+---@return PapayuiLiveMember?
+function UI:findMemberAsNavigation(nav, originMember)
+    local isFunction = type(nav) == "function"
+
+    ---@type PapayuiEvent
+    local originEvent
+
+    if isFunction then
+        originEvent = {
+            type = "navigate",
+            targetMember = originMember,
+            targetElement = originMember.element,
+            data = originMember.element.data,
+            ui = self
+        }
+    end
+
+    local members = self.members
+    for memberIndex = 1, #members do
+        local member = members[memberIndex]
+        if isFunction then
+            ---@type PapayuiEvent
+            local memberEvent = {
+                type = "navigate",
+                targetMember = member,
+                targetElement = member.element,
+                data = member.element.data,
+                ui = self
+            }
+
+            if nav(memberEvent, originEvent) then return member end
+        else
+            if member.element == nav then return member end
+        end
+    end
+
+    return nil
 end
 
 --------------------------------------------------
@@ -884,6 +947,7 @@ function Element:clone()
         style = self.style:clone(),
         behavior = self.behavior:clone(),
         children = {unpack(self.children)},
+        nav = shallowCopy(self.nav),
         importance = self.importance,
         data = shallowCopy(self.data)
     }
