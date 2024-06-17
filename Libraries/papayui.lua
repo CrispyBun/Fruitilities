@@ -42,6 +42,15 @@ papayui.touchScrollingEnabled = true  -- Whether or not holding down the action 
 ---| '"bottom"' # Same as 'end'
 ---| '"middle"' # Same as 'center'
 
+---@alias PapayuiEventType
+---| '"action"' # The action key has been pressed on an element
+---| '"onHover"' # The element has been hovered over
+---| '"onUnhover"' # The element stopped being hovered over
+---| '"onScrollerHitEnd"' # The element's scroller has reached its limit
+---| '"onScrollerVelocity"' # The element's scrolling velocity in either axis is not zero and has been updated
+---| '"onUpdate"' # The element has been updated
+---| '"onHoveredUpdate"' # The element is hovered over and has been updated
+
 ---@class PapayuiElementStyle
 ---@field width number The width of the element
 ---@field height number The height of the element
@@ -124,7 +133,7 @@ local LiveMemberMT = {__index = LiveMember}
 
 --- Global callbacks triggered for events from any active UI  
 --- Set these to any callback functions. There are no global callbacks by default.
----@type table<"action"|"onHover"|"onUnhover"|"onScrollerHitEnd"|"onScrollerVelocity"|"onUpdate"|"onHoveredUpdate", fun(event: PapayuiEvent)>
+---@type table<PapayuiEventType, fun(event: PapayuiEvent)>
 papayui.callbacks = {}
 
 -- -- Example callback
@@ -644,23 +653,12 @@ function UI:memberIsPresent(member)
     return false
 end
 
-local callbacks = {
-    action = true,
-    onHover = true,
-    onUnhover = true,
-    onScrollerHitEnd = true,
-    onScrollerVelocity = true,
-    onUpdate = true,
-    onHoveredUpdate = true
-}
 --------------------------------------------------
 --- ### UI:triggerCallback(callback, member)
 --- Triggers the specified callback on the given member
----@param callback "action"|"onHover"|"onUnhover"|"onScrollerHitEnd"|"onScrollerVelocity"|"onUpdate"|"onHoveredUpdate"
+---@param eventType PapayuiEventType
 ---@param member PapayuiLiveMember
-function UI:triggerCallback(callback, member)
-    if not callbacks[callback] then error("Unknown callback: " .. tostring(callback), 2) end
-
+function UI:triggerCallback(eventType, member)
     ---@type PapayuiEvent
     local event = {
         targetMember = member,
@@ -670,8 +668,8 @@ function UI:triggerCallback(callback, member)
     }
 
     local behavior = member.element.behavior
-    if behavior[callback] then behavior[callback](event) end
-    if papayui.callbacks[callback] then papayui.callbacks[callback](event) end
+    if behavior[eventType] then behavior[eventType](event) end
+    if papayui.callbacks[eventType] then papayui.callbacks[eventType](event) end
 end
 
 -- Style methods -----------------------------------------------------------------------------------
