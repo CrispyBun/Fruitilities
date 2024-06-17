@@ -42,6 +42,7 @@ papayui.touchScrollingEnabled = true  -- Whether or not holding down the action 
 ---| '"bottom"' # Same as 'end'
 ---| '"middle"' # Same as 'center'
 
+---@diagnostic disable-next-line: duplicate-doc-alias
 ---@alias PapayuiEventType
 ---| '"action"' # The action key has been pressed on an element
 ---| '"onHover"' # The element has been hovered over
@@ -107,6 +108,7 @@ local UI = {}
 local UIMT = {__index = UI}
 
 ---@class PapayuiEvent
+---@field type PapayuiEventType The type of event triggered
 ---@field targetMember PapayuiLiveMember The member that the event was triggered for
 ---@field targetElement PapayuiElement The element that the event was triggered for
 ---@field data table The arbitrary data that was put into the element
@@ -661,6 +663,7 @@ end
 function UI:triggerCallback(eventType, member)
     ---@type PapayuiEvent
     local event = {
+        type = eventType,
         targetMember = member,
         targetElement = member.element,
         data = member.element.data,
