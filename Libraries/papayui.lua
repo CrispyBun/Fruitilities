@@ -173,6 +173,10 @@ papayui.callbacks = {}
 --     print("An element was selected: ", event.targetElement)
 -- end
 
+--- Optional global draw element function, just like ElementStyle.draw but for all elements
+---@type fun(event: Papayui.DrawEvent)?
+papayui.drawElement = nil
+
 -- Utility -----------------------------------------------------------------------------------------
 
 --------------------------------------------------
@@ -1079,6 +1083,10 @@ function Element:draw(x, y, width, height, isSelected, event)
             color = color,
             isSelected = isSelected
         }
+    end
+
+    if papayui.drawElement then
+        papayui.drawElement(drawEvent)
     end
 
     if style.draw then
