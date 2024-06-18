@@ -1500,10 +1500,15 @@ end
 ---@param mainAxisIsVertical boolean
 ---@param maxLineElements? number|table
 ---@return Papayui.LiveMember[][]
+---@return number combinedLineHeights
 local function splitMembersToLines(members, usableSpaceMain, gap, mainAxisIsVertical, maxLineElements)
     local sizeMain = mainAxisIsVertical and "height" or "width"
     local marginStart = mainAxisIsVertical and 2 or 1
     local marginEnd = mainAxisIsVertical and 4 or 3
+
+    local sizeCross = mainAxisIsVertical and "width" or "height"
+    local marginCrossStart = mainAxisIsVertical and 1 or 2
+    local marginCrossEnd = mainAxisIsVertical and 3 or 4
 
     maxLineElements = maxLineElements or math.huge
 
@@ -1511,6 +1516,8 @@ local function splitMembersToLines(members, usableSpaceMain, gap, mainAxisIsVert
     local currentLineIndex = 1
     local currentLineSize = 0
     local currentMemberIndex = 1
+    local currentLineTallestElement = 0
+    local combinedLineHeights = 0
     for memberIndex = 1, #members do
         local member = members[memberIndex]
         local memberMargin = member.element.style.margin
@@ -1524,7 +1531,7 @@ local function splitMembersToLines(members, usableSpaceMain, gap, mainAxisIsVert
 
         if not lines[currentLineIndex] then
             -- Prevent 0 members on line
-            -- (would cause an infinite loop of a member always being too big)
+            -- (could cause an infinite loop of a member always being too big)
             lines[currentLineIndex] = {member}
         else
             -- Add member if it still fits or start a new one
@@ -1536,12 +1543,21 @@ local function splitMembersToLines(members, usableSpaceMain, gap, mainAxisIsVert
                 currentLineSize = 0
                 currentMemberIndex = 2 -- 2 because we're already adding the first
                 lines[currentLineIndex] = {member}
+
+                combinedLineHeights = combinedLineHeights + currentLineTallestElement
+                currentLineTallestElement = 0
             end
         end
 
+        local memberSizeCross = member[sizeCross] + memberMargin[marginCrossStart] + memberMargin[marginCrossEnd]
+        currentLineTallestElement = math.max(currentLineTallestElement, memberSizeCross)
+
         currentLineSize = currentLineSize + memberSize + gap
     end
-    return lines
+
+    combinedLineHeights = combinedLineHeights + currentLineTallestElement
+
+    return lines, combinedLineHeights
 end
 
 ---@param members Papayui.LiveMember[]
@@ -1706,20 +1722,30 @@ function papayui.layouts.rows(parentMember, flipAxis)
     local usableSpaceWidth = parentMember.width - style.padding[1] - style.padding[3]
     local usableSpaceHeight = parentMember.height - style.padding[2] - style.padding[4]
     local usableSpaceMain =  flipAxis and usableSpaceHeight or usableSpaceWidth
+    local usableSpaceCross = flipAxis and usableSpaceWidth or usableSpaceHeight
 
     local alignMainKeyword = flipAxis and style.alignVertical or style.alignHorizontal
-    local doLineSpread = spreadAlignKeywords[alignMainKeyword]
-    local lineSpreadSize = doLineSpread and usableSpaceMain
+    local alignCrossKeyword = flipAxis and style.alignHorizontal or style.alignVertical
+    local doLineSpreadMain = spreadAlignKeywords[alignMainKeyword]
+    local doLineSpreadCross = spreadAlignKeywords[alignCrossKeyword]
+
+    local lineSpreadSizeMain = doLineSpreadMain and usableSpaceMain
 
     local outMembers = {}
     local generatedMembers = generateChildMembers(parentMember)
-    local lines = splitMembersToLines(generatedMembers, usableSpaceMain, gapMain, flipAxis, maxLineMembers)
+    local lines, combinedLineHeights = splitMembersToLines(generatedMembers, usableSpaceMain, gapMain, flipAxis, maxLineMembers)
+    local usedSpaceCross = combinedLineHeights + (#lines - 1) * gapCross
+
+    if doLineSpreadCross then
+        local gapIncrease = getSpreadGapIncrease(#lines, usableSpaceCross, usedSpaceCross)
+        gapCross = gapCross + gapIncrease
+    end
 
     local lineOffset = 0
     for lineIndex = 1, #lines do
         local line = lines[lineIndex]
         growLineMembers(line, usableSpaceWidth, usableSpaceHeight, gapMain, flipAxis, true)
-        layMembersInLine(line, gapMain, alignInside, flipAxis, lineSpreadSize)
+        layMembersInLine(line, gapMain, alignInside, flipAxis, lineSpreadSizeMain)
 
         -- Align the line on the main axis, relative to its assigned position
         local lineX = flipAxis and lineOffset or 0
