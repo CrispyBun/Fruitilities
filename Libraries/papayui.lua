@@ -168,6 +168,26 @@ papayui.callbacks = {}
 --     print("An element was selected: ", event.targetElement)
 -- end
 
+-- Utility -----------------------------------------------------------------------------------------
+
+--------------------------------------------------
+--- ### papayui.newFunctionStack(...)
+--- Returns a function that calls all the given functions in order.  
+---
+--- Useful for some callbacks and drawing functions where you need to combine the functionality of multiple functions,
+--- but the callback can only be set to one function.
+---@param ... function
+---@return function
+function papayui.newFunctionStack(...)
+    local functions = {...}
+    return function(...)
+        for functionIndex = 1, #functions do
+            functions[functionIndex](...)
+        end
+    end
+end
+papayui.newFuncstack = papayui.newFunctionStack
+
 -- Element creation --------------------------------------------------------------------------------
 
 --------------------------------------------------
