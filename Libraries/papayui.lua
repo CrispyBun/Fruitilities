@@ -79,12 +79,7 @@ local ElementStyleMT = {__index = ElementStyle}
 ---@field buttonSelectable boolean Whether or not it is possible to navigate to this element using button input (it is not recommended to disable this, it might make certain selection situations odd)
 ---@field cursorSelectable boolean Whether or not it is possible to navigate to this element using cursor input
 ---@field action? fun(event: PapayuiEvent) Callback for when this element is selected (action key is pressed on it)
----@field onHover? fun(event: PapayuiEvent) Callback for when the element gets hovered over
----@field onUnhover? fun(event: PapayuiEvent) Callback for when the element stops being hovered over
----@field onUpdate? fun(event: PapayuiEvent) Callback for each time this element is updated
----@field onHoveredUpdate? fun(event: PapayuiEvent) Callback for each call to update while this element is hovered over
----@field onScrollerHitEnd? fun(event: PapayuiEvent) Callback for when the element scrolls to its limit
----@field onScrollerVelocity? fun(event: PapayuiEvent) Callback for each update where the element's scrolling velocity is not zero (in either axis)
+---@field callbacks table<PapayuiEventType, fun(event: PapayuiEvent)> Listeners for events on this element
 local ElementBehavior = {}
 local ElementBehaviorMT = {__index = ElementBehavior}
 
@@ -221,7 +216,8 @@ function papayui.newElementBehavior(mixins)
     ---@type PapayuiElementBehavior
     local behavior = {
         buttonSelectable = true,
-        cursorSelectable = true
+        cursorSelectable = true,
+        callbacks = {}
     }
 
     if mixins then
@@ -734,7 +730,8 @@ function UI:triggerEvent(eventType, member)
     }
 
     local behavior = member.element.behavior
-    if behavior[eventType] then behavior[eventType](event) end
+    if eventType == "action" and behavior.action then behavior.action(event) end -- A second place to define actions in behaviors for ease of use
+    if behavior.callbacks[eventType] then behavior.callbacks[eventType](event) end
     if papayui.callbacks[eventType] then papayui.callbacks[eventType](event) end
 end
 
