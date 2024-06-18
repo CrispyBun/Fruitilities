@@ -523,7 +523,12 @@ function UI:actionRelease()
     if not self.actionDown then return end
 
     self.actionDown = false
-    self.touchDraggedMember = nil
+
+    if self.touchDraggedMember then
+        self:select(self.lastSelection) -- Reselect the last selection (otherwise touch scrolling can feel clunky on mouse)
+        self.touchDraggedMember = nil
+        return -- Make sure the reselected member dosn't get clicked
+    end
 
     if self.selectedMember then self:triggerEvent("action", self.selectedMember) end
 end
