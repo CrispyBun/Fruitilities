@@ -52,6 +52,7 @@ papayui.touchScrollingEnabled = true  -- Whether or not holding down the action 
 ---| '"refresh"' # The element has been refreshed (its UI has either just been created or refreshed)
 ---| '"scrollerHitEnd"' # The element's scroller has reached its limit
 ---| '"scrollerVelocity"' # The element's scrolling velocity in either axis is not zero and has been updated
+---| '"draw"' # The element has been drawn (also used in the actual draw function)
 ---| '"navigate"' # Button navigation was triggered on the element (also used in the Element.nav selecting function)
 
 ---@class Papayui.ElementStyle
@@ -63,6 +64,7 @@ papayui.touchScrollingEnabled = true  -- Whether or not holding down the action 
 ---@field margin number[] The margin of the element, in the format {left, top, right, bottom}
 ---@field color? string The background color of this element, from the ui.colors table
 ---@field colorHover? string The background color of this element when it's hovered over
+---@field draw? fun(event: Papayui.DrawEvent) Function that draws the element
 ---@field layout Papayui.ElementLayout The way this element's children will be laid out
 ---@field alignHorizontal Papayui.Alignment The horizontal alignment of the element's children
 ---@field alignVertical Papayui.Alignment The vertical alignment of the element's children
@@ -113,6 +115,14 @@ local UIMT = {__index = UI}
 ---@field targetElement Papayui.Element The element that the event was triggered for
 ---@field data table The arbitrary data that was put into the element
 ---@field ui Papayui.UI The UI the event was triggered in
+
+---@class Papayui.DrawEvent : Papayui.Event
+---@field x number The X position of the element
+---@field y number The Y position of the element
+---@field width number The width of the element
+---@field height number The height of the element
+---@field color? number[] The color of the element
+---@field isSelected boolean Whether or not the element is hovered over
 
 --- Can navigate to either a specific Papayui.Element,
 --- or a function which is checked against all elements, receiving events for both the checked element and the element the navigation originates from.
@@ -301,7 +311,17 @@ function UI:draw()
     local selectedMember = self.selectedMember
     for memberIndex = 1, #members do
         local member = members[memberIndex]
-        member:draw(member == selectedMember)
+
+        ---@type Papayui.Event
+        local event = {
+            type = "draw",
+            targetMember = member,
+            targetElement = member.element,
+            data = member.element.data,
+            ui = self,
+        }
+
+        member:draw(member == selectedMember, event)
     end
 end
 
@@ -743,7 +763,18 @@ function UI:triggerEvent(eventType, member)
         ui = self
     }
 
-    local behavior = member.element.behavior
+    self:callEvent(event)
+end
+
+--------------------------------------------------
+--- ### UI:callEvent(event)
+--- Calls the callbacks of an already created event.  
+--- For most purposes, it's better to use UI:triggerEvent() instead.
+---@param event Papayui.Event
+function UI:callEvent(event)
+    local eventType = event.type
+    local behavior = event.targetMember.element.behavior
+
     if eventType == "action" and behavior.action then behavior.action(event) end -- A second place to define actions in behaviors for ease of use
     if behavior.callbacks[eventType] then behavior.callbacks[eventType](event) end
     if papayui.callbacks[eventType] then papayui.callbacks[eventType](event) end
@@ -970,13 +1001,15 @@ end
 ---@param y? number The Y coordinate to draw at (Default is 0)
 ---@param width? number The width to draw the element as (Default is element's width)
 ---@param height? number The height to draw the element as (Default is the element's height)
----@param isSelected? boolean If the element should be drawn as if it was selected (hovered over)
-function Element:draw(x, y, width, height, isSelected)
+---@param isSelected? boolean If the element should be drawn as if it was selected (hovered over) (Default is false)
+---@param event? Papayui.Event Event to be triggered by the drawing (Default is none)
+function Element:draw(x, y, width, height, isSelected, event)
     local style = self.style
     x = x or 0
     y = y or 0
     width = width or style.width
     height = height or style.height
+    isSelected = isSelected or false
 
     local color = papayui.colors[style.color]
     local colorHover = papayui.colors[style.colorHover]
@@ -988,6 +1021,42 @@ function Element:draw(x, y, width, height, isSelected)
 
     if color then
         papayui.graphics.drawRectangle(x, y, width, height, color)
+    end
+
+    local nilUI = papayui.getNilUI()
+
+    ---@type Papayui.DrawEvent?
+    ---@diagnostic disable-next-line: assign-type-mismatch
+    local drawEvent = event
+    if drawEvent then
+        drawEvent.x = x
+        drawEvent.y = y
+        drawEvent.width = width
+        drawEvent.height = height
+        drawEvent.color = color
+        drawEvent.isSelected = isSelected
+    else
+        drawEvent = {
+            type = "draw",
+            targetMember = nilUI.members[1],
+            targetElement = self,
+            data = self.data,
+            ui = nilUI,
+            x = x,
+            y = y,
+            width = width,
+            height = height,
+            color = color,
+            isSelected = isSelected
+        }
+    end
+
+    if style.draw then
+        style.draw(drawEvent)
+    end
+
+    if drawEvent.ui ~= nilUI then
+        drawEvent.ui:callEvent(drawEvent)
     end
 end
 
@@ -1635,13 +1704,14 @@ function papayui.newLiveMember(element, x, y, parent)
     return setmetatable(member, LiveMemberMT)
 end
 
----@param isSelected? boolean
-function LiveMember:draw(isSelected)
+---@param isSelected? boolean If the element should render as hovered over
+---@param event? Papayui.Event Event to be triggered by the drawing
+function LiveMember:draw(isSelected, event)
     local cropX, cropY, cropWidth, cropHeight = papayui.graphics.getCrop()
     if self.parent then papayui.graphics.setCrop(self.parent:getCropArea()) end
 
     local x, y, width, height = self:getBounds()
-    self.element:draw(x, y, width, height, isSelected)
+    self.element:draw(x, y, width, height, isSelected, event)
 
     papayui.graphics.setCrop(cropX, cropY, cropWidth, cropHeight)
 end
@@ -2056,6 +2126,14 @@ function LiveMember:select(source, direction)
     if selectedChild then return selectedChild end
 
     return self:forwardNavigation(source, direction)
+end
+
+local emptyUI
+--- Returns the "no UI" UI, where its only member represents any element with no UI. Used internally.
+---@return Papayui.UI
+function papayui.getNilUI()
+    emptyUI = emptyUI or papayui.newUI(papayui.newElement())
+    return emptyUI
 end
 
 -- Fin ---------------------------------------------------------------------------------------------
