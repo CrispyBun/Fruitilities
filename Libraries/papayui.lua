@@ -47,10 +47,11 @@ papayui.touchScrollingEnabled = true  -- Whether or not holding down the action 
 ---| '"action"' # The action key has been pressed on an element
 ---| '"hover"' # The element has been hovered over
 ---| '"unhover"' # The element stopped being hovered over
----| '"scrollerHitEnd"' # The element's scroller has reached its limit
----| '"scrollerVelocity"' # The element's scrolling velocity in either axis is not zero and has been updated
 ---| '"update"' # The element has been updated
 ---| '"hoveredUpdate"' # The element is hovered over and has been updated
+---| '"refresh"' # The element has been refreshed (its UI has either just been created or refreshed)
+---| '"scrollerHitEnd"' # The element's scroller has reached its limit
+---| '"scrollerVelocity"' # The element's scrolling velocity in either axis is not zero and has been updated
 ---| '"navigate"' # Button navigation was triggered on the element (also used in the Element.nav selecting function)
 
 ---@class Papayui.ElementStyle
@@ -422,6 +423,8 @@ function UI:refresh()
 
         self.members[#self.members+1] = member
         memberQueueFirst = memberQueueFirst.next
+
+        self:triggerEvent("refresh", member)
     end
 
     local selectedFound = false
