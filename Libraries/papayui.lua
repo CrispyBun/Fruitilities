@@ -59,7 +59,7 @@ papayui.touchScrollingEnabled = true  -- Whether or not holding down the action 
 ---| '"refresh"' # The element has been refreshed (its UI has either just been created or refreshed)
 ---| '"scrollerHitEnd"' # The element's scroller has reached its limit
 ---| '"scrollerVelocity"' # The element's scrolling velocity in either axis is not zero and has been updated
----| '"draw"' # The element has been drawn (also used in the actual draw function)
+---| '"draw"' # The element has been drawn (also used in the actual draw functions)
 ---| '"navigate"' # Button navigation was triggered on the element (also used in the Element.nav selecting function)
 
 ---@class Papayui.ElementStyle
@@ -73,6 +73,7 @@ papayui.touchScrollingEnabled = true  -- Whether or not holding down the action 
 ---@field colorHover? string The background color of this element when it's hovered over
 ---@field drawRectangle? boolean Whether or not the element should draw a rectangle of its color at its position. If nil, defaults to papayui.drawElementRectangles.
 ---@field draw? fun(event: Papayui.DrawEvent) Function that draws the element
+---@field drawInner? fun(event: Papayui.DrawEvent) Similar to the draw function, but is drawn after it and receives the element's inner padded area as the size
 ---@field layout Papayui.ElementLayout The way this element's children will be laid out
 ---@field alignHorizontal Papayui.Alignment The horizontal alignment of the element's children
 ---@field alignVertical Papayui.Alignment The vertical alignment of the element's children
@@ -1082,6 +1083,18 @@ function Element:draw(x, y, width, height, isSelected, event)
 
     if style.draw then
         style.draw(drawEvent)
+    end
+
+    if style.drawInner then
+        drawEvent.x = drawEvent.x + style.padding[1]
+        drawEvent.y = drawEvent.y + style.padding[2]
+        drawEvent.width = drawEvent.width - style.padding[1] - style.padding[3]
+        drawEvent.height = drawEvent.height - style.padding[2] - style.padding[4]
+        style.drawInner(drawEvent)
+        drawEvent.x = x
+        drawEvent.y = y
+        drawEvent.width = width
+        drawEvent.height = height
     end
 
     if drawEvent.ui ~= nilUI then
