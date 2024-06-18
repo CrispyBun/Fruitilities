@@ -25,14 +25,14 @@ papayui.touchScrollingEnabled = true  -- Whether or not holding down the action 
 
 -- Definitions -------------------------------------------------------------------------------------
 
----@alias PapayuiElementLayout
+---@alias Papayui.ElementLayout
 ---| '"none"' # The elements are not displayed
 ---| '"singlerow"' # A single horizontal row of elements
 ---| '"singlecolumn"' # A single vertical column of elements
 ---| '"rows"' # Horizontal rows of elements
 ---| '"columns"' # Vertical columns of elements
 
----@alias PapayuiAlignment
+---@alias Papayui.Alignment
 ---| '"start"' # Aligns to the left or top
 ---| '"center"' # Aligns to the center
 ---| '"end"' # Aligns to the right or bottom
@@ -43,7 +43,7 @@ papayui.touchScrollingEnabled = true  -- Whether or not holding down the action 
 ---| '"middle"' # Same as 'center'
 
 ---@diagnostic disable-next-line: duplicate-doc-alias
----@alias PapayuiEventType
+---@alias Papayui.EventType
 ---| '"action"' # The action key has been pressed on an element
 ---| '"hover"' # The element has been hovered over
 ---| '"unhover"' # The element stopped being hovered over
@@ -51,9 +51,9 @@ papayui.touchScrollingEnabled = true  -- Whether or not holding down the action 
 ---| '"scrollerVelocity"' # The element's scrolling velocity in either axis is not zero and has been updated
 ---| '"update"' # The element has been updated
 ---| '"hoveredUpdate"' # The element is hovered over and has been updated
----| '"navigate"' # Button navigation was triggered on the element (also used in the PapayuiElement.nav selecting function)
+---| '"navigate"' # Button navigation was triggered on the element (also used in the Element.nav selecting function)
 
----@class PapayuiElementStyle
+---@class Papayui.ElementStyle
 ---@field width number The width of the element
 ---@field height number The height of the element
 ---@field growHorizontal boolean Whether the element should grow horizontally to take up full parent space
@@ -62,10 +62,10 @@ papayui.touchScrollingEnabled = true  -- Whether or not holding down the action 
 ---@field margin number[] The margin of the element, in the format {left, top, right, bottom}
 ---@field color? string The background color of this element, from the ui.colors table
 ---@field colorHover? string The background color of this element when it's hovered over
----@field layout PapayuiElementLayout The way this element's children will be laid out
----@field alignHorizontal PapayuiAlignment The horizontal alignment of the element's children
----@field alignVertical PapayuiAlignment The vertical alignment of the element's children
----@field alignInside PapayuiAlignment The alignment of all the individual child elements within a line
+---@field layout Papayui.ElementLayout The way this element's children will be laid out
+---@field alignHorizontal Papayui.Alignment The horizontal alignment of the element's children
+---@field alignVertical Papayui.Alignment The vertical alignment of the element's children
+---@field alignInside Papayui.Alignment The alignment of all the individual child elements within a line
 ---@field scrollHorizontal boolean Whether or not any horizontal overflow in the element's children should scroll
 ---@field scrollVertical boolean Whether or not any vertical overflow in the element's children should scroll
 ---@field gap number[] The gap between its child elements in the layout, in the format {horizontal, vertical}
@@ -75,56 +75,56 @@ papayui.touchScrollingEnabled = true  -- Whether or not holding down the action 
 local ElementStyle = {}
 local ElementStyleMT = {__index = ElementStyle}
 
----@class PapayuiElementBehavior
+---@class Papayui.ElementBehavior
 ---@field buttonSelectable boolean Whether or not it is possible to navigate to this element using button input (it is not recommended to disable this, it might make certain selection situations odd)
 ---@field cursorSelectable boolean Whether or not it is possible to navigate to this element using cursor input
----@field action? fun(event: PapayuiEvent) Callback for when this element is selected (action key is pressed on it)
----@field callbacks table<PapayuiEventType, fun(event: PapayuiEvent)> Listeners for events on this element
+---@field action? fun(event: Papayui.Event) Callback for when this element is selected (action key is pressed on it)
+---@field callbacks table<Papayui.EventType, fun(event: Papayui.Event)> Listeners for events on this element
 local ElementBehavior = {}
 local ElementBehaviorMT = {__index = ElementBehavior}
 
----@class PapayuiElement
----@field style PapayuiElementStyle The style this element uses
----@field behavior PapayuiElementBehavior The behavior this element uses
----@field children PapayuiElement[] The children of this element (can be empty)
----@field nav PapayuiNavigation Optionally specified navigation for the element. Each direction (left, up, right, down) can be set. If a direction is left as nil, auto navigation is used.
+---@class Papayui.Element
+---@field style Papayui.ElementStyle The style this element uses
+---@field behavior Papayui.ElementBehavior The behavior this element uses
+---@field children Papayui.Element[] The children of this element (can be empty)
+---@field nav Papayui.Navigation Optionally specified navigation for the element. Each direction (left, up, right, down) can be set. If a direction is left as nil, auto navigation is used.
 ---@field importance number When finding a default element to select, the element with the highest importance gets picked
 ---@field data table Any arbitrary data you want to add to this element, mostly to be used in callbacks
 local Element = {}
 local ElementMT = {__index = Element}
 
----@class PapayuiUI
----@field members PapayuiLiveMember[] All the elements in the UI, in the drawn order
----@field selectedMember? PapayuiLiveMember The member that is currently selected
----@field lastSelection? PapayuiLiveMember The last element that was selected
+---@class Papayui.UI
+---@field members Papayui.LiveMember[] All the elements in the UI, in the drawn order
+---@field selectedMember? Papayui.LiveMember The member that is currently selected
+---@field lastSelection? Papayui.LiveMember The last element that was selected
 ---@field actionDown boolean If the action key is currently down (set automatically by the appropriate methods)
 ---@field cursorX number The cursor X coordinate
 ---@field cursorY number The cursor Y coordinate
----@field touchDraggedMember? PapayuiLiveMember The member that is currently being being scrolled using touch input
+---@field touchDraggedMember? Papayui.LiveMember The member that is currently being being scrolled using touch input
 local UI = {}
 local UIMT = {__index = UI}
 
----@class PapayuiEvent
----@field type PapayuiEventType The type of event triggered
----@field targetMember PapayuiLiveMember The member that the event was triggered for
----@field targetElement PapayuiElement The element that the event was triggered for
+---@class Papayui.Event
+---@field type Papayui.EventType The type of event triggered
+---@field targetMember Papayui.LiveMember The member that the event was triggered for
+---@field targetElement Papayui.Element The element that the event was triggered for
 ---@field data table The arbitrary data that was put into the element
----@field ui PapayuiUI The UI the event was triggered in
+---@field ui Papayui.UI The UI the event was triggered in
 
---- Can navigate to either a specific PapayuiElement,
+--- Can navigate to either a specific Papayui.Element,
 --- or a function which is checked against all elements, receiving events for both the checked element and the element the navigation originates from.
 --- The element for which the function returns true is selected.
----@class PapayuiNavigation
----@field left? PapayuiElement|fun(checkedElementEvent: PapayuiEvent, originEvent: PapayuiEvent): boolean
----@field up? PapayuiElement|fun(checkedElementEvent: PapayuiEvent, originEvent: PapayuiEvent): boolean
----@field right? PapayuiElement|fun(checkedElementEvent: PapayuiEvent, originEvent: PapayuiEvent): boolean
----@field down? PapayuiElement|fun(checkedElementEvent: PapayuiEvent, originEvent: PapayuiEvent): boolean
+---@class Papayui.Navigation
+---@field left? Papayui.Element|fun(checkedElementEvent: Papayui.Event, originEvent: Papayui.Event): boolean
+---@field up? Papayui.Element|fun(checkedElementEvent: Papayui.Event, originEvent: Papayui.Event): boolean
+---@field right? Papayui.Element|fun(checkedElementEvent: Papayui.Event, originEvent: Papayui.Event): boolean
+---@field down? Papayui.Element|fun(checkedElementEvent: Papayui.Event, originEvent: Papayui.Event): boolean
 
 --- The instanced element in an actual UI, with a state. You don't really have to worry about these, they're used internally
----@class PapayuiLiveMember
----@field element PapayuiElement The element this is an instance of
----@field parent? PapayuiLiveMember The parent of this member
----@field children PapayuiLiveMember[] The children of this member
+---@class Papayui.LiveMember
+---@field element Papayui.Element The element this is an instance of
+---@field parent? Papayui.LiveMember The parent of this member
+---@field children Papayui.LiveMember[] The children of this member
 ---@field x number The x position of the element
 ---@field y number The y position of the element
 ---@field width number The actual width of the element
@@ -133,7 +133,7 @@ local UIMT = {__index = UI}
 ---@field scrollY number The amount of scroll in the Y direction
 ---@field scrollVelocityX number The scroll velocity in the X direction
 ---@field scrollVelocityY number The scroll velocity in the Y direction
----@field nav (PapayuiLiveMember?)[] {navLeft, navUp, navRight, navDown}
+---@field nav (Papayui.LiveMember?)[] {navLeft, navUp, navRight, navDown}
 local LiveMember = {}
 local LiveMemberMT = {__index = LiveMember}
 
@@ -141,7 +141,7 @@ local LiveMemberMT = {__index = LiveMember}
 
 --- Global callbacks triggered for events from any active UI  
 --- Set these to any callback functions. There are no global callbacks by default.
----@type table<PapayuiEventType, fun(event: PapayuiEvent)>
+---@type table<Papayui.EventType, fun(event: Papayui.Event)>
 papayui.callbacks = {}
 
 -- -- Example callback
@@ -169,9 +169,9 @@ papayui.callbacks = {}
 --- style.layout = "singlecolumn"
 --- ```
 ---@param mixins? table
----@return PapayuiElementStyle
+---@return Papayui.ElementStyle
 function papayui.newElementStyle(mixins)
-    ---@type PapayuiElementStyle
+    ---@type Papayui.ElementStyle
     local style = {
         width = 0,
         height = 0,
@@ -211,9 +211,9 @@ end
 ---     print("The element was pressed")
 --- end
 --- ```
----@return PapayuiElementBehavior
+---@return Papayui.ElementBehavior
 function papayui.newElementBehavior(mixins)
-    ---@type PapayuiElementBehavior
+    ---@type Papayui.ElementBehavior
     local behavior = {
         buttonSelectable = true,
         cursorSelectable = true,
@@ -237,14 +237,14 @@ end
 --- local element = papayui.newElement(style, behavior)
 --- element.children = {otherElement1, otherElement2}
 --- ```
----@param style? PapayuiElementStyle
----@param behavior? PapayuiElementBehavior
----@return PapayuiElement
+---@param style? Papayui.ElementStyle
+---@param behavior? Papayui.ElementBehavior
+---@return Papayui.Element
 function papayui.newElement(style, behavior)
     style = style or papayui.newElementStyle()
     behavior = behavior or papayui.newElementBehavior()
 
-    ---@type PapayuiElement
+    ---@type Papayui.Element
     local element = {
         style = style,
         behavior = behavior,
@@ -260,12 +260,12 @@ end
 --------------------------------------------------
 --- ### papayui.newUI(rootElement)
 --- Creates a new usable UI, using the given element as the topmost parent element. Can specify an X and Y location for the UI.
----@param rootElement PapayuiElement The root element of the whole UI
+---@param rootElement Papayui.Element The root element of the whole UI
 ---@param x? number The X coordinate of the UI (Default is 0)
 ---@param y? number The Y coordinate of the UI (Default is 0)
----@return PapayuiUI
+---@return Papayui.UI
 function papayui.newUI(rootElement, x, y)
-    ---@type PapayuiUI
+    ---@type Papayui.UI
     local ui = {
         members = {},
         selectedMember = nil,
@@ -398,12 +398,12 @@ function UI:refresh()
     local memberQueueFirst = {value = rootMember, next = nil}
     local memberQueueLast = memberQueueFirst
     while memberQueueFirst do
-        ---@type PapayuiLiveMember
+        ---@type Papayui.LiveMember
         local member = memberQueueFirst.value
         local layout = member.element.style.layout
 
         if layout and papayui.layouts[layout] then
-            ---@type PapayuiLiveMember[]
+            ---@type Papayui.LiveMember[]
             local addedMembers = papayui.layouts[layout](member)
 
             for addedIndex = 1, #addedMembers do
@@ -451,7 +451,7 @@ function UI:navigate(direction)
 
     local definedNav = selectedMember.element.nav[direction]
 
-    ---@type PapayuiLiveMember?
+    ---@type Papayui.LiveMember?
     local nextSelected
     if definedNav then
         nextSelected = self:findMemberAsNavigation(definedNav, selectedMember)
@@ -580,11 +580,11 @@ end
 
 --------------------------------------------------
 --- ### UI:select(member)
---- Used internally but can also be used externally, however note that the function takes the instanced PapayuiLiveMember as the input, not a PapayuiElement.
+--- Used internally but can also be used externally, however note that the function takes the instanced LiveMember as the input, not an Element.
 ---
 --- Makes the member considered selected by the UI. If no member is supplied, the currently selected member gets deselected.  
 --- Can optionally scroll elements to put the newly selected element into view.
----@param member? PapayuiLiveMember The member to select
+---@param member? Papayui.LiveMember The member to select
 ---@param scrollToView? boolean Whether or not to scroll the selected element into view
 function UI:select(member, scrollToView)
     local currentSelected = self.selectedMember
@@ -602,11 +602,11 @@ end
 
 --------------------------------------------------
 --- ### UI:findMember(elementOrFunction)
---- Finds and returns a PapayuiLiveMember.  
+--- Finds and returns a LiveMember.  
 ---
---- * When supplied with a PapayuiElement, returns the member instanced from that element.  
+--- * When supplied with an Element, returns the member instanced from that element.  
 --- * When supplied with a function, the function gets called on each member, passing the member into the function, and returns the element the function returns true for.
----@param elementOrFunction PapayuiElement|fun(member: PapayuiLiveMember): boolean
+---@param elementOrFunction Papayui.Element|fun(member: Papayui.LiveMember): boolean
 function UI:findMember(elementOrFunction)
     local isFunction = type(elementOrFunction) == "function"
     local members = self.members
@@ -619,13 +619,13 @@ end
 
 --------------------------------------------------
 --- Finds a member according to the value in an element.nav
----@param nav PapayuiElement|fun(checkedElementEvent: PapayuiEvent, originEvent: PapayuiEvent): boolean
----@param originMember PapayuiLiveMember
----@return PapayuiLiveMember?
+---@param nav Papayui.Element|fun(checkedElementEvent: Papayui.Event, originEvent: Papayui.Event): boolean
+---@param originMember Papayui.LiveMember
+---@return Papayui.LiveMember?
 function UI:findMemberAsNavigation(nav, originMember)
     local isFunction = type(nav) == "function"
 
-    ---@type PapayuiEvent
+    ---@type Papayui.Event
     local originEvent
 
     if isFunction then
@@ -642,7 +642,7 @@ function UI:findMemberAsNavigation(nav, originMember)
     for memberIndex = 1, #members do
         local member = members[memberIndex]
         if isFunction then
-            ---@type PapayuiEvent
+            ---@type Papayui.Event
             local memberEvent = {
                 type = "navigate",
                 targetMember = member,
@@ -662,7 +662,7 @@ end
 
 --------------------------------------------------
 --- Returns the first selectable member it finds. Used internally.
----@return PapayuiLiveMember?
+---@return Papayui.LiveMember?
 ---@param buttonSelectionOnly? boolean
 function UI:findDefaultSelectable(buttonSelectionOnly)
     if self.lastSelection and (not buttonSelectionOnly or self.lastSelection.element.behavior.buttonSelectable) then
@@ -693,7 +693,7 @@ end
 --- Returns the (topmost) member at the given coordinate. Used internally.
 ---@param x number
 ---@param y number
----@return PapayuiLiveMember?
+---@return Papayui.LiveMember?
 function UI:findMemberAtCoordinate(x, y)
     local members = self.members
     for memberIndex = #members, 1, -1 do
@@ -709,7 +709,7 @@ end
 --------------------------------------------------
 --- ### UI:memberIsPresent(member)
 --- Checks if the given member is present in the UI
----@param member PapayuiLiveMember
+---@param member Papayui.LiveMember
 ---@return boolean
 function UI:memberIsPresent(member)
     local members = self.members
@@ -722,10 +722,10 @@ end
 --------------------------------------------------
 --- ### UI:triggerEvent(eventType, member)
 --- Triggers the specified event on the given member
----@param eventType PapayuiEventType
----@param member PapayuiLiveMember
+---@param eventType Papayui.EventType
+---@param member Papayui.LiveMember
 function UI:triggerEvent(eventType, member)
-    ---@type PapayuiEvent
+    ---@type Papayui.Event
     local event = {
         type = eventType,
         targetMember = member,
@@ -791,7 +791,7 @@ end
 ---@param top? number
 ---@param right? number
 ---@param bottom? number
----@return PapayuiElementStyle
+---@return Papayui.ElementStyle
 function ElementStyle:setPadding(left, top, right, bottom)
     self.padding = generateDirectionalValue(left, top, right, bottom)
     return self
@@ -804,7 +804,7 @@ end
 ---@param top? number
 ---@param right? number
 ---@param bottom? number
----@return PapayuiElementStyle
+---@return Papayui.ElementStyle
 function ElementStyle:setMargin(left, top, right, bottom)
     self.margin = generateDirectionalValue(left, top, right, bottom)
     return self
@@ -818,7 +818,7 @@ end
 --- If no number is supplied, the gap is set to 0.
 ---@param horizontalGap? number
 ---@param verticalGap? number
----@return PapayuiElementStyle
+---@return Papayui.ElementStyle
 function ElementStyle:setGap(horizontalGap, verticalGap)
     horizontalGap = horizontalGap or 0
     verticalGap = verticalGap or horizontalGap
@@ -833,7 +833,7 @@ end
 --- If only the first value is supplied, it is applied to both horizontal and vertical grow.
 ---@param horizontalGrow boolean
 ---@param verticalGrow? boolean
----@return PapayuiElementStyle
+---@return Papayui.ElementStyle
 function ElementStyle:setGrow(horizontalGrow, verticalGrow)
     if verticalGrow == nil then verticalGrow = horizontalGrow end
     self.growHorizontal = horizontalGrow
@@ -847,11 +847,11 @@ end
 --- 
 --- If verticalAlign isn't supplied, it is set to the same align as horizontalAlign.  
 --- If alignInside isn't supplied, it will set itself to be same as the align on the cross axis, based on the selected layout.
----@param layout PapayuiElementLayout
----@param alignHorizontal PapayuiAlignment
----@param alignVertical? PapayuiAlignment
----@param alignInside? PapayuiAlignment
----@return PapayuiElementStyle
+---@param layout Papayui.ElementLayout
+---@param alignHorizontal Papayui.Alignment
+---@param alignVertical? Papayui.Alignment
+---@param alignInside? Papayui.Alignment
+---@return Papayui.ElementStyle
 function ElementStyle:setLayout(layout, alignHorizontal, alignVertical, alignInside)
     alignVertical = alignVertical or alignHorizontal
 
@@ -878,7 +878,7 @@ end
 --- If only the first value is supplied, it is applied to both horizontal and vertical scroll.
 ---@param horizontalScroll boolean
 ---@param verticalScroll? boolean
----@return PapayuiElementStyle
+---@return Papayui.ElementStyle
 function ElementStyle:setScroll(horizontalScroll, verticalScroll)
     if verticalScroll == nil then verticalScroll = horizontalScroll end
     self.scrollHorizontal = horizontalScroll
@@ -894,7 +894,7 @@ end
 --- If no number is supplied, the size in both axis is set to 0.
 ---@param width? number
 ---@param height? number
----@return PapayuiElementStyle
+---@return Papayui.ElementStyle
 function ElementStyle:setSize(width, height)
     width = width or 0
     height = height or width
@@ -910,7 +910,7 @@ end
 --- If a color is not supplied, it is to nil (no color)
 ---@param color? string
 ---@param colorHover? string
----@return PapayuiElementStyle
+---@return Papayui.ElementStyle
 function ElementStyle:setColor(color, colorHover)
     self.color = color
     self.colorHover = colorHover
@@ -920,7 +920,7 @@ end
 --------------------------------------------------
 --- ### ElementStyle:clone()
 --- Returns a copy of the style
----@return PapayuiElementStyle
+---@return Papayui.ElementStyle
 function ElementStyle:clone()
     local copiedTable = deepCopy(self)
     return setmetatable(copiedTable, ElementStyleMT)
@@ -931,7 +931,7 @@ end
 --------------------------------------------------
 --- ### ElementBehavior:clone()
 --- Returns a copy of the behavior
----@return PapayuiElementBehavior
+---@return Papayui.ElementBehavior
 function ElementBehavior:clone()
     local copiedTable = deepCopy(self)
     return setmetatable(copiedTable, ElementBehaviorMT)
@@ -942,9 +942,9 @@ end
 --------------------------------------------------
 --- ### Element:clone()
 --- Returns a copy of the element
----@return PapayuiElement
+---@return Papayui.Element
 function Element:clone()
-    ---@type PapayuiElement
+    ---@type Papayui.Element
     local clonedElement = {
         style = self.style:clone(),
         behavior = self.behavior:clone(),
@@ -1193,8 +1193,8 @@ local function getNudgeValue(usableSpace, usedSpace, align)
     return (align * unusedSpace + unusedSpace) / 2
 end
 
----@param parentMember PapayuiLiveMember
----@return PapayuiLiveMember[]
+---@param parentMember Papayui.LiveMember
+---@return Papayui.LiveMember[]
 local function generateChildMembers(parentMember)
     local elements = parentMember.element.children
     local previousChildren = parentMember.children
@@ -1202,7 +1202,7 @@ local function generateChildMembers(parentMember)
 
     parentMember.children = {}
 
-    ---@type PapayuiLiveMember[]
+    ---@type Papayui.LiveMember[]
     local members = {}
     for elementIndex = 1, #elements do
         local element = elements[elementIndex]
@@ -1223,7 +1223,7 @@ local function generateChildMembers(parentMember)
     return members
 end
 
----@param members PapayuiLiveMember[]
+---@param members Papayui.LiveMember[]
 ---@param gap number
 ---@param isVertical boolean
 ---@return number lineSizeMain
@@ -1277,7 +1277,7 @@ end
 
 local function memberIsLessWide(a, b) return a.width < b.width end
 local function memberIsLessTall(a, b) return a.height < b.height end
----@param members PapayuiLiveMember
+---@param members Papayui.LiveMember
 ---@param usableSpaceWidth number
 ---@param usableSpaceHeight number
 ---@param gap number
@@ -1346,12 +1346,12 @@ local function growLineMembers(members, usableSpaceWidth, usableSpaceHeight, gap
     end
 end
 
----@param members PapayuiLiveMember[]
+---@param members Papayui.LiveMember[]
 ---@param usableSpaceMain number
 ---@param gap number
 ---@param mainAxisIsVertical boolean
 ---@param maxLineElements? number|table
----@return PapayuiLiveMember[][]
+---@return Papayui.LiveMember[][]
 local function splitMembersToLines(members, usableSpaceMain, gap, mainAxisIsVertical, maxLineElements)
     local sizeMain = mainAxisIsVertical and "height" or "width"
     local marginStart = mainAxisIsVertical and 2 or 1
@@ -1396,7 +1396,7 @@ local function splitMembersToLines(members, usableSpaceMain, gap, mainAxisIsVert
     return lines
 end
 
----@param members PapayuiLiveMember[]
+---@param members Papayui.LiveMember[]
 ---@param x number
 ---@param y number
 ---@param width number
@@ -1439,8 +1439,8 @@ local function alignMembers(members, x, y, width, height, alignHorizontal, align
     return contentWidth, contentHeight
 end
 
----@param member1 PapayuiLiveMember
----@param member2 PapayuiLiveMember
+---@param member1 Papayui.LiveMember
+---@param member2 Papayui.LiveMember
 ---@param axisIsVertical boolean
 ---@return number
 local function getAxisOverlap(member1, member2, axisIsVertical)
@@ -1463,10 +1463,10 @@ local function getAxisOverlap(member1, member2, axisIsVertical)
     return overlap
 end
 
----@param member PapayuiLiveMember
----@param otherMembers PapayuiLiveMember[]
+---@param member Papayui.LiveMember
+---@param otherMembers Papayui.LiveMember[]
 ---@param axisIsVertical boolean
----@return PapayuiLiveMember?
+---@return Papayui.LiveMember?
 local function findLargestAxisOverlap(member, otherMembers, axisIsVertical)
     local maxOverlap = 0
     local maxOverlapMember
@@ -1484,7 +1484,7 @@ local function findLargestAxisOverlap(member, otherMembers, axisIsVertical)
     return maxOverlapMember
 end
 
----@param lines PapayuiLiveMember[][]
+---@param lines Papayui.LiveMember[][]
 ---@param mainAxisIsVertical boolean
 local function assignCrossAxisLineNavigation(lines, mainAxisIsVertical)
     local navPrev = mainAxisIsVertical and 1 or 2
@@ -1509,7 +1509,7 @@ local function assignCrossAxisLineNavigation(lines, mainAxisIsVertical)
     end
 end
 
----@type table<string, fun(member: PapayuiLiveMember, ...?): PapayuiLiveMember[]>
+---@type table<string, fun(member: Papayui.LiveMember, ...?): Papayui.LiveMember[]>
 papayui.layouts = {}
 
 function papayui.layouts.none()
@@ -1594,18 +1594,18 @@ end
 -- Members -----------------------------------------------------------------------------------------
 
 --- Used internally by the library
----@param element PapayuiElement
+---@param element Papayui.Element
 ---@param x? number
 ---@param y? number
----@param parent? PapayuiLiveMember
----@return PapayuiLiveMember
+---@param parent? Papayui.LiveMember
+---@return Papayui.LiveMember
 function papayui.newLiveMember(element, x, y, parent)
     x = x or 0
     y = y or 0
     local style = element.style
     local scale = style.ignoreScale and 1 or papayui.scale
 
-    ---@type PapayuiLiveMember
+    ---@type Papayui.LiveMember
     local member = {
         element = element,
         children = {},
@@ -1698,7 +1698,7 @@ end
 ---@param overlapY1? number Top side of area to overlap with
 ---@param overlapX2? number Right side of area to overlap with
 ---@param overlapY2? number Bottom side of area to overlap with
----@param highestParent? PapayuiLiveMember If supplied, this member will be considered the root member, and its parents' crop values won't be considered
+---@param highestParent? Papayui.LiveMember If supplied, this member will be considered the root member, and its parents' crop values won't be considered
 ---@return number? cropX
 ---@return number? cropY
 ---@return number? cropWidth
@@ -1738,7 +1738,7 @@ function LiveMember:getCropArea(overlapX1, overlapY1, overlapX2, overlapY2, high
 end
 
 --- Returns the area the member takes up after being cropped by the other members
----@param highestParent? PapayuiLiveMember If supplied, this member will be considered the root member, and its parents' crop values won't be considered
+---@param highestParent? Papayui.LiveMember If supplied, this member will be considered the root member, and its parents' crop values won't be considered
 ---@return number x
 ---@return number y
 ---@return number width
@@ -1772,7 +1772,7 @@ function LiveMember:resetBounds(x, y, width, height)
 end
 
 --- Checks if the member's children are of the same instances and in the same order as the input elements
----@param elements PapayuiElement[]
+---@param elements Papayui.Element[]
 ---@return boolean
 function LiveMember:childElementsAreIdentical(elements)
     local children = self.children
@@ -1946,9 +1946,9 @@ function LiveMember:scrollRecursively(scrollX, scrollY, ignoreVelocity, ignoreMa
 end
 
 --- Tries to select self or any child. If provided, will find the selection closest to the source member.
----@param source? PapayuiLiveMember
+---@param source? Papayui.LiveMember
 ---@param notSelf? boolean
----@return PapayuiLiveMember?
+---@return Papayui.LiveMember?
 function LiveMember:selectAny(source, notSelf)
     local sourceX, sourceY, sourceWidth, sourceHeight
     local closestMemberDistance = math.huge
@@ -2008,18 +2008,18 @@ end
 
 --- Passes the navigation request forward.  
 --- Call `select` on element in the given direction (if known) or forward navigation to parent (if there is one)
----@param source PapayuiLiveMember
+---@param source Papayui.LiveMember
 ---@param direction 1|2|3|4
----@return PapayuiLiveMember?
+---@return Papayui.LiveMember?
 function LiveMember:forwardNavigation(source, direction)
     if self.nav[direction] then return self.nav[direction]:select(source, direction) end
     if self.parent then return self.parent:forwardNavigation(source, direction) end
 end
 
 --- Return self or a child if a selectable element is present, or simply forward navigation if not
----@param source PapayuiLiveMember
+---@param source Papayui.LiveMember
 ---@param direction 1|2|3|4
----@return PapayuiLiveMember?
+---@return Papayui.LiveMember?
 function LiveMember:select(source, direction)
     if self:isSelectable() then return self end
 
