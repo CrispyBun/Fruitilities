@@ -17,6 +17,9 @@ papayui.colors.title = {1, 1, 1}
 -- Change and then refresh any UIs
 papayui.scale = 1
 
+-- Whether or not elements draw a basic rectangle on their position by default
+papayui.drawElementRectangles = true
+
 papayui.scrollSpeed = 100             -- The maximum scrolling speed
 papayui.scrollSpeedStep = 5           -- How much scroll speed is added on each scroll input
 papayui.scrollFriction = 0.2          -- How fast the scrolling slows down
@@ -64,6 +67,7 @@ papayui.touchScrollingEnabled = true  -- Whether or not holding down the action 
 ---@field margin number[] The margin of the element, in the format {left, top, right, bottom}
 ---@field color? string The background color of this element, from the ui.colors table
 ---@field colorHover? string The background color of this element when it's hovered over
+---@field drawRectangle? boolean Whether or not the element should draw a rectangle of its color at its position. If nil, defaults to papayui.drawElementRectangles.
 ---@field draw? fun(event: Papayui.DrawEvent) Function that draws the element
 ---@field layout Papayui.ElementLayout The way this element's children will be laid out
 ---@field alignHorizontal Papayui.Alignment The horizontal alignment of the element's children
@@ -1019,7 +1023,8 @@ function Element:draw(x, y, width, height, isSelected, event)
         color = {1, 0, 0} -- "Invalid color" redness
     end
 
-    if color then
+    local drawRectangle = style.drawRectangle == nil and papayui.drawElementRectangles or style.drawRectangle
+    if color and drawRectangle then
         papayui.graphics.drawRectangle(x, y, width, height, color)
     end
 
