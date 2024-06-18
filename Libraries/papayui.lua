@@ -45,12 +45,12 @@ papayui.touchScrollingEnabled = true  -- Whether or not holding down the action 
 ---@diagnostic disable-next-line: duplicate-doc-alias
 ---@alias PapayuiEventType
 ---| '"action"' # The action key has been pressed on an element
----| '"onHover"' # The element has been hovered over
----| '"onUnhover"' # The element stopped being hovered over
----| '"onScrollerHitEnd"' # The element's scroller has reached its limit
----| '"onScrollerVelocity"' # The element's scrolling velocity in either axis is not zero and has been updated
----| '"onUpdate"' # The element has been updated
----| '"onHoveredUpdate"' # The element is hovered over and has been updated
+---| '"hover"' # The element has been hovered over
+---| '"unhover"' # The element stopped being hovered over
+---| '"scrollerHitEnd"' # The element's scroller has reached its limit
+---| '"scrollerVelocity"' # The element's scrolling velocity in either axis is not zero and has been updated
+---| '"update"' # The element has been updated
+---| '"hoveredUpdate"' # The element is hovered over and has been updated
 ---| '"navigate"' # Button navigation was triggered on the element (also used in the PapayuiElement.nav selecting function)
 
 ---@class PapayuiElementStyle
@@ -366,18 +366,18 @@ function UI:update(dt)
                 hitLimit = true
             end
             if hitLimit then
-                self:triggerEvent("onScrollerHitEnd", member)
+                self:triggerEvent("scrollerHitEnd", member)
             end
 
             if member.scrollVelocityX ~= 0 or member.scrollVelocityY ~= 0 then
-                self:triggerEvent("onScrollerVelocity", member)
+                self:triggerEvent("scrollerVelocity", member)
             end
         end
 
-        self:triggerEvent("onUpdate", member)
+        self:triggerEvent("update", member)
     end
 
-    if self.selectedMember then self:triggerEvent("onHoveredUpdate", self.selectedMember) end
+    if self.selectedMember then self:triggerEvent("hoveredUpdate", self.selectedMember) end
 end
 
 --------------------------------------------------
@@ -590,8 +590,8 @@ function UI:select(member, scrollToView)
     if scrollToView and member then member:scrollToView() end
 
     if member ~= currentSelected then
-        if currentSelected then self:triggerEvent("onUnhover", currentSelected) end
-        if member then self:triggerEvent("onHover", member) end
+        if currentSelected then self:triggerEvent("unhover", currentSelected) end
+        if member then self:triggerEvent("hover", member) end
     end
 end
 
