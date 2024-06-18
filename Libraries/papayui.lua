@@ -1,4 +1,6 @@
 local papayui = {}
+
+---@diagnostic disable-next-line: deprecated
 local unpack = unpack or table.unpack
 
 -- Global UI values --------------------------------------------------------------------------------
@@ -1254,6 +1256,9 @@ end
 
 -- Can be replaced with functions to perform these actions in non-love2d environments
 papayui.graphics = {}
+
+---@diagnostic disable-next-line: undefined-global
+local love = love
 
 function papayui.graphics.drawRectangle(x, y, width, height, color)
     local cr, cg, cb, ca = love.graphics.getColor()
