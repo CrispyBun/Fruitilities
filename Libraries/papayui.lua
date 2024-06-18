@@ -46,6 +46,8 @@ papayui.touchScrollingEnabled = true  -- Whether or not holding down the action 
 ---| '"right"' # Same as 'end'
 ---| '"bottom"' # Same as 'end'
 ---| '"middle"' # Same as 'center'
+---| '"spread"' # Evenly spreads out the elements (if not possible, is the same as 'center')
+---| '"spacebetween"' # Same as 'spread'
 
 ---@diagnostic disable-next-line: duplicate-doc-alias
 ---@alias Papayui.EventType
@@ -1293,7 +1295,14 @@ local alignEnum = {
     center = 0,
     middle = 0,
     right = 1,
-    bottom = 1
+    bottom = 1,
+    spread = 0,
+    spacebetween = 0
+}
+
+local spreadAlignKeywords = {
+    spread = true,
+    spacebetween = true
 }
 
 local function getNudgeValue(usableSpace, usedSpace, align)
@@ -1331,12 +1340,37 @@ local function generateChildMembers(parentMember)
     return members
 end
 
+---@param memberCount integer
+---@param usableSpace number
+---@param usedSpace number
+---@return number
+local function getSpreadGapIncrease(memberCount, usableSpace, usedSpace)
+    local unusedSpace = usableSpace - usedSpace
+    if unusedSpace < 0 then return 0 end
+    return unusedSpace / (memberCount - 1)
+end
+
+---@param members Papayui.LiveMember[]
+---@param gapIncrease number
+---@param lineIsVertical boolean
+local function spreadOutLine(members, gapIncrease, lineIsVertical)
+    local position = lineIsVertical and "y" or "x"
+
+    local posAddition = 0
+    for memberIndex = 1, #members do
+        local member = members[memberIndex]
+        member[position] = member[position] + posAddition
+        posAddition = posAddition + gapIncrease
+    end
+end
+
 ---@param members Papayui.LiveMember[]
 ---@param gap number
 ---@param isVertical boolean
+---@param spreadSize? number
 ---@return number lineSizeMain
 ---@return number lineSizeCross
-local function layMembersInLine(members, gap, alignInside, isVertical)
+local function layMembersInLine(members, gap, alignInside, isVertical, spreadSize)
     local marginStart = isVertical and 2 or 1
     local marginEnd = isVertical and 4 or 3
     local sizeMain = isVertical and "height" or "width"
@@ -1379,6 +1413,12 @@ local function layMembersInLine(members, gap, alignInside, isVertical)
 
     local lineSizeMain = nextPos - gap
     local lineSizeCross = tallestMember
+
+    if spreadSize then
+        local gapIncrease = getSpreadGapIncrease(#members, spreadSize, lineSizeMain)
+        spreadOutLine(members, gapIncrease, isVertical)
+        lineSizeMain = spreadSize
+    end
 
     return lineSizeMain, lineSizeCross
 end
@@ -1636,9 +1676,13 @@ function papayui.layouts.singlerow(parentMember, flipAxis)
     local usableSpaceWidth = parentMember.width - style.padding[1] - style.padding[3]
     local usableSpaceHeight = parentMember.height - style.padding[2] - style.padding[4]
 
+    local usableSpaceMain = flipAxis and usableSpaceHeight or usableSpaceWidth
+    local alignMainKeyword = flipAxis and style.alignVertical or style.alignHorizontal
+    local doLineSpread = spreadAlignKeywords[alignMainKeyword]
+
     local outMembers = generateChildMembers(parentMember)
     growLineMembers(outMembers, usableSpaceWidth, usableSpaceHeight, gap, flipAxis)
-    layMembersInLine(outMembers, gap, alignInside, flipAxis)
+    layMembersInLine(outMembers, gap, alignInside, flipAxis, doLineSpread and usableSpaceMain)
     alignMembers(outMembers, originX, originY, usableSpaceWidth, usableSpaceHeight, alignHorizontal, alignVertical)
 
     return outMembers
@@ -1663,6 +1707,10 @@ function papayui.layouts.rows(parentMember, flipAxis)
     local usableSpaceHeight = parentMember.height - style.padding[2] - style.padding[4]
     local usableSpaceMain =  flipAxis and usableSpaceHeight or usableSpaceWidth
 
+    local alignMainKeyword = flipAxis and style.alignVertical or style.alignHorizontal
+    local doLineSpread = spreadAlignKeywords[alignMainKeyword]
+    local lineSpreadSize = doLineSpread and usableSpaceMain
+
     local outMembers = {}
     local generatedMembers = generateChildMembers(parentMember)
     local lines = splitMembersToLines(generatedMembers, usableSpaceMain, gapMain, flipAxis, maxLineMembers)
@@ -1671,7 +1719,7 @@ function papayui.layouts.rows(parentMember, flipAxis)
     for lineIndex = 1, #lines do
         local line = lines[lineIndex]
         growLineMembers(line, usableSpaceWidth, usableSpaceHeight, gapMain, flipAxis, true)
-        layMembersInLine(line, gapMain, alignInside, flipAxis)
+        layMembersInLine(line, gapMain, alignInside, flipAxis, lineSpreadSize)
 
         -- Align the line on the main axis, relative to its assigned position
         local lineX = flipAxis and lineOffset or 0
