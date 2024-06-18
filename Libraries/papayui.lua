@@ -1414,6 +1414,12 @@ local function layMembersInLine(members, gap, alignInside, isVertical, spreadSiz
     local lineSizeMain = nextPos - gap
     local lineSizeCross = tallestMember
 
+    -- Line size *does* take first and last member's margin into account
+    if members[1] then
+        lineSizeMain = lineSizeMain + members[1].element.style.margin[marginStart]
+        lineSizeMain = lineSizeMain + members[#members].element.style.margin[marginEnd]
+    end
+
     if spreadSize then
         local gapIncrease = getSpreadGapIncrease(#members, spreadSize, lineSizeMain)
         spreadOutLine(members, gapIncrease, isVertical)
