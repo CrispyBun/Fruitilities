@@ -68,6 +68,8 @@ papayui.touchScrollingEnabled = true  -- Whether or not holding down the action 
 ---@field alignInside Papayui.Alignment The alignment of all the individual child elements within a line
 ---@field scrollHorizontal boolean Whether or not any horizontal overflow in the element's children should scroll
 ---@field scrollVertical boolean Whether or not any vertical overflow in the element's children should scroll
+---@field offsetX number The element's horizontal offset from its assigned position
+---@field offsetY number The element's vertical offset from its assigned position
 ---@field gap number[] The gap between its child elements in the layout, in the format {horizontal, vertical}
 ---@field cropContent boolean Whether or not overflow in the element's content should be cropped
 ---@field maxLineElements (number|nil)|(number|nil)[] Sets a limit to the amount of elements that can be present in a given row/column. If set to a number, all lines get this limit. If set to an array of numbers, each array index corresponds to a given line index. Nil for unlimited.
@@ -133,6 +135,8 @@ local UIMT = {__index = UI}
 ---@field scrollY number The amount of scroll in the Y direction
 ---@field scrollVelocityX number The scroll velocity in the X direction
 ---@field scrollVelocityY number The scroll velocity in the Y direction
+---@field offsetX number The offset in the X direction
+---@field offsetY number The offset in the Y direction
 ---@field nav (Papayui.LiveMember?)[] {navLeft, navUp, navRight, navDown}
 local LiveMember = {}
 local LiveMemberMT = {__index = LiveMember}
@@ -185,6 +189,8 @@ function papayui.newElementStyle(mixins)
         alignInside = "start",
         scrollHorizontal = false,
         scrollVertical = false,
+        offsetX = 0,
+        offsetY = 0,
         gap = {0, 0},
         cropContent = false,
         ignoreScale = false
@@ -1617,6 +1623,8 @@ function papayui.newLiveMember(element, x, y, parent)
         scrollY = 0,
         scrollVelocityX = 0,
         scrollVelocityY = 0,
+        offsetX = style.offsetX,
+        offsetY = style.offsetY,
         parent = parent,
         nav = {}
     }
@@ -1649,14 +1657,32 @@ function LiveMember:getScroll(addX, addY)
     return x, y
 end
 
+---@param addX? number Addition to the X offset
+---@param addY? number Addition to the Y offset
+---@return number offsetX
+---@return number offsetY
+function LiveMember:getOffset(addX, addY)
+    addX = addX or 0
+    addY = addY or 0
+    local parent = self.parent
+    local x, y = self.offsetX + addX, self.offsetY + addY
+
+    if parent then return parent:getOffset(x, y) end
+    return x, y
+end
+
 --- Gets the area this member takes up (before any cropping by other members)
 ---@return number x
 ---@return number y
 ---@return number width
 ---@return number height
 function LiveMember:getBounds()
-    local xOffset, yOffset = 0, 0
-    if self.parent then xOffset, yOffset = self.parent:getScroll() end
+    local xScroll, yScroll = 0, 0
+    if self.parent then xScroll, yScroll = self.parent:getScroll() end
+
+    local xOffset, yOffset = self:getOffset()
+    xOffset = xOffset + xScroll
+    yOffset = yOffset + yScroll
 
     local x, y = self.x + xOffset, self.y + yOffset
     local width, height = self.width, self.height
