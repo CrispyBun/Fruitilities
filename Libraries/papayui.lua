@@ -36,6 +36,7 @@ papayui.touchScrollingEnabled = true  -- Whether or not holding down the action 
 ---| '"singlecolumn"' # A single vertical column of elements
 ---| '"rows"' # Horizontal rows of elements
 ---| '"columns"' # Vertical columns of elements
+---| '"stack"' # All children are put on top of each other into the parent's inner area
 
 ---@alias Papayui.Alignment
 ---| '"start"' # Aligns to the left or top
@@ -1521,6 +1522,30 @@ local function growLineMembers(members, usableSpaceWidth, usableSpaceHeight, gap
     end
 end
 
+---@param member Papayui.LiveMember
+---@param usableSpaceWidth number
+---@param usableSpaceHeight number
+local function growMember(member, usableSpaceWidth, usableSpaceHeight)
+    local memberStyle = member.element.style
+    if memberStyle.growHorizontal then
+        local growTargetSize = usableSpaceWidth - memberStyle.margin[1] - memberStyle.margin[3]
+        member.width = math.max(member.width, growTargetSize)
+    end
+    if memberStyle.growVertical then
+        local growTargetSize = usableSpaceHeight - memberStyle.margin[2] - memberStyle.margin[4]
+        member.height = math.max(member.height, growTargetSize)
+    end
+end
+
+---@param members Papayui.LiveMember[]
+---@param usableSpaceWidth number
+---@param usableSpaceHeight number
+local function growMembersToSameSpace(members, usableSpaceWidth, usableSpaceHeight)
+    for memberIndex = 1, #members do
+        growMember(members[memberIndex], usableSpaceWidth, usableSpaceHeight)
+    end
+end
+
 ---@param members Papayui.LiveMember[]
 ---@param usableSpaceMain number
 ---@param gap number
@@ -1630,6 +1655,47 @@ local function alignMembers(members, x, y, width, height, alignHorizontal, align
     return contentWidth, contentHeight
 end
 
+---@param member Papayui.LiveMember
+---@param x number
+---@param y number
+---@param width number
+---@param height number
+---@param alignHorizontal number
+---@param alignVertical number
+local function alignMember(member, x, y, width, height, alignHorizontal, alignVertical)
+    local memberMargin = member.element.style.margin
+    local memberX = member.x
+    local memberY = member.y
+    local memberWidth = member.width
+    local memberHeight = member.height
+
+    local leftmostPoint = memberX - memberMargin[1]
+    local topmostPoint = memberY - memberMargin[2]
+    local rightmostPoint = memberX + memberWidth + memberMargin[3]
+    local bottommostPoint = memberY + memberHeight + memberMargin[4]
+
+    local usedWidth = rightmostPoint - leftmostPoint
+    local usedHeight = bottommostPoint - topmostPoint
+
+    local xNudge = x + getNudgeValue(width, usedWidth, alignHorizontal) - leftmostPoint -- Top left point subtraction
+    local yNudge = y + getNudgeValue(height, usedHeight, alignVertical) - topmostPoint  -- to put top left corner at 0, 0
+    member.x = member.x + xNudge
+    member.y = member.y + yNudge
+end
+
+---@param members Papayui.LiveMember[]
+---@param x number
+---@param y number
+---@param width number
+---@param height number
+---@param alignHorizontal number
+---@param alignVertical number
+local function alignMembersIndividually(members, x, y, width, height, alignHorizontal, alignVertical)
+    for memberIndex = 1, #members do
+       alignMember(members[memberIndex], x, y, width, height, alignHorizontal, alignVertical)
+    end
+end
+
 ---@param member1 Papayui.LiveMember
 ---@param member2 Papayui.LiveMember
 ---@param axisIsVertical boolean
@@ -1700,7 +1766,7 @@ local function assignCrossAxisLineNavigation(lines, mainAxisIsVertical)
     end
 end
 
----@type table<string, fun(member: Papayui.LiveMember, ...?): Papayui.LiveMember[]>
+---@type table<Papayui.ElementLayout, fun(member: Papayui.LiveMember, ...?): Papayui.LiveMember[]>
 papayui.layouts = {}
 
 function papayui.layouts.none()
@@ -1798,6 +1864,23 @@ end
 
 function papayui.layouts.columns(parentMember)
     return papayui.layouts.rows(parentMember, true)
+end
+
+function papayui.layouts.stack(parentMember)
+    local style = parentMember.element.style
+    local originX = parentMember.x + style.padding[1]
+    local originY = parentMember.y + style.padding[2]
+
+    local alignHorizontal = alignEnum[style.alignHorizontal]
+    local alignVertical = alignEnum[style.alignVertical]
+    local usableSpaceWidth = parentMember.width - style.padding[1] - style.padding[3]
+    local usableSpaceHeight = parentMember.height - style.padding[2] - style.padding[4]
+
+    local outMembers = generateChildMembers(parentMember)
+    growMembersToSameSpace(outMembers, usableSpaceWidth, usableSpaceHeight)
+    alignMembersIndividually(outMembers, originX, originY, usableSpaceWidth, usableSpaceHeight, alignHorizontal, alignVertical)
+
+    return outMembers
 end
 
 -- Members -----------------------------------------------------------------------------------------
