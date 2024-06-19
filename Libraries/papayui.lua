@@ -37,6 +37,7 @@ papayui.touchScrollingEnabled = true  -- Whether or not holding down the action 
 ---| '"rows"' # Horizontal rows of elements
 ---| '"columns"' # Vertical columns of elements
 ---| '"stack"' # All children are put on top of each other into the parent's inner area
+---| '"positionlist"' # The children are put on the X and Y positions described in the style.positionList table (positions are just relative to each other, parent and alignment will then determine actual position)
 
 ---@alias Papayui.Alignment
 ---| '"start"' # Aligns to the left or top
@@ -78,7 +79,8 @@ papayui.touchScrollingEnabled = true  -- Whether or not holding down the action 
 ---@field layout Papayui.ElementLayout The way this element's children will be laid out
 ---@field alignHorizontal Papayui.Alignment The horizontal alignment of the element's children
 ---@field alignVertical Papayui.Alignment The vertical alignment of the element's children
----@field alignInside Papayui.Alignment The alignment of all the individual child elements within a line
+---@field alignInside Papayui.Alignment The alignment of all the individual child elements relative to their assigned positions (e.g. cross axis alignment within a line)
+---@field alignInsideSecondary Papayui.Alignment The other axis of alignInside for the few layouts where alignInside exists for both axes
 ---@field scrollHorizontal boolean Whether or not any horizontal overflow in the element's children should scroll
 ---@field scrollVertical boolean Whether or not any vertical overflow in the element's children should scroll
 ---@field offsetX number The element's horizontal offset from its assigned position
@@ -87,6 +89,7 @@ papayui.touchScrollingEnabled = true  -- Whether or not holding down the action 
 ---@field cropContent boolean Whether or not overflow in the element's content should be cropped
 ---@field maxLineElements (number|nil)|(number|nil)[] Sets a limit to the amount of elements that can be present in a given row/column. If set to a number, all lines get this limit. If set to an array of numbers, each array index corresponds to a given line index. Nil for unlimited.
 ---@field ignoreScale boolean Determines if papayui.scale has an effect on the size of this element (useful to enable for root elements which fill screen space)
+---@field positionList? {[1]: number, [2]: number}[] The list of child positions for the positionlist layout
 local ElementStyle = {}
 local ElementStyleMT = {__index = ElementStyle}
 
@@ -232,6 +235,7 @@ function papayui.newElementStyle(mixins)
         alignHorizontal = "start",
         alignVertical = "start",
         alignInside = "start",
+        alignInsideSecondary = "center",
         scrollHorizontal = false,
         scrollVertical = false,
         offsetX = 0,
@@ -917,17 +921,26 @@ end
 
 --------------------------------------------------
 --- ### ElementStyle:setLayout(layout, alignHorizontal, alignVertical)
---- Sets the style's layout as well as alignment.
+--- Sets the style's layout as well as alignment.  
+---
+--- For most alignment purposes, setting just the horizontal and vertical align will serve all needs.
+--- If you want to set the alignment in more detail, then:
+--- * alignHorizontal and alignVertical align all the child elements together relative to the parent element
+--- * alignInside aligns the elements individually relatively to their assigned position where it makes sense for the given layout, such as the cross axis alignment within a line
+--- * alignInsideSecondary aligns the other axis of alignInside, for the few layouts where alignInside exists on both axes
 --- 
 --- If verticalAlign isn't supplied, it is set to the same align as horizontalAlign.  
---- If alignInside isn't supplied, it will set itself to be same as the align on the cross axis, based on the selected layout.
----@param layout Papayui.ElementLayout
----@param alignHorizontal Papayui.Alignment
----@param alignVertical? Papayui.Alignment
----@param alignInside? Papayui.Alignment
+--- If alignInside isn't supplied, it will set itself to be same as the align on the cross axis, based on the selected layout.  
+--- If alignInsideSecondary isn't supplied, it won't be changed
+---@param layout Papayui.ElementLayout The layout used
+---@param alignHorizontal Papayui.Alignment The horizontal alignment used
+---@param alignVertical? Papayui.Alignment The vertical alignment used (Default is alignHorizontal)
+---@param alignInside? Papayui.Alignment The alignInside used (Default is same as cross axis alignment)
+---@param alignInsideSecondary? Papayui.Alignment The alignInsideSecondary used
 ---@return Papayui.ElementStyle
-function ElementStyle:setLayout(layout, alignHorizontal, alignVertical, alignInside)
+function ElementStyle:setLayout(layout, alignHorizontal, alignVertical, alignInside, alignInsideSecondary)
     alignVertical = alignVertical or alignHorizontal
+    alignInsideSecondary = alignInsideSecondary or self.alignInsideSecondary
 
     if not alignInside then
         local alignCross = alignVertical
@@ -941,6 +954,7 @@ function ElementStyle:setLayout(layout, alignHorizontal, alignVertical, alignIns
     self.alignHorizontal = alignHorizontal
     self.alignVertical = alignVertical
     self.alignInside = alignInside
+    self.alignInsideSecondary = alignInsideSecondary
 
     return self
 end
@@ -1880,6 +1894,42 @@ function papayui.layouts.stack(parentMember)
     growMembersToSameSpace(outMembers, usableSpaceWidth, usableSpaceHeight)
     alignMembersIndividually(outMembers, originX, originY, usableSpaceWidth, usableSpaceHeight, alignHorizontal, alignVertical)
 
+    return outMembers
+end
+
+function papayui.layouts.positionlist(parentMember)
+    local style = parentMember.element.style
+    local originX = parentMember.x + style.padding[1]
+    local originY = parentMember.y + style.padding[2]
+
+    local alignInside = alignEnum[style.alignInside]
+    local alignInsideSecondary = alignEnum[style.alignInsideSecondary]
+    local alignHorizontal = alignEnum[style.alignHorizontal]
+    local alignVertical = alignEnum[style.alignVertical]
+    local usableSpaceWidth = parentMember.width - style.padding[1] - style.padding[3]
+    local usableSpaceHeight = parentMember.height - style.padding[2] - style.padding[4]
+
+    local positionList = style.positionList
+    if not positionList then return {} end
+
+    local generatedMembers = generateChildMembers(parentMember)
+    local outMembers = {}
+
+    local maxPosition = math.min(#positionList, #generatedMembers)
+    for positionIndex = 1, maxPosition do
+        local position = positionList[positionIndex]
+        local member = generatedMembers[positionIndex]
+
+        local xNudge = getNudgeValue(-member.width, 0, alignInside)
+        local yNudge = getNudgeValue(-member.height, 0, alignInsideSecondary)
+
+        member.x = position[1] + xNudge
+        member.y = position[2] + yNudge
+
+        outMembers[positionIndex] = member
+    end
+
+    alignMembers(outMembers, originX, originY, usableSpaceWidth, usableSpaceHeight, alignHorizontal, alignVertical)
     return outMembers
 end
 
