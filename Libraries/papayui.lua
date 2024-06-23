@@ -64,6 +64,12 @@ papayui.touchScrollingEnabled = true  -- Whether or not holding down the action 
 ---| '"draw"' # The element has been drawn (also used in the actual draw functions)
 ---| '"navigate"' # Button navigation was triggered on the element (also used in the Element.nav selecting function)
 
+---@alias Papayui.UIEnabledState
+---| '"enabled"' # The UI is enabled
+---| '"noinput"' # The UI will be drawn, but input is disabled
+---| '"disabled"' # The UI will not be drawn and input is disabled
+---| '"asleep"' # The UI is not drawn, input is disabled and the UI will not be updated
+
 ---@class Papayui.ElementStyle
 ---@field width number The width of the element
 ---@field height number The height of the element
@@ -119,6 +125,7 @@ local ElementMT = {__index = Element}
 ---@field cursorX number The cursor X coordinate
 ---@field cursorY number The cursor Y coordinate
 ---@field touchDraggedMember? Papayui.LiveMember The member that is currently being being scrolled using touch input
+---@field enabledState Papayui.UIEnabledState Whether the UI responds to input or is even drawn
 local UI = {}
 local UIMT = {__index = UI}
 
@@ -328,7 +335,8 @@ function papayui.newUI(rootElement, x, y)
         actionDown = false,
         cursorX = math.huge,
         cursorY = math.huge,
-        touchDraggedMember = nil
+        touchDraggedMember = nil,
+        enabledState = "enabled"
     }
     setmetatable(ui, UIMT)
 
@@ -345,6 +353,8 @@ end
 --- ### UI:draw()
 --- Draws the UI.
 function UI:draw()
+    if self.enabledState == "disabled" or self.enabledState == "asleep" then return end
+
     local members = self.members
     local selectedMember = self.selectedMember
     for memberIndex = 1, #members do
@@ -372,6 +382,8 @@ local defaultDeltaTime = 1/60
 --- If deltatime isn't supplied, assumes a constant 60 updates per second.
 ---@param dt? number
 function UI:update(dt)
+    if self.enabledState == "asleep" then return end
+
     dt = dt or defaultDeltaTime
     local dtNormalised = dt / defaultDeltaTime
 
@@ -507,6 +519,8 @@ local dirEnum = { left = 1, up = 2, right = 3, down = 4 }
 --- Instructs the UI to change the currently selected element
 ---@param direction "left"|"up"|"right"|"down"
 function UI:navigate(direction)
+    if self.enabledState ~= "enabled" then return end
+
     local selectedMember = self.selectedMember
     if not selectedMember then
         self:select(self:findDefaultSelectable(true), true)
@@ -541,6 +555,8 @@ end
 ---@param x number
 ---@param y number
 function UI:updateCursor(x, y)
+    if self.enabledState ~= "enabled" then return end
+
     if x == self.cursorX and y == self.cursorY then return end
     local xPrevious = self.cursorX
     local yPrevious = self.cursorY
@@ -579,6 +595,7 @@ end
 --- ### UI:actionPress()
 --- Tells the UI that the action key (typically enter, left click, etc.) has been pressed
 function UI:actionPress()
+    if self.enabledState ~= "enabled" then return end
     self.actionDown = true
 end
 
@@ -586,6 +603,8 @@ end
 --- ### UI:actionRelease()
 --- Tells the UI that the action key has been released
 function UI:actionRelease()
+    if self.enabledState ~= "enabled" then return end
+
     -- Bail if the action isn't down in the first place to prevent wonky behavior with multiple key presses
     if not self.actionDown then return end
 
@@ -609,7 +628,39 @@ end
 ---@param scrollY? number
 ---@param ignoreVelocity? boolean
 function UI:scroll(scrollX, scrollY, ignoreVelocity)
+    if self.enabledState ~= "enabled" then return end
     return self:scrollAt(self.cursorX, self.cursorY, scrollX, scrollY, ignoreVelocity)
+end
+
+--------------------------------------------------
+--- ### UI:disable(keepGraphics)
+--- Disables the UI, making inputs not register for it.  
+--- If `keepGraphics` is set to true, the UI will still be drawn, otherwise drawing will be disabled too.
+function UI:disable(keepGraphics)
+    self.actionDown = false
+    self.touchDraggedMember = nil
+
+    if keepGraphics then self.enabledState = "noinput"
+    else self.enabledState = "disabled" end
+end
+
+--------------------------------------------------
+--- ### UI:sleep()
+--- Puts the UI to sleep, disabling input, drawing, and updates. Awake it again with UI:enable().
+function UI:sleep()
+    self.actionDown = false
+    self.touchDraggedMember = nil
+
+    self.enabledState = "asleep"
+end
+
+--------------------------------------------------
+--- ### UI:enable(graphicsOnly)
+--- Enables the UI if it has been previously disabled by UI:disable() or UI:sleep().  
+--- If `graphicsOnly` is set to true, only drawing will be re-enabled.
+function UI:enable(graphicsOnly)
+    if not graphicsOnly then self.enabledState = "enabled"
+    elseif self.enabledState == "disabled" or self.enabledState == "asleep" then self.enabledState = "noinput" end
 end
 
 --------------------------------------------------
