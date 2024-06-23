@@ -620,6 +620,18 @@ function UI:actionRelease()
 end
 
 --------------------------------------------------
+--- ### UI:actionPulse()
+--- Calls UI:actionPress() and UI:actionRelease().
+---  
+--- It's recommended to call actionPress and actionRelease on the respective key events instead of actionPulse,
+--- but if you just want a single callback for a generic "key pressed" event, you can use actionPulse.  
+--- Note that this doesn't allow for touch scrolling to work.
+function UI:actionPulse()
+    self:actionPress()
+    self:actionRelease()
+end
+
+--------------------------------------------------
 --- ### UI:scroll(scrollX, scrollY)
 --- Tells the UI how much the user is scrolling in each given direction (1 would correspond to one mouse wheel movement).  
 --- Each direction is optional - if not supplied, no scroll input is applied in that direction.  
