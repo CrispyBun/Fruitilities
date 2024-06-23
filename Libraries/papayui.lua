@@ -89,6 +89,7 @@ papayui.touchScrollingEnabled = true  -- Whether or not holding down the action 
 ---@field alignInsideSecondary Papayui.Alignment The other axis of alignInside for the few layouts where alignInside exists for both axes
 ---@field scrollHorizontal boolean Whether or not any horizontal overflow in the element's children should scroll
 ---@field scrollVertical boolean Whether or not any vertical overflow in the element's children should scroll
+---@field scrollSpeedMultiplier number Speed multiplier applied to scroll input on this element
 ---@field offsetX number The element's horizontal offset from its assigned position
 ---@field offsetY number The element's vertical offset from its assigned position
 ---@field gap number[] The gap between its child elements in the layout, in the format {horizontal, vertical}
@@ -245,6 +246,7 @@ function papayui.newElementStyle(mixins)
         alignInsideSecondary = "center",
         scrollHorizontal = false,
         scrollVertical = false,
+        scrollSpeedMultiplier = 1,
         offsetX = 0,
         offsetY = 0,
         gap = {0, 0},
@@ -2346,11 +2348,11 @@ end
 ---@return boolean scrolledX
 ---@return boolean scrolledY
 function LiveMember:scroll(scrollX, scrollY, ignoreVelocity, ignoreMaxSpeed, speed)
+    local style = self.element.style
+
     scrollX = scrollX or 0
     scrollY = scrollY or 0
-    speed = speed or papayui.scrollSpeedStep * papayui.scale
-
-    local style = self.element.style
+    speed = speed or papayui.scrollSpeedStep * style.scrollSpeedMultiplier * papayui.scale
 
     local scrolledX = false
     local scrolledY = false
