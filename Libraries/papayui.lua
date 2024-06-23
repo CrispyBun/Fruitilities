@@ -881,6 +881,36 @@ function UI:callEvent(event)
     if papayui.callbacks[eventType] then papayui.callbacks[eventType](event) end
 end
 
+--------------------------------------------------
+--- ### UI:appendElement(element)
+--- Instances a new member from an element and adds it to the UI, optionally also assigning it a position.  
+--- Note that, upon a refresh, the element will be removed.
+---@param element Papayui.Element
+---@param x? number
+---@param y? number
+---@return Papayui.LiveMember
+function UI:appendElement(element, x, y)
+    local member = papayui.newLiveMember(element, x, y)
+    self.members[#self.members+1] = member
+    return member
+end
+
+--------------------------------------------------
+--- ### UI:removeMember(member)
+--- Removes a specific member from the UI.  
+--- Note that, upon a refresh, the UI is put back into its initial state, so the member will be put back if it was originally there.
+---@param member Papayui.LiveMember
+---@return boolean success
+function UI:removeMember(member)
+    for memberIndex = 1, #self.members do
+        if self.members[memberIndex] == member then
+            table.remove(self.members, memberIndex)
+            return true
+        end
+    end
+    return false
+end
+
 -- Style methods -----------------------------------------------------------------------------------
 
 local function generateDirectionalValue(left, top, right, bottom)
