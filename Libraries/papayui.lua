@@ -132,6 +132,7 @@ local ElementStyle = {}
 local ElementStyleMT = {__index = ElementStyle}
 
 ---@class Papayui.ElementBehavior
+---@field isSelectable? boolean Optional override for the default logic determining if the element is selectable (does not override buttonSelectable or cursorSelectable being false though)
 ---@field buttonSelectable boolean Whether or not it is possible to navigate to this element using button input (it is not recommended to disable this, it might make certain selection situations odd)
 ---@field cursorSelectable boolean Whether or not it is possible to navigate to this element using cursor input
 ---@field action? fun(event: Papayui.Event) Callback for when this element is selected (action key is pressed on it)
@@ -310,6 +311,7 @@ end
 function papayui.newElementBehavior(mixins)
     ---@type Papayui.ElementBehavior
     local behavior = {
+        isSelectable = nil,
         buttonSelectable = true,
         cursorSelectable = true,
         callbacks = {}
@@ -2275,7 +2277,14 @@ end
 
 ---@return boolean
 function LiveMember:isSelectable()
-    if self.element.style.colorHover then return true end
+    local style = self.element.style
+    local behavior = self.element.behavior
+
+    if behavior.isSelectable ~= nil then return behavior.isSelectable end
+    if behavior.action then return true end
+    if behavior.callbacks.action then return true end
+    if style.colorHover then return true end
+
     return false
 end
 
