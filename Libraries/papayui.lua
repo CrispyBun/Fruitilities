@@ -1440,7 +1440,7 @@ function papayui.graphics.setCrop(x, y, width, height)
     return love.graphics.setScissor(x, y, width, height)
 end
 
-papayui.graphics.getCrop = love.graphics.getScissor
+papayui.graphics.getCrop = love and love.graphics.getScissor
 
 local emptyFunction = function () end
 if not love then
