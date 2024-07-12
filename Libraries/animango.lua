@@ -19,6 +19,8 @@ local AnimationMT = {__index = Animation}
 ---@class Animango.Sprite
 ---@field x number The X position of the sprite
 ---@field y number The Y position of the sprite
+---@field scaleX number The scale of the sprite on the X axis
+---@field scaleY number The scale of the sprite on the Y axis
 ---@field currentAnimation string The current active animation
 ---@field currentFrame integer The current frame within the animation
 ---@field animations table<string, Animango.Animation>
@@ -36,6 +38,8 @@ function animango.newSprite()
     local sprite = {
         x = 0,
         y = 0,
+        scaleX = 1,
+        scaleY = 1,
         currentAnimation = "default",
         currentFrame = 1,
         animations = {}
@@ -88,6 +92,18 @@ function Sprite:setCurrentFrame(frame)
 end
 
 --------------------------------------------------
+--- ### Sprite:setScale()
+--- Sets the sprite's scale. If `sy` is not supplied, sets both axes to the first argument.
+---@param sx number Scale on the X axis
+---@param sy? number Scale on the Y axis (Default is `sx`)
+---@return Animango.Sprite self
+function Sprite:setScale(sx, sy)
+    self.scaleX = sx
+    self.scaleY = sy or sx
+    return self
+end
+
+--------------------------------------------------
 --- ### Sprite:draw()
 --- Draws the sprite at its current position.
 function Sprite:draw()
@@ -99,7 +115,14 @@ end
 --- Draws the sprite at the specified position.
 ---@param x number
 ---@param y number
-function Sprite:drawAt(x, y)
+---@param r? number
+---@param sx? number
+---@param sy? number
+function Sprite:drawAt(x, y, r, sx, sy)
+    r = r or 0
+    sx = sx or self.scaleX
+    sy = sy or self.scaleY
+
     local animation = self.animations[self.currentAnimation]
     if not animation then return animango.graphics.drawUnknownAnimationError(x, y) end
 
@@ -109,7 +132,7 @@ function Sprite:drawAt(x, y)
 
     local frame = animation.frames[frameIndex]
     if not frame then return end -- there are no frames
-    animango.graphics.drawFrame(frame, x, y)
+    animango.graphics.drawFrame(frame, x, y, r, sx, sy)
 end
 
 -- Animations --------------------------------------------------------------------------------------
@@ -244,13 +267,13 @@ end
 --- ```
 ---@diagnostic disable-next-line: undefined-doc-name
 ---@param image love.Image
----@param width number
----@param height number
+---@param tileWidth number
+---@param tileHeight number
 ---@param crop? {[1]: number, [2]: number, [3]: number, [4]: number}|number
 ---@param startIndex? integer
 ---@param endIndex? integer
 ---@return Animango.Animation self
-function Animation:appendFramesFromLoveSpritesheet(image, width, height, crop, startIndex, endIndex)
+function Animation:appendFramesFromLoveSpritesheet(image, tileWidth, tileHeight, crop, startIndex, endIndex)
     ---@diagnostic disable-next-line: undefined-global
     if not love then error("appendFramesFromLoveSpritesheet is only available inside the LÖVE engine", 2) end
 
@@ -261,13 +284,13 @@ function Animation:appendFramesFromLoveSpritesheet(image, width, height, crop, s
     if type(crop) == "number" then crop = {crop, crop, crop, crop} end
     if startIndex < 1 then error("startIndex cannot be less than 1", 2) end
     if endIndex < startIndex then error("endIndex cannot be less than startIndex", 2) end
-    if width < 0 then error("width can't be negative", 2) end
-    if height < 0 then error("height can't be negative", 2) end
+    if tileWidth < 0 then error("tileWidth can't be negative", 2) end
+    if tileHeight < 0 then error("tileHeight can't be negative", 2) end
 
     ---@diagnostic disable-next-line: undefined-field
     local imageWidth, imageHeight = image:getDimensions()
-    local gridColumns = math.floor(imageWidth / width)
-    local gridRows = math.floor(imageHeight / height)
+    local gridColumns = math.floor(imageWidth / tileWidth)
+    local gridRows = math.floor(imageHeight / tileHeight)
     local cellCount = gridColumns * gridRows
 
     startIndex = math.min(startIndex, cellCount)
@@ -277,10 +300,10 @@ function Animation:appendFramesFromLoveSpritesheet(image, width, height, crop, s
     for cellIndex = startIndex, endIndex do
         local cellX = (cellIndex - 1) % gridColumns
         local cellY = math.floor((cellIndex - 1) / gridColumns)
-        local x = cellX * width
-        local y = cellY * height
-        local w = width
-        local h = height
+        local x = cellX * tileWidth
+        local y = cellY * tileHeight
+        local w = tileWidth
+        local h = tileHeight
 
         x = x + crop[1]
         y = y + crop[2]
