@@ -116,6 +116,21 @@ function Sprite:setRotation(rotation)
 end
 
 --------------------------------------------------
+--- ### Sprite:update()
+--- Update (and animate) the sprite.
+---@param dt number The time in seconds since the last call to update
+function Sprite:update(dt)
+    local animation = self.animations[self.currentAnimation]
+    if not animation then return end
+
+    local fps = animation.fps
+    self.currentFrame = self.currentFrame + dt * fps -- currentFrame can be a decimal value, the actual displayed frame is this value floored
+
+    local frameCount = #animation.frames
+    self.currentFrame = ((self.currentFrame-1) % frameCount) + 1 -- loop the animation
+end
+
+--------------------------------------------------
 --- ### Sprite:draw()
 --- Draws the sprite at its current position.
 function Sprite:draw()
