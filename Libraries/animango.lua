@@ -102,7 +102,7 @@ end
 ---@diagnostic disable-next-line: undefined-doc-name
 ---@param image love.Image
 ---@return Animango.Animation self
-function Animation:appendFramesFromLoveImage(image)
+function Animation:appendFrameFromLoveImage(image)
     local frames = self.frames
     frames[#frames+1] = {
         loveImage = image
