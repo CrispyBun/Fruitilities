@@ -22,6 +22,7 @@ local AnimationMT = {__index = Animation}
 ---@field scaleX number The scale of the sprite on the X axis
 ---@field scaleY number The scale of the sprite on the Y axis
 ---@field rotation number The rotation of the sprite
+---@field playbackSpeed number Speed multiplier for the animation
 ---@field currentAnimation string The current active animation
 ---@field currentFrame number The current frame index within the animation
 ---@field animations table<string, Animango.Animation>
@@ -42,6 +43,7 @@ function animango.newSprite()
         scaleX = 1,
         scaleY = 1,
         rotation = 0,
+        playbackSpeed = 1,
         currentAnimation = "default",
         currentFrame = 1,
         animations = {}
@@ -116,6 +118,16 @@ function Sprite:setRotation(rotation)
 end
 
 --------------------------------------------------
+--- ### Sprite:setPlaybackSpeed()
+--- Sets the sprite's speed multiplier for its animations.
+---@param speed number
+---@return Animango.Sprite self
+function Sprite:setPlaybackSpeed(speed)
+    self.playbackSpeed = speed
+    return self
+end
+
+--------------------------------------------------
 --- ### Sprite:update()
 --- Update (and animate) the sprite.
 ---@param dt number The time in seconds since the last call to update
@@ -124,7 +136,7 @@ function Sprite:update(dt)
     if not animation then return end
 
     local fps = animation.fps
-    self.currentFrame = self.currentFrame + dt * fps -- currentFrame can be a decimal value, the actual displayed frame is this value floored
+    self.currentFrame = self.currentFrame + dt * fps * self.playbackSpeed -- currentFrame can be a decimal value, the actual displayed frame is this value floored
 
     local frameCount = #animation.frames
     self.currentFrame = ((self.currentFrame-1) % frameCount) + 1 -- loop the animation
