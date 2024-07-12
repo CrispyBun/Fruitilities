@@ -21,8 +21,9 @@ local AnimationMT = {__index = Animation}
 ---@field y number The Y position of the sprite
 ---@field scaleX number The scale of the sprite on the X axis
 ---@field scaleY number The scale of the sprite on the Y axis
+---@field rotation number The rotation of the sprite
 ---@field currentAnimation string The current active animation
----@field currentFrame integer The current frame within the animation
+---@field currentFrame number The current frame index within the animation
 ---@field animations table<string, Animango.Animation>
 local Sprite = {}
 local SpriteMT = {__index = Sprite}
@@ -40,6 +41,7 @@ function animango.newSprite()
         y = 0,
         scaleX = 1,
         scaleY = 1,
+        rotation = 0,
         currentAnimation = "default",
         currentFrame = 1,
         animations = {}
@@ -104,6 +106,16 @@ function Sprite:setScale(sx, sy)
 end
 
 --------------------------------------------------
+--- ### Sprite:setRotation()
+--- Sets the sprite's rotation.
+---@param rotation number
+---@return Animango.Sprite self
+function Sprite:setRotation(rotation)
+    self.rotation = rotation
+    return self
+end
+
+--------------------------------------------------
 --- ### Sprite:draw()
 --- Draws the sprite at its current position.
 function Sprite:draw()
@@ -119,7 +131,7 @@ end
 ---@param sx? number
 ---@param sy? number
 function Sprite:drawAt(x, y, r, sx, sy)
-    r = r or 0
+    r = r or self.rotation
     sx = sx or self.scaleX
     sy = sy or self.scaleY
 
