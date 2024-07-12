@@ -17,6 +17,10 @@ local Animation = {}
 local AnimationMT = {__index = Animation}
 
 ---@class Animango.Sprite
+---@field x number The X position of the sprite
+---@field y number The Y position of the sprite
+---@field currentAnimation string The current active animation
+---@field currentFrame integer The current frame within the animation
 ---@field animations table<string, Animango.Animation>
 local Sprite = {}
 local SpriteMT = {__index = Sprite}
@@ -30,6 +34,10 @@ local SpriteMT = {__index = Sprite}
 function animango.newSprite()
     ---@type Animango.Sprite
     local sprite = {
+        x = 0,
+        y = 0,
+        currentAnimation = "default",
+        currentFrame = 1,
         animations = {}
     }
     return setmetatable(sprite, SpriteMT)
@@ -44,6 +52,64 @@ end
 function Sprite:addAnimation(name, animation)
     self.animations[name] = animation
     return self
+end
+
+--------------------------------------------------
+--- ### Sprite:setPosition()
+--- Sets the sprite's position.
+---@param x number
+---@param y number
+---@return Animango.Sprite self
+function Sprite:setPosition(x, y)
+    self.x = x
+    self.y = y
+    return self
+end
+
+--------------------------------------------------
+--- ### Sprite:setAnimation()
+--- Sets the sprite's current animation (and resets current frame to 1).
+---@param animationName string
+---@return Animango.Sprite self
+function Sprite:setAnimation(animationName)
+    self.currentAnimation = animationName
+    self.currentFrame = 1
+    return self
+end
+
+--------------------------------------------------
+--- ### Sprite:setCurrentFrame()
+--- Sets the sprite's current frame in the animaton.
+---@param frame number
+---@return Animango.Sprite self
+function Sprite:setCurrentFrame(frame)
+    self.currentFrame = frame
+    return self
+end
+
+--------------------------------------------------
+--- ### Sprite:draw()
+--- Draws the sprite at its current position.
+function Sprite:draw()
+    return self:drawAt(self.x, self.y)
+end
+
+--------------------------------------------------
+--- ### Sprite:drawAt()
+--- Draws the sprite at the specified position.
+---@param x number
+---@param y number
+function Sprite:drawAt(x, y)
+    local animation = self.animations[self.currentAnimation]
+    if not animation then return animango.graphics.drawUnknownAnimationError(x, y) end
+
+    local currentFrameIndex = self.currentFrame
+    local frameCount = #animation.frames
+    local frameIndex = math.floor(((currentFrameIndex-1) % frameCount) + 1)
+
+    local frame = animation.frames[frameIndex]
+    if not frame then return end -- there are no frames
+    animango.graphics.drawFrame(frame, x, y)
 end
 
 -- Animations --------------------------------------------------------------------------------------
@@ -229,6 +295,56 @@ function Animation:appendFramesFromLoveSpritesheet(image, width, height, crop, s
     end
 
     return self
+end
+
+-- Abstraction for possible usage outside LÖVE -----------------------------------------------------
+
+-- Can be replaced with functions to perform these actions in non-love2d environments
+animango.graphics = {}
+
+---@diagnostic disable-next-line: undefined-global
+local love = love
+
+---@param frame Animango.Frame
+---@param x? number
+---@param y? number
+---@param r? number
+---@param sx? number
+---@param sy? number
+---@param ox? number
+---@param oy? number
+---@param kx? number
+---@param ky? number
+function animango.graphics.drawFrame(frame, x, y, r, sx, sy, ox, oy, kx, ky)
+    if not frame.loveImage then return end
+    x = x or 0
+    y = y or 0
+
+    if frame.loveQuad then
+        love.graphics.draw(frame.loveImage, frame.loveQuad, x, y, r, sx, sy, ox, oy, kx, ky)
+    else
+        love.graphics.draw(frame.loveImage, x, y, r, sx, sy, ox, oy, kx, ky)
+    end
+end
+
+---@param x? number
+---@param y? number
+function animango.graphics.drawUnknownAnimationError(x, y)
+    x = x or 0
+    y = y or 0
+    local cr, cg, cb, ca = love.graphics.getColor()
+    love.graphics.setColor(1, 0, 0)
+
+    love.graphics.line(x - 50, y - 50, x + 50, y + 50)
+    love.graphics.line(x + 50, y - 50, x - 50, y + 50)
+
+    love.graphics.setColor(cr, cg, cb, ca)
+end
+
+local emptyFunction = function () end
+if not love then
+    animango.drawFrame = emptyFunction
+    animango.drawUnknownAnimationError = emptyFunction
 end
 
 return animango
