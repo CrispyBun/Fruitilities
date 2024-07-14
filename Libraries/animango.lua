@@ -86,6 +86,19 @@ function Sprite:setAnimation(animationName)
 end
 
 --------------------------------------------------
+--- ### Sprite:changeAnimationFrom()
+--- Like `Sprite:setAnimation()`, but only works if the current animation matches the one specified.
+---@param requiredCurrentAnimation string
+---@param animationName string
+---@return Animango.Sprite
+function Sprite:changeAnimationFrom(requiredCurrentAnimation, animationName)
+    if self.currentAnimation == requiredCurrentAnimation then
+        return self:setAnimation(animationName)
+    end
+    return self
+end
+
+--------------------------------------------------
 --- ### Sprite:setCurrentFrame()
 --- Sets the sprite's current frame in the animaton.
 ---@param frame number
