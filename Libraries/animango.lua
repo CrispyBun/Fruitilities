@@ -128,6 +128,18 @@ function Sprite:setPlaybackSpeed(speed)
 end
 
 --------------------------------------------------
+--- ### Sprite:getCurrentFrame()
+--- Gets the sprite's current frame in the animaton.
+--- If keepDecimal is true, the decimal part of the current frame is kept, signifying timer information.
+--- Otherwise, the actual current frame index is returned.
+---@param keepDecimal? boolean
+---@return number
+function Sprite:getCurrentFrame(keepDecimal)
+    if keepDecimal then return self.currentFrame end
+    return math.floor(self.currentFrame)
+end
+
+--------------------------------------------------
 --- ### Sprite:update()
 --- Update (and animate) the sprite.
 ---@param dt number The time in seconds since the last call to update
