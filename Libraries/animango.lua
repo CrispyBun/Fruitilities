@@ -169,20 +169,15 @@ end
 
 --------------------------------------------------
 --- ### Sprite:draw()
---- Draws the sprite at its current position.
-function Sprite:draw()
-    return self:drawAt(self.x, self.y)
-end
-
---------------------------------------------------
---- ### Sprite:drawAt()
---- Draws the sprite at the specified position.
----@param x number
----@param y number
+--- Draws the sprite at its current position, or when supplied, at the specified position. All arguments are optional.
+---@param x? number
+---@param y? number
 ---@param r? number
 ---@param sx? number
 ---@param sy? number
-function Sprite:drawAt(x, y, r, sx, sy)
+function Sprite:draw(x, y, r, sx, sy)
+    x = x or self.x
+    y = y or self.y
     r = r or self.rotation
     sx = sx or self.scaleX
     sy = sy or self.scaleY
@@ -203,8 +198,8 @@ end
 
 --------------------------------------------------
 --- ### animango.newAnimation()
---- Creates a new animation.  
---- You can optionally supply the frames and/or FPS to it immediately, or you may add or generate them later using the appropriate methods
+--- Creates a new blank animation.  
+--- You can optionally supply the frames and/or FPS to it immediately, or you may add or generate them later using the appropriate methods.
 ---@param frames? Animango.Frame[] The frames in this animation
 ---@param fps? number The FPS to play the animation at
 ---@return Animango.Animation
