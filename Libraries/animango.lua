@@ -63,6 +63,28 @@ function Sprite:addAnimation(name, animation)
 end
 
 --------------------------------------------------
+--- ### Sprite:instance()
+--- Creates and returns a new instance of the sprite by generating a new sprite which references the same animations.
+---@return Animango.Sprite
+function Sprite:instance()
+    local inst = animango.newSprite()
+    inst.animations = self.animations
+    return inst
+end
+
+--------------------------------------------------
+--- ### Sprite:clone()
+--- Similar to `Sprite:instance()`, but copies over all values (shallow copy only, the reference to animations is kept).
+---@return Animango.Sprite
+function Sprite:clone()
+    local inst = animango.newSprite()
+    for key, value in pairs(self) do
+        inst[key] = value
+    end
+    return inst
+end
+
+--------------------------------------------------
 --- ### Sprite:setPosition()
 --- Sets the sprite's position.
 ---@param x number
