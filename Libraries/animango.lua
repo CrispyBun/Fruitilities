@@ -11,8 +11,10 @@ local animango = {}
 ---@field loveQuad? love.Quad The LÖVE quad used to crop the frame's image
 
 ---@class Animango.Animation
----@field frames Animango.Frame[]
----@field fps number
+---@field frames Animango.Frame[] The frames in the animation
+---@field fps number The frames per second of the animation
+---@field originX number The origin on the X axis to draw the frames at
+---@field originY number The origin on the Y axis to draw the frames at
 local Animation = {}
 local AnimationMT = {__index = Animation}
 
@@ -197,7 +199,7 @@ end
 ---@param r? number
 ---@param sx? number
 ---@param sy? number
-function Sprite:draw(x, y, r, sx, sy)
+function Sprite:draw(x, y, r, sx, sy, ox, oy)
     x = x or self.x
     y = y or self.y
     r = r or self.rotation
@@ -207,13 +209,16 @@ function Sprite:draw(x, y, r, sx, sy)
     local animation = self.animations[self.currentAnimation]
     if not animation then return animango.graphics.drawUnknownAnimationError(x, y) end
 
+    ox = ox or animation.originX
+    oy = oy or animation.originY
+
     local currentFrameIndex = self.currentFrame
     local frameCount = #animation.frames
     local frameIndex = math.floor(((currentFrameIndex-1) % frameCount) + 1)
 
     local frame = animation.frames[frameIndex]
     if not frame then return end -- there are no frames
-    animango.graphics.drawFrame(frame, x, y, r, sx, sy)
+    animango.graphics.drawFrame(frame, x, y, r, sx, sy, ox, oy)
 end
 
 -- Animations --------------------------------------------------------------------------------------
@@ -221,15 +226,26 @@ end
 --------------------------------------------------
 --- ### animango.newAnimation()
 --- Creates a new blank animation.  
---- You can optionally supply the frames and/or FPS to it immediately, or you may add or generate them later using the appropriate methods.
----@param frames? Animango.Frame[] The frames in this animation
+--- You can optionally supply the FPS, origin and/or frames to it immediately, or you may add or generate them later using the appropriate methods.
+--- 
+--- Example usage:
+--- ```
+--- local animation = animango.newAnimation()
+--- animation:setFps(24):setOrigin(8, 8) -- Methods are chainable
+--- animation:appendFramesFromLoveImages({image1, image2, image3})
+--- ```
 ---@param fps? number The FPS to play the animation at
+---@param originX? number The X origin of the animation
+---@param originY? number The Y origin of the animation
+---@param frames? Animango.Frame[] The frames in this animation
 ---@return Animango.Animation
-function animango.newAnimation(frames, fps)
+function animango.newAnimation(fps, originX, originY, frames)
     ---@type Animango.Animation
     local animation = {
         frames = frames or {},
-        fps = fps or 1
+        fps = fps or 1,
+        originX = originX or 0,
+        originY = originY or 0
     }
     return setmetatable(animation, AnimationMT)
 end
@@ -241,6 +257,18 @@ end
 ---@return Animango.Animation self
 function Animation:setFps(fps)
     self.fps = fps
+    return self
+end
+
+--------------------------------------------------
+--- ### Animation:setOrigin()
+--- Sets the animation's origin.
+---@param x number
+---@param y number
+---@return Animango.Animation
+function Animation:setOrigin(x, y)
+    self.originX = x
+    self.originY = y
     return self
 end
 
