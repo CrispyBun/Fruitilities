@@ -73,7 +73,7 @@ function animango.newSprite()
 end
 
 --------------------------------------------------
---- ### Sprite:addAnimation()
+--- ### Sprite:addAnimation(name, animation)
 --- Adds a new animation to the sprite.
 ---@param name string The name to identify the animation
 ---@param animation Animango.Animation The animation in question
@@ -107,7 +107,7 @@ function Sprite:clone()
 end
 
 --------------------------------------------------
---- ### Sprite:setEvent()
+--- ### Sprite:setEvent(eventType, event)
 --- Sets the given event of the sprite.
 ---@param eventType Animango.AnimationEventType
 ---@param event Animango.AnimationEvent
@@ -118,7 +118,7 @@ function Sprite:setEvent(eventType, event)
 end
 
 --------------------------------------------------
---- ### Sprite:setPosition()
+--- ### Sprite:setPosition(x, y)
 --- Sets the sprite's position.
 ---@param x number
 ---@param y number
@@ -130,7 +130,7 @@ function Sprite:setPosition(x, y)
 end
 
 --------------------------------------------------
---- ### Sprite:setAnimation()
+--- ### Sprite:setAnimation(animationName)
 --- Sets the sprite's current animation and resets all the relevant variables.
 ---@param animationName string
 ---@return Animango.Sprite self
@@ -143,7 +143,7 @@ function Sprite:setAnimation(animationName)
 end
 
 --------------------------------------------------
---- ### Sprite:changeAnimationFrom()
+--- ### Sprite:changeAnimationFrom(requiredCurrentAnimation, animationName)
 --- Like `Sprite:setAnimation()`, but only works if the current animation matches the one specified.
 ---@param requiredCurrentAnimation string
 ---@param animationName string
@@ -156,7 +156,7 @@ function Sprite:changeAnimationFrom(requiredCurrentAnimation, animationName)
 end
 
 --------------------------------------------------
---- ### Sprite:setCurrentFrame()
+--- ### Sprite:setCurrentFrame(frame)
 --- Sets the sprite's current frame in the animaton.
 ---@param frame number
 ---@return Animango.Sprite self
@@ -166,7 +166,7 @@ function Sprite:setCurrentFrame(frame)
 end
 
 --------------------------------------------------
---- ### Sprite:setScale()
+--- ### Sprite:setScale(sx, sy)
 --- Sets the sprite's scale. If `sy` is not supplied, sets both axes to the first argument.
 ---@param sx number Scale on the X axis
 ---@param sy? number Scale on the Y axis (Default is `sx`)
@@ -178,7 +178,7 @@ function Sprite:setScale(sx, sy)
 end
 
 --------------------------------------------------
---- ### Sprite:setRotation()
+--- ### Sprite:setRotation(rotation)
 --- Sets the sprite's rotation.
 ---@param rotation number
 ---@return Animango.Sprite self
@@ -188,7 +188,7 @@ function Sprite:setRotation(rotation)
 end
 
 --------------------------------------------------
---- ### Sprite:setPlaybackSpeed()
+--- ### Sprite:setPlaybackSpeed(speed)
 --- Sets the sprite's speed multiplier for its animations.
 ---@param speed number
 ---@return Animango.Sprite self
@@ -220,7 +220,7 @@ function Sprite:getCurrentAnimation()
 end
 
 --------------------------------------------------
---- ### Sprite:update()
+--- ### Sprite:update(dt)
 --- Update (and animate) the sprite.
 ---@param dt number The time in seconds since the last call to update
 function Sprite:update(dt)
@@ -295,7 +295,7 @@ function Sprite:draw(x, y, r, sx, sy, ox, oy)
 end
 
 --------------------------------------------------
---- ### Sprite:callEvent()
+--- ### Sprite:callEvent(event)
 --- Calls the given event on the sprite. This is usually used internally.
 ---@param event Animango.AnimationEvent
 function Sprite:callEvent(event)
@@ -344,7 +344,7 @@ function animango.newAnimation(fps, originX, originY, frames)
 end
 
 --------------------------------------------------
---- ### Animation:setFps()
+--- ### Animation:setFps(fps)
 --- Sets the animation's frames per second.
 ---@param fps number
 ---@return Animango.Animation self
@@ -354,7 +354,7 @@ function Animation:setFps(fps)
 end
 
 --------------------------------------------------
---- ### Animation:setOrigin()
+--- ### Animation:setOrigin(x, y)
 --- Sets the animation's origin.
 ---@param x number
 ---@param y number
@@ -366,7 +366,7 @@ function Animation:setOrigin(x, y)
 end
 
 --------------------------------------------------
---- ### Animation:setEvent()
+--- ### Animation:setEvent(eventType, event)
 --- Sets the given event of the animation.  
 --- For attaching an event to a specific frame of the animation, use `Animation:setFrameEvent()`.
 ---@param eventType Animango.AnimationEventType
@@ -378,7 +378,7 @@ function Animation:setEvent(eventType, event)
 end
 
 --------------------------------------------------
---- ### Animation:setFrameEvent()
+--- ### Animation:setFrameEvent(frameIndex, event)
 --- Attaches an animation event to the frame at the specified index (the event will be called when that frame is played).  
 --- If the frame already has an event assigned to it, it gets overwritten.
 ---@param frameIndex integer
@@ -393,7 +393,7 @@ function Animation:setFrameEvent(frameIndex, event)
 end
 
 --------------------------------------------------
---- ### Animation:appendFrame()
+--- ### Animation:appendFrame(frame)
 --- Appends a single new frame to the animation.
 ---@param frame Animango.Frame
 ---@return Animango.Animation self
@@ -403,7 +403,7 @@ function Animation:appendFrame(frame)
 end
 
 --------------------------------------------------
---- ### Animation:appendFrames()
+--- ### Animation:appendFrames(frames)
 --- Appends new frames to the animation.
 ---@param frames Animango.Frame[]
 ---@return Animango.Animation self
@@ -415,7 +415,7 @@ function Animation:appendFrames(frames)
 end
 
 --------------------------------------------------
---- ### Animation:appendFrameFromLoveImage()
+--- ### Animation:appendFrameFromLoveImage(image)
 --- Appends one new frame to the animation generated from a LÖVE image.
 ---@diagnostic disable-next-line: undefined-doc-name
 ---@param image love.Image
@@ -429,7 +429,7 @@ function Animation:appendFrameFromLoveImage(image)
 end
 
 --------------------------------------------------
---- ### Animation:appendFramesFromLoveImages()
+--- ### Animation:appendFramesFromLoveImages(images)
 --- Appends new frames to the animation generated from a list of LÖVE images.
 ---@diagnostic disable-next-line: undefined-doc-name
 ---@param images love.Image[]
@@ -446,7 +446,7 @@ function Animation:appendFramesFromLoveImages(images)
 end
 
 --------------------------------------------------
---- ### Animation:appendFramesFromLoveQuads()
+--- ### Animation:appendFramesFromLoveQuads(image, quads)
 --- Appends new frames to the animation generated from a LÖVE image and a list of quads.  
 --- Each quad can either be a LÖVE Quad or a table in the format of `{x, y, width, height}`.
 ---@diagnostic disable-next-line: undefined-doc-name
@@ -480,7 +480,7 @@ function Animation:appendFramesFromLoveQuads(image, quads)
 end
 
 --------------------------------------------------
---- ### Animation:appendFramesFromLoveSpritesheet()
+--- ### Animation:appendFramesFromLoveSpritesheet(image, tileWidth, tileHeight)
 --- Appends new frames to the animation generated from a LÖVE image,
 --- splitting the image up as a spritesheet where each cell has the specified width and height.
 ---
@@ -552,17 +552,19 @@ end
 -- Frames ------------------------------------------------------------------------------------------
 
 --------------------------------------------------
---- ### animango.newFrame()
+--- ### animango.newFrame(data)
 --- Creates a new animango frame.
 --- 
 --- Note that the definition of an animango frame is just a table, and so by default,
 --- this function is nothing but a shallow copy of a table.  
 --- You likely won't need to call this manually for most purposes,
 --- and instead just use the frame-generating methods on animations.
----@param data table Any values you want to copy over to the frame table
+---@param data? table Any values you want to copy over to the frame table
 ---@return Animango.Frame
 function animango.newFrame(data)
     local frame = {}
+    if not data then return frame end
+
     for key, value in pairs(data) do
         frame[key] = value
     end
