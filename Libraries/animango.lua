@@ -5,6 +5,7 @@ local animango = {}
 --- A single frame of animation.  
 --- Comes with definitions for a LÖVE implementation, for use of Animango outside LÖVE, inject any fields necessary into this class.
 ---@class Animango.Frame
+---@field event? Animango.AnimationEvent An event to be triggered when this frame plays
 ---@diagnostic disable-next-line: undefined-doc-name
 ---@field loveImage? love.Image The LÖVE image used to draw the frame
 ---@diagnostic disable-next-line: undefined-doc-name
@@ -25,11 +26,18 @@ local AnimationMT = {__index = Animation}
 ---@field scaleY number The scale of the sprite on the Y axis
 ---@field rotation number The rotation of the sprite
 ---@field playbackSpeed number Speed multiplier for the animation
+---@field playbackSpeedMultiplier number Essentially the same thing as playbackSpeed (it stacks with it), but gets reset upon animation change. It is used internally by events.
 ---@field currentAnimation string The current active animation
 ---@field currentFrame number The current frame index within the animation
+---@field currentIteration integer How many times the animation has looped back to the first frame
 ---@field animations table<string, Animango.Animation>
 local Sprite = {}
 local SpriteMT = {__index = Sprite}
+
+---@alias Animango.AnimationEvent
+---| string # The controlling sprite will switch the current animation to the given string
+---| number # The animation will switch the speed multiplier to the given value
+---| fun(sprite: Animango.Sprite) # The function will be called, getting the controlling sprite as an argument
 
 -- Sprites -----------------------------------------------------------------------------------------
 
@@ -46,8 +54,10 @@ function animango.newSprite()
         scaleY = 1,
         rotation = 0,
         playbackSpeed = 1,
+        playbackSpeedMultiplier = 1,
         currentAnimation = "default",
         currentFrame = 1,
+        currentIteration = 1,
         animations = {}
     }
     return setmetatable(sprite, SpriteMT)
@@ -100,12 +110,14 @@ end
 
 --------------------------------------------------
 --- ### Sprite:setAnimation()
---- Sets the sprite's current animation (and resets current frame to 1).
+--- Sets the sprite's current animation and resets all the relevant variables.
 ---@param animationName string
 ---@return Animango.Sprite self
 function Sprite:setAnimation(animationName)
     self.currentAnimation = animationName
     self.currentFrame = 1
+    self.currentIteration = 1
+    self.playbackSpeedMultiplier = 1
     return self
 end
 
@@ -185,10 +197,28 @@ function Sprite:update(dt)
     if not animation then return end
 
     local fps = animation.fps
-    self.currentFrame = self.currentFrame + dt * fps * self.playbackSpeed -- currentFrame can be a decimal value, the actual displayed frame is this value floored
+
+    -- currentFrame can be a decimal value, the actual displayed frame is currentFrame floored
+    local lastFrame = self.currentFrame
+    local nextFrame = self.currentFrame + dt * fps * self.playbackSpeed * self.playbackSpeedMultiplier
+
+    local lastFrameActual = math.floor(lastFrame)
+    local nextFrameActual = math.floor(nextFrame)
+    local frameChanged = (lastFrameActual ~= nextFrameActual) or (self.currentIteration == 1 and lastFrame == 1)
 
     local frameCount = #animation.frames
-    self.currentFrame = ((self.currentFrame-1) % frameCount) + 1 -- loop the animation
+    local looped = nextFrame >= frameCount + 1
+    nextFrame = ((nextFrame-1) % frameCount) + 1 -- loop the animation
+
+    self.currentFrame = nextFrame
+
+    if looped then
+        self.currentIteration = self.currentIteration + 1
+    end
+    if frameChanged then
+        local frame = animation.frames[math.floor(nextFrame)]
+        if frame and frame.event then self:callEvent(frame.event) end
+    end
 end
 
 --------------------------------------------------
@@ -219,6 +249,25 @@ function Sprite:draw(x, y, r, sx, sy, ox, oy)
     local frame = animation.frames[frameIndex]
     if not frame then return end -- there are no frames
     animango.graphics.drawFrame(frame, x, y, r, sx, sy, ox, oy)
+end
+
+--------------------------------------------------
+--- ### Sprite:callEvent()
+--- Calls the given event on the sprite. This is usually used internally.
+---@param event Animango.AnimationEvent
+function Sprite:callEvent(event)
+    local eventType = type(event)
+    if eventType == "string" then
+        return self:setAnimation(event)
+    end
+    if eventType == "number" then
+        self.playbackSpeedMultiplier = event
+        return
+    end
+    if eventType == "function" then
+        return event(self)
+    end
+    error("Unknown frame event type: " .. eventType, 2)
 end
 
 -- Animations --------------------------------------------------------------------------------------
@@ -269,6 +318,21 @@ end
 function Animation:setOrigin(x, y)
     self.originX = x
     self.originY = y
+    return self
+end
+
+--------------------------------------------------
+--- ### Animation:setFrameEvent()
+--- Attaches an animation event to the frame at the specified index.  
+--- If the frame already has an event assigned to it, it gets overwritten.
+---@param frameIndex integer
+---@param event Animango.AnimationEvent
+---@return Animango.Animation
+function Animation:setFrameEvent(frameIndex, event)
+    local frame = self.frames[frameIndex]
+    if not frame then error("No frame found at index " .. tostring(frameIndex), 2) end
+
+    frame.event = event
     return self
 end
 
@@ -428,6 +492,27 @@ function Animation:appendFramesFromLoveSpritesheet(image, tileWidth, tileHeight,
 
     return self
 end
+
+-- Frames ------------------------------------------------------------------------------------------
+
+--------------------------------------------------
+--- ### animango.newFrame()
+--- Creates a new animango frame.
+--- 
+--- Note that the definition of an animango frame is just a table, and so by default,
+--- this function is nothing but a shallow copy of a table.  
+--- You likely won't need to call this manually for most purposes,
+--- and instead just use the frame-generating methods on animations.
+---@param data table Any values you want to copy over to the frame table
+---@return Animango.Frame
+function animango.newFrame(data)
+    local frame = {}
+    for key, value in pairs(data) do
+        frame[key] = value
+    end
+    return frame
+end
+
 
 -- Abstraction for possible usage outside LÖVE -----------------------------------------------------
 
