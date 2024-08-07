@@ -26,6 +26,8 @@ local AnimationMT = {__index = Animation}
 ---@field scaleX number The scale of the sprite on the X axis
 ---@field scaleY number The scale of the sprite on the Y axis
 ---@field rotation number The rotation of the sprite
+---@field shearX number The shear of the sprite on the X axis
+---@field shearY number The shear of the sprite on the Y axis
 ---@field playbackSpeed number Speed multiplier for the animation
 ---@field playbackSpeedMultiplier number Essentially the same thing as playbackSpeed (it stacks with it), but gets reset upon animation change. It is used internally by events.
 ---@field currentAnimation string The current active animation
@@ -61,6 +63,8 @@ function animango.newSprite()
         scaleX = 1,
         scaleY = 1,
         rotation = 0,
+        shearX = 0,
+        shearY = 0,
         playbackSpeed = 1,
         playbackSpeedMultiplier = 1,
         currentAnimation = "default",
@@ -188,6 +192,18 @@ function Sprite:setRotation(rotation)
 end
 
 --------------------------------------------------
+--- ### Sprite:setShear(kx, ky)
+--- Sets the sprite's shear.
+---@param kx number Shear on the X axis
+---@param ky number Shear on the Y axis
+---@return Animango.Sprite
+function Sprite:setShear(kx, ky)
+    self.shearX = kx
+    self.shearY = ky
+    return self
+end
+
+--------------------------------------------------
 --- ### Sprite:setPlaybackSpeed(speed)
 --- Sets the sprite's speed multiplier for its animations.
 ---@param speed number
@@ -272,12 +288,18 @@ end
 ---@param r? number
 ---@param sx? number
 ---@param sy? number
-function Sprite:draw(x, y, r, sx, sy, ox, oy)
+---@param ox? number
+---@param oy? number
+---@param kx? number
+---@param ky? number
+function Sprite:draw(x, y, r, sx, sy, ox, oy, kx, ky)
     x = x or self.x
     y = y or self.y
     r = r or self.rotation
     sx = sx or self.scaleX
     sy = sy or self.scaleY
+    kx = kx or self.shearX
+    ky = ky or self.shearY
 
     local animation = self.animations[self.currentAnimation]
     if not animation then return animango.graphics.drawUnknownAnimationError(x, y) end
@@ -291,7 +313,7 @@ function Sprite:draw(x, y, r, sx, sy, ox, oy)
 
     local frame = animation.frames[frameIndex]
     if not frame then return end -- there are no frames
-    animango.graphics.drawFrame(frame, x, y, r, sx, sy, ox, oy)
+    animango.graphics.drawFrame(frame, x, y, r, sx, sy, ox, oy, kx, ky)
 end
 
 --------------------------------------------------
