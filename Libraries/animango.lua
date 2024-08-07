@@ -96,7 +96,7 @@ end
 
 --------------------------------------------------
 --- ### Sprite:clone()
---- Similar to `Sprite:instance()`, but copies over all values (shallow copy only, the reference to animations is kept).
+--- Similar to `Sprite:instance()`, but copies over all values (shallow copy only, the references to tables are kept).
 ---@return Animango.Sprite
 function Sprite:clone()
     local inst = animango.newSprite()
@@ -104,6 +104,17 @@ function Sprite:clone()
         inst[key] = value
     end
     return inst
+end
+
+--------------------------------------------------
+--- ### Sprite:setEvent()
+--- Sets the given event of the sprite.
+---@param eventType Animango.AnimationEventType
+---@param event Animango.AnimationEvent
+---@return Animango.Sprite self
+function Sprite:setEvent(eventType, event)
+    self.events[eventType] = event
+    return self
 end
 
 --------------------------------------------------
@@ -115,17 +126,6 @@ end
 function Sprite:setPosition(x, y)
     self.x = x
     self.y = y
-    return self
-end
-
---------------------------------------------------
---- ### Sprite:setEvent()
---- Sets the given event of the sprite.
----@param eventType Animango.AnimationEventType
----@param event Animango.AnimationEvent
----@return Animango.Sprite self
-function Sprite:setEvent(eventType, event)
-    self.events[eventType] = event
     return self
 end
 
@@ -207,6 +207,16 @@ end
 function Sprite:getCurrentFrame(keepDecimal)
     if keepDecimal then return self.currentFrame end
     return math.floor(self.currentFrame)
+end
+
+--------------------------------------------------
+--- ### Sprite:getCurrentAnimation()
+--- Returns the sprite's selected animation (string), and the animation object itself.
+---@return string
+---@return Animango.Animation?
+function Sprite:getCurrentAnimation()
+    local name = self.currentAnimation
+    return name, self.animations[name]
 end
 
 --------------------------------------------------
