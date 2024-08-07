@@ -16,6 +16,7 @@ local animango = {}
 ---@field fps number The frames per second of the animation
 ---@field originX number The origin on the X axis to draw the frames at
 ---@field originY number The origin on the Y axis to draw the frames at
+---@field events table<Animango.AnimationEventType, Animango.AnimationEvent> Any events attached to the animation
 local Animation = {}
 local AnimationMT = {__index = Animation}
 
@@ -31,6 +32,7 @@ local AnimationMT = {__index = Animation}
 ---@field currentFrame number The current frame index within the animation
 ---@field currentIteration integer How many times the animation has looped back to the first frame
 ---@field animations table<string, Animango.Animation>
+---@field events table<Animango.AnimationEventType, Animango.AnimationEvent> Any events attached to the sprite (used for any active animation)
 local Sprite = {}
 local SpriteMT = {__index = Sprite}
 
@@ -38,6 +40,12 @@ local SpriteMT = {__index = Sprite}
 ---| string # The controlling sprite will switch the current animation to the given string
 ---| number # The animation will switch the speed multiplier to the given value
 ---| fun(sprite: Animango.Sprite) # The function will be called, getting the controlling sprite as an argument
+
+---@alias Animango.AnimationEventType
+---| '"start"' # The animation has just started playing
+---| '"loop"' # The animation has just finished playing and a new loop has started
+---| '"frame"' # A new frame has been displayed
+---| '"update"' # The animation playback has been updated
 
 -- Sprites -----------------------------------------------------------------------------------------
 
@@ -58,7 +66,8 @@ function animango.newSprite()
         currentAnimation = "default",
         currentFrame = 1,
         currentIteration = 1,
-        animations = {}
+        animations = {},
+        events = {}
     }
     return setmetatable(sprite, SpriteMT)
 end
@@ -76,11 +85,12 @@ end
 
 --------------------------------------------------
 --- ### Sprite:instance()
---- Creates and returns a new instance of the sprite by generating a new sprite which references the same animations.
+--- Creates and returns a new instance of the sprite by generating a new sprite which references the same animations and events.
 ---@return Animango.Sprite
 function Sprite:instance()
     local inst = animango.newSprite()
     inst.animations = self.animations
+    inst.events = self.events
     return inst
 end
 
@@ -109,6 +119,17 @@ function Sprite:setPosition(x, y)
 end
 
 --------------------------------------------------
+--- ### Sprite:setEvent()
+--- Sets the given event of the sprite.
+---@param eventType Animango.AnimationEventType
+---@param event Animango.AnimationEvent
+---@return Animango.Sprite self
+function Sprite:setEvent(eventType, event)
+    self.events[eventType] = event
+    return self
+end
+
+--------------------------------------------------
 --- ### Sprite:setAnimation()
 --- Sets the sprite's current animation and resets all the relevant variables.
 ---@param animationName string
@@ -126,7 +147,7 @@ end
 --- Like `Sprite:setAnimation()`, but only works if the current animation matches the one specified.
 ---@param requiredCurrentAnimation string
 ---@param animationName string
----@return Animango.Sprite
+---@return Animango.Sprite self
 function Sprite:changeAnimationFrom(requiredCurrentAnimation, animationName)
     if self.currentAnimation == requiredCurrentAnimation then
         return self:setAnimation(animationName)
@@ -202,23 +223,35 @@ function Sprite:update(dt)
     local lastFrame = self.currentFrame
     local nextFrame = self.currentFrame + dt * fps * self.playbackSpeed * self.playbackSpeedMultiplier
 
+    local isVeryFirstFrame = self.currentIteration == 1 and lastFrame == 1
     local lastFrameActual = math.floor(lastFrame)
     local nextFrameActual = math.floor(nextFrame)
-    local frameChanged = (lastFrameActual ~= nextFrameActual) or (self.currentIteration == 1 and lastFrame == 1)
+    local frameChanged = (lastFrameActual ~= nextFrameActual) or isVeryFirstFrame
 
     local frameCount = #animation.frames
-    local looped = nextFrame >= frameCount + 1
+    local looped = (nextFrame >= frameCount + 1) or (nextFrame ~= nextFrame) -- NaN check for 0-frame animation edge case
     nextFrame = ((nextFrame-1) % frameCount) + 1 -- loop the animation
 
     self.currentFrame = nextFrame
 
+    if isVeryFirstFrame then
+        if self.events.start then self:callEvent(self.events.start) end
+        if animation.events.start then self:callEvent(animation.events.start) end
+    end
     if looped then
         self.currentIteration = self.currentIteration + 1
+
+        if self.events.loop then self:callEvent(self.events.loop) end
+        if animation.events.loop then self:callEvent(animation.events.loop) end
     end
     if frameChanged then
         local frame = animation.frames[math.floor(nextFrame)]
         if frame and frame.event then self:callEvent(frame.event) end
+        if self.events.frame then self:callEvent(self.events.frame) end
+        if animation.events.frame then self:callEvent(animation.events.frame) end
     end
+    if self.events.update then self:callEvent(self.events.update) end
+    if animation.events.update then self:callEvent(animation.events.update) end
 end
 
 --------------------------------------------------
@@ -294,7 +327,8 @@ function animango.newAnimation(fps, originX, originY, frames)
         frames = frames or {},
         fps = fps or 1,
         originX = originX or 0,
-        originY = originY or 0
+        originY = originY or 0,
+        events = {}
     }
     return setmetatable(animation, AnimationMT)
 end
@@ -314,7 +348,7 @@ end
 --- Sets the animation's origin.
 ---@param x number
 ---@param y number
----@return Animango.Animation
+---@return Animango.Animation self
 function Animation:setOrigin(x, y)
     self.originX = x
     self.originY = y
@@ -322,12 +356,24 @@ function Animation:setOrigin(x, y)
 end
 
 --------------------------------------------------
+--- ### Animation:setEvent()
+--- Sets the given event of the animation.  
+--- For attaching an event to a specific frame of the animation, use `Animation:setFrameEvent()`.
+---@param eventType Animango.AnimationEventType
+---@param event Animango.AnimationEvent
+---@return Animango.Animation self
+function Animation:setEvent(eventType, event)
+    self.events[eventType] = event
+    return self
+end
+
+--------------------------------------------------
 --- ### Animation:setFrameEvent()
---- Attaches an animation event to the frame at the specified index.  
+--- Attaches an animation event to the frame at the specified index (the event will be called when that frame is played).  
 --- If the frame already has an event assigned to it, it gets overwritten.
 ---@param frameIndex integer
 ---@param event Animango.AnimationEvent
----@return Animango.Animation
+---@return Animango.Animation self
 function Animation:setFrameEvent(frameIndex, event)
     local frame = self.frames[frameIndex]
     if not frame then error("No frame found at index " .. tostring(frameIndex), 2) end
