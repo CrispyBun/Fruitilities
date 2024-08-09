@@ -165,6 +165,7 @@ local ElementMT = {__index = Element}
 ---@field cursorY number The cursor Y coordinate
 ---@field touchDraggedMember? Papayui.LiveMember The member that is currently being being scrolled using touch input
 ---@field enabledState Papayui.UIEnabledState Whether the UI responds to input or is even drawn
+---@field data table Any arbitrary data you want to add to this ui
 local UI = {}
 local UIMT = {__index = UI}
 
@@ -377,7 +378,8 @@ function papayui.newUI(rootElement, x, y)
         cursorX = math.huge,
         cursorY = math.huge,
         touchDraggedMember = nil,
-        enabledState = "enabled"
+        enabledState = "enabled",
+        data = {}
     }
     setmetatable(ui, UIMT)
 
@@ -389,6 +391,17 @@ function papayui.newUI(rootElement, x, y)
 end
 
 -- UI methods --------------------------------------------------------------------------------------
+
+--------------------------------------------------
+--- ### UI:setDataField(key, value)
+--- Sets a field in the UI's data table
+---@param key string
+---@param value any
+---@return Papayui.UI self
+function UI:setDataField(key, value)
+    self.data[key] = value
+    return self
+end
 
 --------------------------------------------------
 --- ### UI:draw()
@@ -1177,6 +1190,17 @@ function Element:clone()
     }
 
     return setmetatable(clonedElement, ElementMT)
+end
+
+--------------------------------------------------
+--- ### Element:setDataField(key, value)
+--- Sets a field in the element's data table
+---@param key string
+---@param value any
+---@return Papayui.Element self
+function Element:setDataField(key, value)
+    self.data[key] = value
+    return self
 end
 
 ---@param x? number The X coordinate to draw at (Default is 0)
