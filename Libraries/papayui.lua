@@ -544,7 +544,7 @@ end
 --- Redraws the entire UI.  
 ---
 --- If any changes were made that affect positioning (such as papayui.scale or changing the elements' sizes or layouts), this method needs to be called to apply those changes to the UI.  
---- Scrolling does not need to have refresh called.
+--- Scrolling and offsets do not need to have refresh called.
 ---
 --- The function only regenerates members when it needs to. If all of the UI's children stay the exact same, the actual member instances won't be overwritten by new ones, therefore remembering things like scrolling.
 function UI:refresh()
@@ -557,12 +557,10 @@ function UI:refresh()
     local memberQueueFirst = {value = rootMember, next = nil}
     local memberQueueLast = memberQueueFirst
     while memberQueueFirst do
-        ---@type Papayui.LiveMember
         local member = memberQueueFirst.value
         local layout = member.element.style.layout
 
         if layout and papayui.layouts[layout] then
-            ---@type Papayui.LiveMember[]
             local addedMembers = papayui.layouts[layout](member)
 
             for addedIndex = 1, #addedMembers do
@@ -575,8 +573,6 @@ function UI:refresh()
 
         self.members[#self.members+1] = member
         memberQueueFirst = memberQueueFirst.next
-
-        self:triggerEvent("refresh", member)
     end
 
     local selectedFound = false
@@ -593,6 +589,12 @@ function UI:refresh()
     if not selectedFound then self.selectedMember = nil end
     if not lastSelectionFound then self.lastSelection = nil end
     if not touchDraggedFound then self.touchDraggedMember = nil end
+
+    local members = self.members
+    for memberIndex = 1, #members do
+        local member = members[memberIndex]
+        self:triggerEvent("refresh", member)
+    end
 end
 
 local dirEnum = { left = 1, up = 2, right = 3, down = 4 }
@@ -2692,11 +2694,10 @@ function LiveMember:select(source, direction)
     return self:forwardNavigation(source, direction)
 end
 
-local emptyUI
+local emptyUI = papayui.newUI(papayui.newElement())
 --- Returns the "no UI" UI, where its only member represents any element with no UI. Used internally.
 ---@return Papayui.UI
 function papayui.getNilUI()
-    emptyUI = emptyUI or papayui.newUI(papayui.newElement())
     return emptyUI
 end
 
