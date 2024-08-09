@@ -569,6 +569,9 @@ function UI:refresh()
                 memberQueueLast.next = nextQueueItem
                 memberQueueLast = nextQueueItem
             end
+        else
+            -- Clear children that may be left over from a different state of the UI
+            if #member.children > 0 then member.children = {} end
         end
 
         self.members[#self.members+1] = member
@@ -1641,9 +1644,11 @@ local function getNudgeValue(usableSpace, usedSpace, align)
     return (align * unusedSpace + unusedSpace) / 2
 end
 
+--- Layouts should use this function to generate the members of the parent member.  
+--- Not a very useful function outside layouts.
 ---@param parentMember Papayui.LiveMember
 ---@return Papayui.LiveMember[]
-local function generateChildMembers(parentMember)
+function papayui.generateChildMembers(parentMember)
     local elements = parentMember.element.children
     local previousChildren = parentMember.children
     local elementsAreIdentical = parentMember:childElementsAreIdentical(elements)
@@ -1658,9 +1663,9 @@ local function generateChildMembers(parentMember)
         local member
         if elementsAreIdentical then
             member = previousChildren[elementIndex]
-            member:resetBounds(0, 0)
             member.nav = {}
             member.parent = parentMember
+            member:resetBounds(0, 0)
         else
             member = papayui.newLiveMember(element, 0, 0, parentMember)
         end
@@ -1670,6 +1675,7 @@ local function generateChildMembers(parentMember)
     end
     return members
 end
+local generateChildMembers = papayui.generateChildMembers
 
 ---@param memberCount integer
 ---@param usableSpace number
@@ -2237,19 +2243,16 @@ end
 ---@param parent? Papayui.LiveMember
 ---@return Papayui.LiveMember
 function papayui.newLiveMember(element, x, y, parent)
-    x = x or 0
-    y = y or 0
     local style = element.style
-    local scale = style.ignoreScale and 1 or papayui.scale
 
     ---@type Papayui.LiveMember
     local member = {
         element = element,
         children = {},
-        x = x,
-        y = y,
-        width = style.width * scale,
-        height = style.height * scale,
+        x = 0,
+        y = 0,
+        width = 0,
+        height = 0,
         scrollX = 0,
         scrollY = 0,
         scrollVelocityX = 0,
@@ -2259,8 +2262,11 @@ function papayui.newLiveMember(element, x, y, parent)
         parent = parent,
         nav = {}
     }
+    setmetatable(member, LiveMemberMT)
 
-    return setmetatable(member, LiveMemberMT)
+    member:resetBounds(x, y)
+
+    return member
 end
 
 ---@param isSelected? boolean If the element should render as hovered over
