@@ -156,6 +156,15 @@ local ElementBehaviorMT = {__index = ElementBehavior}
 local Element = {}
 local ElementMT = {__index = Element}
 
+--- A template to generate elements from. Instancing an empty template is the same thing as creating a new blank element.
+---@class Papayui.Template
+---@field style? Papayui.ElementStyle The style for elements made from this template
+---@field behavior? Papayui.ElementBehavior The behavior for elements made from this template
+---@field data? table The arbitrary data to be put into elements made from this template
+---@field init? fun(element: Papayui.Element, ...: unknown) Constructor for when the template is instanced (receives the new element and constructor params)
+local Template = {}
+local TemplateMT = {__index = Template}
+
 ---@class Papayui.UI
 ---@field members Papayui.LiveMember[] All the elements in the UI, in the drawn order
 ---@field selectedMember? Papayui.LiveMember The member that is currently selected
@@ -359,6 +368,25 @@ function papayui.newElement(style, behavior)
     }
 
     return setmetatable(element, ElementMT)
+end
+
+--------------------------------------------------
+--- ### papayui.newTemplate(style, behavior)
+--- Creates a new element template.
+---@param style? Papayui.ElementStyle
+---@param behavior? Papayui.ElementBehavior
+---@param data? table
+---@param init? fun(element: Papayui.Element, ...: unknown)
+---@return Papayui.Template
+function papayui.newTemplate(style, behavior, data, init)
+    ---@type Papayui.Template
+    local template = {
+        style = style,
+        behavior = behavior,
+        data = data,
+        init = init
+    }
+    return setmetatable(template, TemplateMT)
 end
 
 --------------------------------------------------
@@ -1172,11 +1200,74 @@ function ElementBehavior:clone()
     return setmetatable(copiedTable, ElementBehaviorMT)
 end
 
+-- Template methods --------------------------------------------------------------------------------
+
+--------------------------------------------------
+--- ### Template:instance(...)
+--- ### Template:newElement(...)
+--- Creates a new papayui element from the template. (Behavior and style will not be cloned, modifying them will modify the template!)  
+--- 
+--- If the template has a constructor, the vararg passed into this method will be passed into it.
+---@param ... unknown Constructor params
+---@return Papayui.Element element The new papayui element
+function Template:instance(...)
+    local element = papayui.newElement(self.style, self.behavior)
+    if self.data then element.data = shallowCopy(self.data) end
+    if self.init then self.init(element, ...) end
+    return element
+end
+Template.newElement = Template.instance
+
+--------------------------------------------------
+--- ### Template:clone()
+--- Returns a copy of the template.
+---@return Papayui.Template
+function Template:clone()
+    ---@type Papayui.Template
+    local clonedTemplate = {
+        style = self.style and self.style:clone(),
+        behavior = self.behavior and self.behavior:clone(),
+        data = self.data and shallowCopy(self.data),
+        init = self.init
+    }
+    return setmetatable(clonedTemplate, TemplateMT)
+end
+
+---@param style Papayui.ElementStyle
+---@return Papayui.Template self
+function Template:setStyle(style)
+    self.style = style
+    return self
+end
+
+---@param behavior Papayui.ElementBehavior
+---@return Papayui.Template self
+function Template:setBehavior(behavior)
+    self.behavior = behavior
+    return self
+end
+
+---@param key string
+---@param value any
+---@return Papayui.Template self
+function Template:setDataField(key, value)
+    self.data = self.data or {}
+    self.data[key] = value
+    return self
+end
+
+---@param func fun(element: Papayui.Element, ...: unknown)
+---@return Papayui.Template self
+function Template:setConstructor(func)
+    self.init = func
+    return self
+end
+
 -- Element methods ---------------------------------------------------------------------------------
 
 --------------------------------------------------
 --- ### Element:clone()
---- Returns a copy of the element
+--- Returns a copy of the element.
 ---@return Papayui.Element
 function Element:clone()
     ---@type Papayui.Element
