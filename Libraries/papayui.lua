@@ -47,6 +47,9 @@ papayui.colors.hover = {0.5, 0.5, 1}
 papayui.colors.text = {0.9, 0.9, 0.9}
 papayui.colors.title = {1, 1, 1}
 
+-- Color used if the selected color doesn't exist
+papayui.fallbackColor = {1, 0, 0}
+
 -- Change and then refresh any UIs
 papayui.scale = 1
 
@@ -60,6 +63,9 @@ papayui.buttonScrollOvershoot = 10    -- How many pixels to try to (roughly) ove
 papayui.touchScrollingEnabled = true  -- Whether or not holding down the action key and dragging the cursor can scroll
 
 -- Definitions -------------------------------------------------------------------------------------
+
+---@diagnostic disable-next-line: duplicate-doc-alias
+---@alias Papayui.Color [number, number, number]
 
 ---@alias Papayui.ElementLayout
 ---| '"none"' # The elements are not displayed
@@ -174,7 +180,7 @@ local UIMT = {__index = UI}
 ---@field y number The Y position of the element
 ---@field width number The width of the element
 ---@field height number The height of the element
----@field color? number[] The color of the element
+---@field color? Papayui.Color The color of the element
 ---@field isSelected boolean Whether or not the element is hovered over
 
 --- Can navigate to either a specific Papayui.Element,
@@ -1192,7 +1198,7 @@ function Element:draw(x, y, width, height, isSelected, event)
     if isSelected and colorHover then color = colorHover end
 
     if style.color and not color then
-        color = {1, 0, 0} -- "Invalid color" redness
+        color = papayui.fallbackColor
     end
 
     local drawRectangle = style.drawRectangle == nil and papayui.drawElementRectangles or style.drawRectangle
