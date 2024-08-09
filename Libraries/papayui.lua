@@ -1203,6 +1203,50 @@ function Element:setDataField(key, value)
     return self
 end
 
+--------------------------------------------------
+--- ### Element:appendChildren(...)
+---@param ... Papayui.Element
+---@return Papayui.Element self
+function Element:appendChildren(...)
+    local addedChildren = {...}
+    for i = 1, #addedChildren do
+        local child = addedChildren[i]
+        self.children[#self.children+1] = child
+    end
+    return self
+end
+
+--------------------------------------------------
+--- ### Element:setStyle(style)
+--- Sets the style used by the element.
+---@param style Papayui.ElementStyle
+---@return Papayui.Element self
+function Element:setStyle(style)
+    self.style = style
+    return self
+end
+
+--------------------------------------------------
+--- ### Element:setBehavior(behavior)
+--- Sets the behavior used by the element.
+---@param behavior Papayui.ElementBehavior
+---@return Papayui.Element self
+function Element:setBehavior(behavior)
+    self.behavior = behavior
+    return self
+end
+
+--------------------------------------------------
+--- ### Element:setNavigation(direction, newSelection)
+--- Sets the navigation rule of the element in the given direction
+---@param direction "left"|"up"|"right"|"down"
+---@param newSelection Papayui.Element|fun(checkedElementEvent: Papayui.Event, originEvent: Papayui.Event): boolean
+---@return Papayui.Element self
+function Element:setNavigation(direction, newSelection)
+    self.nav[direction] = newSelection
+    return self
+end
+
 ---@param x? number The X coordinate to draw at (Default is 0)
 ---@param y? number The Y coordinate to draw at (Default is 0)
 ---@param width? number The width to draw the element as (Default is element's width)
