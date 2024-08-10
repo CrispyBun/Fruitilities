@@ -47,8 +47,22 @@ papayui.colors.hover = {0.5, 0.5, 1}
 papayui.colors.text = {0.9, 0.9, 0.9}
 papayui.colors.title = {1, 1, 1}
 
--- Color used if the selected color doesn't exist
-papayui.fallbackColor = {1, 0, 0}
+papayui.colors.red = {1, 0.35, 0.3}
+papayui.colors.green = {0.3, 0.9, 0.4}
+papayui.colors.blue = {0.6, 0.75, 1}
+
+-- Called when an element uses a color that isn't defined in the colors table.  
+-- Should return a color.
+papayui.resolveUnknownColor = function (colorName)
+    local hex = papayui.parseHexColor(colorName)
+    if hex then return hex end
+
+    local rgb = papayui.parseRgbString(colorName)
+    if rgb then return rgb end
+
+    -- Invalid color, return a bright errory red
+    return {1, 0, 0}
+end
 
 -- Change and then refresh any UIs
 papayui.scale = 1
@@ -65,7 +79,7 @@ papayui.touchScrollingEnabled = true  -- Whether or not holding down the action 
 -- Definitions -------------------------------------------------------------------------------------
 
 ---@diagnostic disable-next-line: duplicate-doc-alias
----@alias Papayui.Color [number, number, number]
+---@alias Papayui.Color number[]
 
 ---@diagnostic disable-next-line: duplicate-doc-alias
 ---@alias Papayui.ElementLayout
@@ -115,7 +129,7 @@ papayui.touchScrollingEnabled = true  -- Whether or not holding down the action 
 ---@field growVertical boolean Whether the element should grow vertically to take up full parent space
 ---@field padding number[] The padding of the element, in the format {left, top, right, bottom}
 ---@field margin number[] The margin of the element, in the format {left, top, right, bottom}
----@field color? string The background color of this element, from the ui.colors table
+---@field color? string The background color of this element. Either a name from the ui.colors table, or anything supported by the `papayui.resolveUnknownColor()` function (by default, "#hex" or "rgb()").
 ---@field colorHover? string The background color of this element when it's hovered over
 ---@field drawRectangle? boolean Whether or not the element should draw a rectangle of its color at its position. If nil, defaults to papayui.drawElementRectangles.
 ---@field draw? fun(event: Papayui.DrawEvent) Function that draws the element
@@ -260,6 +274,71 @@ function papayui.newFunctionStack(...)
     end
 end
 papayui.newFuncstack = papayui.newFunctionStack
+
+---Converts a hex value to a color table or returns nil if the input isn't valid hex
+---@param hexString string
+---@return number[]?
+function papayui.parseHexColor(hexString)
+    if string.sub(hexString, 1, 1) ~= "#" then return nil end
+    local hex = string.sub(hexString, 2, -1)
+
+    local r, g, b, a
+    if #hex == 3 then
+        r = string.rep(string.sub(hex, 1, 1), 2)
+        g = string.rep(string.sub(hex, 2, 2), 2)
+        b = string.rep(string.sub(hex, 3, 3), 2)
+    elseif #hex == 6 or #hex == 8 then
+        r = string.sub(hex, 1, 2)
+        g = string.sub(hex, 3, 4)
+        b = string.sub(hex, 5, 6)
+        if #hex == 8 then a = string.sub(hex, 7, 8) end
+    end
+    if not (r and g and b) then return nil end
+
+    r = tonumber(r, 16)
+    g = tonumber(g, 16)
+    b = tonumber(b, 16)
+    a = a and tonumber(a, 16)
+    if not (r and g and b) then return nil end
+
+    r = r / 255
+    g = g / 255
+    b = b / 255
+    a = a and a / 255
+
+    return {r, g, b, a}
+end
+
+---Converts a css-like rgb() or rgba() string into a color table, or returns nil for invalid input
+---@param str string
+---@return number[]?
+function papayui.parseRgbString(str)
+    local firstNumberIndex
+    if string.sub(str, 1, 4) == "rgb(" then firstNumberIndex = 5
+    elseif string.sub(str, 1, 5) == "rgba(" then firstNumberIndex = 6 end
+
+    if not firstNumberIndex then return nil end
+    if not string.sub(str, -1) == ")" then return nil end
+
+    local numStr = string.sub(str, firstNumberIndex, -2)
+    numStr = string.gsub(numStr, " ", "")
+
+    local color = {}
+    local iteration = 0
+    for num in string.gmatch(numStr, "[^,]+") do
+        iteration = iteration + 1
+        if iteration >= 5 then return nil end
+
+        color[iteration] = tonumber(num)
+    end
+    if not (color[1] and color[2] and color[3]) then return nil end
+
+    color[1] = color[1] / 255
+    color[2] = color[2] / 255
+    color[3] = color[3] / 255
+
+    return color
+end
 
 -- Element creation --------------------------------------------------------------------------------
 
@@ -1367,12 +1446,13 @@ function Element:draw(x, y, width, height, isSelected, event)
     height = height or style.height
     isSelected = isSelected or false
 
-    local color = papayui.colors[style.color]
-    local colorHover = papayui.colors[style.colorHover]
-    if isSelected and colorHover then color = colorHover end
+    local colorName = style.color
+    if isSelected and style.colorHover then colorName = style.colorHover end
 
-    if style.color and not color then
-        color = papayui.fallbackColor
+    local color = papayui.colors[colorName]
+
+    if colorName and not color then
+        color = papayui.resolveUnknownColor(colorName)
     end
 
     local drawRectangle = style.drawRectangle == nil and papayui.drawElementRectangles or style.drawRectangle
