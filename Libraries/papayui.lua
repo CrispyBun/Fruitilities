@@ -67,6 +67,7 @@ papayui.touchScrollingEnabled = true  -- Whether or not holding down the action 
 ---@diagnostic disable-next-line: duplicate-doc-alias
 ---@alias Papayui.Color [number, number, number]
 
+---@diagnostic disable-next-line: duplicate-doc-alias
 ---@alias Papayui.ElementLayout
 ---| '"none"' # The elements are not displayed
 ---| '"singlerow"' # A single horizontal row of elements
@@ -134,6 +135,9 @@ papayui.touchScrollingEnabled = true  -- Whether or not holding down the action 
 ---@field maxLineElements (number|nil)|(number|nil)[] Sets a limit to the amount of elements that can be present in a given row/column. If set to a number, all lines get this limit. If set to an array of numbers, each array index corresponds to a given line index. Nil for unlimited.
 ---@field ignoreScale boolean Determines if papayui.scale has an effect on the size of this element (useful to enable for root elements which fill screen space)
 ---@field positionList? {[1]: number, [2]: number}[] The list of child positions for the positionlist layout
+---@field preLayout? fun(member: Papayui.LiveMember) Function that can modify some properties of the instanced element (member) when it's about to be laid out in a UI. Useful for resizing the element based on some variable (such as text boxes).
+---@field preChildren? fun(member: Papayui.LiveMember): Papayui.ElementLayout? Function that can modify some properties of the instanced element (member) right before its children are laid out. Can optionally return an ElementLayout to override the one set in the style. Useful for responsive layouts.
+---@field postChildren? fun(member: Papayui.LiveMember) Function that can modify some properties of the instanced element (member) right after its children are laid out. Can be useful for repositioning some of the children after the layout is finished.
 local ElementStyle = {}
 local ElementStyleMT = {__index = ElementStyle}
 
@@ -202,7 +206,7 @@ local UIMT = {__index = UI}
 ---@field right? Papayui.Element|fun(checkedElementEvent: Papayui.Event, originEvent: Papayui.Event): boolean
 ---@field down? Papayui.Element|fun(checkedElementEvent: Papayui.Event, originEvent: Papayui.Event): boolean
 
---- The instanced element in an actual UI, with a state. You don't really have to worry about these, they're used internally
+--- The instanced element in an actual UI, with a state.
 ---@class Papayui.LiveMember
 ---@field element Papayui.Element The element this is an instance of
 ---@field parent? Papayui.LiveMember The parent of this member
@@ -558,7 +562,10 @@ function UI:refresh()
     local memberQueueLast = memberQueueFirst
     while memberQueueFirst do
         local member = memberQueueFirst.value
-        local layout = member.element.style.layout
+        local style = member.element.style
+
+        local layoutOverride = style.preChildren and style.preChildren(member)
+        local layout = layoutOverride or style.layout
 
         if layout and papayui.layouts[layout] then
             local addedMembers = papayui.layouts[layout](member)
@@ -571,8 +578,11 @@ function UI:refresh()
             end
         else
             -- Clear children that may be left over from a different state of the UI
+            -- (if the user restructured the UI and then called refresh)
             if #member.children > 0 then member.children = {} end
         end
+
+        if style.postChildren then style.postChildren(member) end
 
         self.members[#self.members+1] = member
         memberQueueFirst = memberQueueFirst.next
@@ -2433,6 +2443,7 @@ function LiveMember:resetBounds(x, y, width, height)
     self.y = y or 0
     self.width = (width or style.width) * scale
     self.height = (height or style.height) * scale
+    if style.preLayout then style.preLayout(self) end
 end
 
 --- Checks if the member's children are of the same instances and in the same order as the input elements
