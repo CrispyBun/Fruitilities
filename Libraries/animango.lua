@@ -433,11 +433,13 @@ end
 --------------------------------------------------
 --- ### Animation:setFrameEvent(frameIndex, event)
 --- Attaches an animation event to the frame at the specified index (the event will be called when that frame is played).  
+--- A negative frameIndex can be used to index from the end of the animation.  
 --- If the frame already has an event assigned to it, it gets overwritten.
 ---@param frameIndex integer
 ---@param event Animango.AnimationEvent
 ---@return Animango.Animation self
 function Animation:setFrameEvent(frameIndex, event)
+    if frameIndex < 0 then frameIndex = #self.frames + frameIndex + 1 end
     local frame = self.frames[frameIndex]
     if not frame then error("No frame found at index " .. tostring(frameIndex), 2) end
 
