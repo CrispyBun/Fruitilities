@@ -5,7 +5,9 @@ local camberry = {}
 ---@class Camerry.Camera
 ---@field targets table[] The targets the camera tries to follow. For a target to work, it needs to have both an `x` and a `y` field with a number value.
 ---@field smoothness number How smoothly the camera should interpolate movement. Value from 0 to 1.
----@field safeBoundsOffset? [number, number] The distance from the camera's edge (in each axis) that targets must stay in. Negative values grow the area, positive shrink it. If the camera isn't allowed to use zoom to show all targets, only the first target will be kept in this zone. If no value is set, the camera won't snap any targets to view.
+---@field safeBoundsOffset [number, number] The distance from the camera's edge (in each axis) that targets must stay in if `snapToFirstTarget` or `zoomToAllTargets` are enabled. Positive values shrink the area, negative values grow it.
+---@field snapToFirstTarget boolean Whether or not the camera should snap to always show the first target.
+---@field zoomToAllTargets boolean Whether or not the camera should zoom out to always show all targets.
 ---@field zoom number The camera's zoom factor.
 ---@field x number The camera's x position. You shouldn't modify this yourself if you use targets.
 ---@field y number The camera's y position. You shouldn't modify this yourself if you use targets.
@@ -34,6 +36,9 @@ function camberry.newCamera(width, height)
     local camera = {
         targets = {},
         smoothness = 0.05,
+        safeBoundsOffset = {0, 0},
+        snapToFirstTarget = true,
+        zoomToAllTargets = false,
         zoom = 1,
         x = 0,
         y = 0,
@@ -101,7 +106,7 @@ function Camera:update(dt)
     self.x = sourceX + (targetX - sourceX) * (1 - smoothness ^ dt)
     self.y = sourceY + (targetY - sourceY) * (1 - smoothness ^ dt)
 
-    if self.safeBoundsOffset then self:snapTargetsToBounds() end
+    self:snapTargetsToBounds()
     return camberry.graphics.updateCamera(self)
 end
 
@@ -139,9 +144,7 @@ end
 
 --------------------------------------------------
 --- ### Camera:setSafeBoundsOffset(x, y)
---- Sets the camera's safe bounds offset.
---- 
---- This makes the camera try to always show all targets if they start to leave its view.  
+--- Sets the camera's safe bounds offset.  
 --- Each axis states how far from the camera's edge the targets must stay in. Negative values grow the area, positive shrink it.
 --- 
 --- If only one value is supplied, both axes will be set to it.
@@ -149,30 +152,35 @@ end
 ---@param y? number The offset in the Y direction (Default is `x`)
 ---@return Camerry.Camera self
 function Camera:setSafeBoundsOffset(x, y)
-    self.safeBoundsOffset = self.safeBoundsOffset or {0, 0}
     self.safeBoundsOffset[1] = x
     self.safeBoundsOffset[2] = y or x
     return self
 end
 
 --------------------------------------------------
---- ### Camera:removeSafeBoundsOffset()
---- Removes the camera's safe bounds offset.
+--- ### Camera:setTargetSnapping(snapToFirstTarget, zoomToAllTargets)
+--- Configures how the camera should behave if targets try to leave its view.
+---@param snapToFirstTarget boolean Whether or not the camera should move to always show the first target
+---@param zoomToAllTargets boolean Whether or not the camera should zoom to always show all targets
 ---@return Camerry.Camera self
-function Camera:removeSafeBoundsOffset()
-    self.safeBoundsOffset = nil
+function Camera:setTargetSnapping(snapToFirstTarget, zoomToAllTargets)
+    self.snapToFirstTarget = snapToFirstTarget
+    self.zoomToAllTargets = zoomToAllTargets
     return self
 end
 
 --------------------------------------------------
 --- ### Camera:getBounds()
 --- Returns the bounds that the camera sees.
+---@param ignoreInternalZoom? boolean
 ---@return number x
 ---@return number y
 ---@return number width
 ---@return number height
-function Camera:getBounds()
-    local zoom = self.zoom * self._zoom
+function Camera:getBounds(ignoreInternalZoom)
+    local zoom = self.zoom
+    if not ignoreInternalZoom then zoom = zoom * self._zoom end
+
     local width = self.width / zoom
     local height = self.height / zoom
     local halfWidth = width / 2
@@ -183,15 +191,16 @@ end
 --------------------------------------------------
 --- ### Camera:getSafeBounds()
 --- Returns the bounds in which the camera will try to keep its targets, or just the regular bounds, if safeBoundsOffset is unset.
+---@param ignoreInternalZoom? boolean
 ---@return number x
 ---@return number y
 ---@return number width
 ---@return number height
-function Camera:getSafeBounds()
+function Camera:getSafeBounds(ignoreInternalZoom)
     local safeBoundsOffset = self.safeBoundsOffset
-    if not safeBoundsOffset then return self:getBounds() end
+    if not safeBoundsOffset then return self:getBounds(ignoreInternalZoom) end
 
-    local x, y, width, height = self:getBounds()
+    local x, y, width, height = self:getBounds(ignoreInternalZoom)
     return x + safeBoundsOffset[1], y + safeBoundsOffset[2], width - safeBoundsOffset[1] * 2, height - safeBoundsOffset[2] * 2
 end
 
@@ -240,10 +249,11 @@ end
 
 --------------------------------------------------
 --- ### Camera:snapTargetsToBounds()
---- Snaps the camera so that all targets are visible (or just the first target, if zooming for showing targets is disabled).  
+--- Snaps the camera so that its targets are visible. Has no effect if both `snapToFirstTarget` and `zoomToAllTargets` are off.
 --- Used internally.
 function Camera:snapTargetsToBounds()
-    return self:snapFirstTargetToBounds()
+    if self.snapToFirstTarget then self:snapFirstTargetToBounds() end
+    if self.zoomToAllTargets then self:zoomTargetsToBounds() end
 end
 
 --------------------------------------------------
@@ -264,6 +274,43 @@ function Camera:snapFirstTargetToBounds()
 
     if     targetY < safeY then self.y = targetY + safeH / 2
     elseif targetY > safeY + safeH then self.y = targetY - safeH / 2 end
+end
+
+--------------------------------------------------
+--- ### Camera:zoomTargetsToBounds()
+--- Sets the zoom of the camera so that all targets are visible.
+--- Used internally.
+function Camera:zoomTargetsToBounds()
+    local safeX, safeY, safeW, safeH = self:getSafeBounds(true)
+    local minX, minY, maxX, maxY = safeX, safeY, safeX + safeW, safeY + safeH
+    local targets = self.targets
+
+    for targetIndex = 1, #targets do
+        local target = targets[targetIndex]
+        local targetX = target.x
+        local targetY = target.y
+        if targetX then
+            minX = math.min(minX, targetX)
+            maxX = math.max(maxX, targetX)
+        end
+        if targetY then
+            minY = math.min(minY, targetY)
+            maxY = math.max(maxY, targetY)
+        end
+    end
+
+    local differenceLeft = math.abs(minX - safeX)
+    local differenceTop = math.abs(minY - safeY)
+    local differenceRight = math.abs(maxX - safeX - safeW)
+    local differenceBottom = math.abs(maxY - safeY - safeH)
+
+    local differenceX = math.max(differenceLeft, differenceRight) * 2 -- *2 since both sides scale
+    local differenceY = math.max(differenceTop, differenceBottom) * 2
+
+    local zoomX = (1 / (1 + differenceX / safeW))
+    local zoomY = (1 / (1 + differenceY / safeH))
+    local zoom = math.min(zoomX, zoomY)
+    if zoom < 1 then self._zoom = zoom end
 end
 
 -- Simple targets ----------------------------------------------------------------------------------
