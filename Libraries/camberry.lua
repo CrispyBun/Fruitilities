@@ -26,7 +26,7 @@ function camberry.newCamera()
     ---@type Camerry.Camera
     local camera = {
         targets = {},
-        smoothness = 0.1,
+        smoothness = 0.05,
         x = 0,
         y = 0
     }
@@ -39,7 +39,7 @@ end
 --- Adds a target for the camera to follow.  
 --- If `target` is not supplied, creates a new SimpleTarget.  
 --- Returns the added target.
----@param target table
+---@param target? table
 ---@return table target
 function Camera:addTarget(target)
     target = target or camberry.newSimpleTarget()
@@ -82,7 +82,43 @@ Camera.cut = Camera.detach
 --- Updates the camera's position.
 ---@param dt number The time in seconds since the last call to update
 function Camera:update(dt)
+    local sourceX, sourceY = self.x, self.y
+    local targetX, targetY = self:getTargetPosition()
+    local smoothness = self.smoothness
+
+    -- lerp(sourceX, targetX, 1 - smoothness ^ dt)
+    self.x = sourceX + (targetX - sourceX) * (1 - smoothness ^ dt)
+    self.y = sourceY + (targetY - sourceY) * (1 - smoothness ^ dt)
+
     return camberry.graphics.updateCamera(self)
+end
+
+--------------------------------------------------
+--- ### Camera:getTargetPosition()
+--- Returns the `x` and `y` coordinates the camera is currently travelling to.
+---@return number targetX
+---@return number targetY
+function Camera:getTargetPosition()
+    -- todo: other follow modes besides just simple average position
+    local targets = self.targets
+    local targetSumX, targetSumY = 0, 0
+    local targetCountX, targetCountY = 0, 0
+    for targetIndex = 1, #targets do
+        local target = targets[targetIndex]
+        if target.x then
+            targetSumX = targetSumX + target.x
+            targetCountX = targetCountX + 1
+        end
+        if target.y then
+            targetSumY = targetSumY + target.y
+            targetCountY = targetCountY + 1
+        end
+    end
+
+    local targetX = targetCountX > 0 and targetSumX / targetCountX or self.x
+    local targetY = targetCountY > 0 and targetSumY / targetCountY or self.y
+
+    return targetX, targetY
 end
 
 --------------------------------------------------
@@ -94,6 +130,16 @@ end
 function Camera:setPosition(x, y)
     self.x = x
     self.y = y
+    return self
+end
+
+--------------------------------------------------
+--- ### Camera:setSmoothness(smoothness)
+--- Sets the camera's smoothness.
+---@param smoothness number
+---@return Camerry.Camera self
+function Camera:setSmoothness(smoothness)
+    self.smoothness = smoothness
     return self
 end
 
