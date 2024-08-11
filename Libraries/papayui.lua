@@ -787,9 +787,11 @@ function UI:actionRelease()
     self.actionDown = false
 
     if self.touchDraggedMember then
-        self:select(self.lastSelection) -- Reselect the last selection (otherwise touch scrolling can feel clunky on mouse)
+        if self.lastSelection and self.lastSelection:isPointInBounds(self.cursorX, self.cursorY) then
+            self:select(self.lastSelection) -- Reselect the last selection (otherwise touch scrolling can feel clunky on mouse)
+        end
         self.touchDraggedMember = nil
-        return -- Make sure the reselected member dosn't get clicked
+        return -- Make sure the possibly reselected member doesn't get clicked
     end
 
     if self.selectedMember then self:triggerEvent("action", self.selectedMember) end
@@ -2525,6 +2527,15 @@ function LiveMember:resetBounds(x, y, width, height)
     self.width = (width or style.width) * scale
     self.height = (height or style.height) * scale
     if style.preLayout then style.preLayout(self) end
+end
+
+--- Checks if a point is inside the member's (uncropped) bounds
+---@param px any
+---@param py any
+---@return boolean
+function LiveMember:isPointInBounds(px, py)
+    local x, y, width, height = self:getBounds()
+    return px > x and py > y and px < x + width and py < y + height
 end
 
 --- Checks if the member's children are of the same instances and in the same order as the input elements
