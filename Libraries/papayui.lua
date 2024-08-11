@@ -1400,6 +1400,7 @@ function Element:appendChildren(...)
     end
     return self
 end
+Element.appendChild = Element.appendChildren
 
 --------------------------------------------------
 --- ### Element:setStyle(style)
