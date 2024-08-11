@@ -5,6 +5,7 @@ local camberry = {}
 ---@class Camerry.Camera
 ---@field targets table[] The targets the camera tries to follow. For a target to work, it needs to have both an `x` and a `y` field with a number value.
 ---@field smoothness number How smoothly the camera should interpolate movement. Value from 0 to 1.
+---@field safeBoundsOffset? [number, number] The distance from the camera's edge (in each axis) that targets must stay in. Negative values grow the area, positive shrink it. If the camera isn't allowed to use zoom to show all targets, only the first target will be kept in this zone. If no value is set, the camera won't snap any targets to view.
 ---@field x number The camera's x position. You shouldn't modify this yourself if you use targets.
 ---@field y number The camera's y position. You shouldn't modify this yourself if you use targets.
 ---@field width number The camera's width.
@@ -96,8 +97,104 @@ function Camera:update(dt)
     self.x = sourceX + (targetX - sourceX) * (1 - smoothness ^ dt)
     self.y = sourceY + (targetY - sourceY) * (1 - smoothness ^ dt)
 
+    if self.safeBoundsOffset then self:snapTargetsToBounds() end
     return camberry.graphics.updateCamera(self)
 end
+
+--------------------------------------------------
+--- ### Camera:setPosition(x, y)
+--- Directly sets the camera's position. Only use this if you don't use targets! Otherwise, things will just be jittery and broken.
+---@param x number
+---@param y number
+---@return Camerry.Camera self
+function Camera:setPosition(x, y)
+    self.x = x
+    self.y = y
+    return self
+end
+
+--------------------------------------------------
+--- ### Camera:setSmoothness(smoothness)
+--- Sets the camera's smoothness.
+---@param smoothness number
+---@return Camerry.Camera self
+function Camera:setSmoothness(smoothness)
+    self.smoothness = smoothness
+    return self
+end
+
+--------------------------------------------------
+--- ### Camera:setSafeBoundsOffset(x, y)
+--- Sets the camera's safe bounds offset.
+--- 
+--- This makes the camera try to always show all targets if they start to leave its view.  
+--- Each axis states how far from the camera's edge the targets must stay in. Negative values grow the area, positive shrink it.
+--- 
+--- If only one value is supplied, both axes will be set to it.
+---@param x number The offset in the X direction
+---@param y? number The offset in the Y direction (Default is `x`)
+---@return Camerry.Camera self
+function Camera:setSafeBoundsOffset(x, y)
+    self.safeBoundsOffset = self.safeBoundsOffset or {0, 0}
+    self.safeBoundsOffset[1] = x
+    self.safeBoundsOffset[2] = y or x
+    return self
+end
+
+--------------------------------------------------
+--- ### Camera:removeSafeBoundsOffset()
+--- Removes the camera's safe bounds offset.
+---@return Camerry.Camera self
+function Camera:removeSafeBoundsOffset()
+    self.safeBoundsOffset = nil
+    return self
+end
+
+--------------------------------------------------
+--- ### Camera:getBounds()
+--- Returns the bounds that the camera sees.
+---@return number x
+---@return number y
+---@return number width
+---@return number height
+function Camera:getBounds()
+    local width = self.width
+    local height = self.height
+    local halfWidth = width / 2
+    local halfHeight = height / 2
+    return self.x - halfWidth, self.y - halfHeight, width, height
+end
+
+--------------------------------------------------
+--- ### Camera:getSafeBounds()
+--- Returns the bounds in which the camera will try to keep its targets, or just the regular bounds, if safeBoundsOffset is unset.
+---@return number x
+---@return number y
+---@return number width
+---@return number height
+function Camera:getSafeBounds()
+    local safeBoundsOffset = self.safeBoundsOffset
+    if not safeBoundsOffset then return self:getBounds() end
+
+    local x, y, width, height = self:getBounds()
+    return x + safeBoundsOffset[1], y + safeBoundsOffset[2], width - safeBoundsOffset[1] * 2, height - safeBoundsOffset[2] * 2
+end
+
+--------------------------------------------------
+--- ### Camera:setResolution(width, height)
+--- ### Camera:setSize(width, height)
+--- ### Camera:setDimensions(width, height)
+--- Sets the camera's resolution.
+---@param width number
+---@param height number
+---@return Camerry.Camera self
+function Camera:setResolution(width, height)
+    self.width = width
+    self.height = height
+    return self
+end
+Camera.setSize = Camera.setResolution
+Camera.setDimensions = Camera.setResolution
 
 --------------------------------------------------
 --- ### Camera:getTargetPosition()
@@ -127,42 +224,32 @@ function Camera:getTargetPosition()
 end
 
 --------------------------------------------------
---- ### Camera:setPosition(x, y)
---- Directly sets the camera's position. Only use this if you don't use targets! Otherwise, things will just be jittery and broken.
----@param x number
----@param y number
----@return Camerry.Camera self
-function Camera:setPosition(x, y)
-    self.x = x
-    self.y = y
-    return self
+--- ### Camera:snapTargetsToBounds()
+--- Snaps the camera so that all targets are visible (or just the first target, if zooming for showing targets is disabled).  
+--- Used internally.
+function Camera:snapTargetsToBounds()
+    return self:snapFirstTargetToBounds()
 end
 
 --------------------------------------------------
---- ### Camera:setSmoothness(smoothness)
---- Sets the camera's smoothness.
----@param smoothness number
----@return Camerry.Camera self
-function Camera:setSmoothness(smoothness)
-    self.smoothness = smoothness
-    return self
-end
+--- ### Camera:snapFirstTargetToBounds()
+--- Snaps the camera so that the first target is visible.  
+--- Used internally.
+function Camera:snapFirstTargetToBounds()
+    local safeX, safeY, safeW, safeH = self:getSafeBounds()
+    local targets = self.targets
+    local target = targets[1]
+    if not target then return end
 
---------------------------------------------------
---- ### Camera:setResolution(width, height)
---- ### Camera:setSize(width, height)
---- ### Camera:setDimensions(width, height)
---- Sets the camera's resolution.
----@param width number
----@param height number
----@return Camerry.Camera self
-function Camera:setResolution(width, height)
-    self.width = width
-    self.height = height
-    return self
+    local targetX = target.x or safeX
+    local targetY = target.y or safeY
+
+    if     targetX < safeX then self.x = targetX + safeW / 2
+    elseif targetX > safeX + safeW then self.x = targetX - safeW / 2 end
+
+    if     targetY < safeY then self.y = targetY + safeH / 2
+    elseif targetY > safeY + safeH then self.y = targetY - safeH / 2 end
 end
-Camera.setSize = Camera.setResolution
-Camera.setDimensions = Camera.setResolution
 
 -- Simple targets ----------------------------------------------------------------------------------
 
