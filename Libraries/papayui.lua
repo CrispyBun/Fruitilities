@@ -750,8 +750,10 @@ function UI:updateCursor(x, y)
             local hoveredMember = self.touchDraggedMember or self:findMemberAtCoordinate(x, y)
             local couldScroll = false
             if hoveredMember then _, couldScroll = hoveredMember:scrollRecursively(x - xPrevious, y - yPrevious, false, true, 1) end
-            if couldScroll then self:select() end
-            self.touchDraggedMember = hoveredMember
+            if couldScroll then
+                self:select()
+                self.touchDraggedMember = hoveredMember
+            end
         end
 
         return
