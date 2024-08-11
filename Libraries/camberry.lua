@@ -7,6 +7,8 @@ local camberry = {}
 ---@field smoothness number How smoothly the camera should interpolate movement. Value from 0 to 1.
 ---@field x number The camera's x position. You shouldn't modify this yourself if you use targets.
 ---@field y number The camera's y position. You shouldn't modify this yourself if you use targets.
+---@field width number The camera's width.
+---@field height number The camera's height.
 local Camera = {}
 local CameraMT = {__index = Camera}
 
@@ -19,16 +21,20 @@ local TargetMT = {__index = Target}
 -- Cameras -----------------------------------------------------------------------------------------
 
 --------------------------------------------------
---- ### camberry.newCamera()
---- Creates a new camera.
+--- ### camberry.newCamera(width, height)
+--- Creates a new camera. The `width` and `height` parameters set the camera's resolution, default is a resolution of 0x0.
+---@param width? number
+---@param height? number
 ---@return Camerry.Camera
-function camberry.newCamera()
+function camberry.newCamera(width, height)
     ---@type Camerry.Camera
     local camera = {
         targets = {},
         smoothness = 0.05,
         x = 0,
-        y = 0
+        y = 0,
+        width = width or 0,
+        height = height or 0
     }
 
     return setmetatable(camera, CameraMT)
@@ -99,7 +105,6 @@ end
 ---@return number targetX
 ---@return number targetY
 function Camera:getTargetPosition()
-    -- todo: other follow modes besides just simple average position
     local targets = self.targets
     local targetSumX, targetSumY = 0, 0
     local targetCountX, targetCountY = 0, 0
@@ -142,6 +147,22 @@ function Camera:setSmoothness(smoothness)
     self.smoothness = smoothness
     return self
 end
+
+--------------------------------------------------
+--- ### Camera:setResolution(width, height)
+--- ### Camera:setSize(width, height)
+--- ### Camera:setDimensions(width, height)
+--- Sets the camera's resolution.
+---@param width number
+---@param height number
+---@return Camerry.Camera self
+function Camera:setResolution(width, height)
+    self.width = width
+    self.height = height
+    return self
+end
+Camera.setSize = Camera.setResolution
+Camera.setDimensions = Camera.setResolution
 
 -- Simple targets ----------------------------------------------------------------------------------
 
