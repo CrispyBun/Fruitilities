@@ -740,11 +740,17 @@ function UI:updateCursor(x, y)
     self.cursorY = y
 
     if self.actionDown then
-        self:select()
+        if self.selectedMember then
+            if not self.selectedMember:isPointInBounds(x, y) then
+                self:select()
+            end
+        end
 
         if papayui.touchScrollingEnabled then
             local hoveredMember = self.touchDraggedMember or self:findMemberAtCoordinate(x, y)
-            if hoveredMember then hoveredMember:scrollRecursively(x - xPrevious, y - yPrevious, false, true, 1) end
+            local couldScroll = false
+            if hoveredMember then _, couldScroll = hoveredMember:scrollRecursively(x - xPrevious, y - yPrevious, false, true, 1) end
+            if couldScroll then self:select() end
             self.touchDraggedMember = hoveredMember
         end
 
@@ -2706,17 +2712,27 @@ end
 ---@param ignoreVelocity? boolean If true, no velocity is applied, and the scroller is moved instantly
 ---@param ignoreMaxSpeed? boolean If true, the applied speed won't be limited by max scrolling speed
 ---@param speed? number Optionally override the scrolling speed
+---@return boolean scrolled
+---@return boolean scrollerFound
 function LiveMember:scrollRecursively(scrollX, scrollY, ignoreVelocity, ignoreMaxSpeed, speed)
     scrollX = scrollX or 0
     scrollY = scrollY or 0
+    local scrolled = false
+    local scrollerFound = false
 
     local member = self
     while member and (scrollX ~= 0 or scrollY ~= 0) do
+        local style = member.element.style
+        scrollerFound = scrollerFound or style.scrollHorizontal or style.scrollVertical
+
         local scrolledX, scrolledY = member:scroll(scrollX, scrollY, ignoreVelocity, ignoreMaxSpeed, speed)
         if scrolledX then scrollX = 0 end
         if scrolledY then scrollY = 0 end
+        scrolled = scrolled or scrolledX or scrolledY
         member = member.parent
     end
+
+    return scrolled, scrollerFound
 end
 
 --- Tries to select self or any child. If provided, will find the selection closest to the source member.
