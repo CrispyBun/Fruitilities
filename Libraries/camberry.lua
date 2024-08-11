@@ -6,10 +6,12 @@ local camberry = {}
 ---@field targets table[] The targets the camera tries to follow. For a target to work, it needs to have both an `x` and a `y` field with a number value.
 ---@field smoothness number How smoothly the camera should interpolate movement. Value from 0 to 1.
 ---@field safeBoundsOffset? [number, number] The distance from the camera's edge (in each axis) that targets must stay in. Negative values grow the area, positive shrink it. If the camera isn't allowed to use zoom to show all targets, only the first target will be kept in this zone. If no value is set, the camera won't snap any targets to view.
+---@field zoom number The camera's zoom factor.
 ---@field x number The camera's x position. You shouldn't modify this yourself if you use targets.
 ---@field y number The camera's y position. You shouldn't modify this yourself if you use targets.
 ---@field width number The camera's width.
 ---@field height number The camera's height.
+---@field _zoom number Internally used zoom factor.
 local Camera = {}
 local CameraMT = {__index = Camera}
 
@@ -32,10 +34,12 @@ function camberry.newCamera(width, height)
     local camera = {
         targets = {},
         smoothness = 0.05,
+        zoom = 1,
         x = 0,
         y = 0,
         width = width or 0,
-        height = height or 0
+        height = height or 0,
+        _zoom = 1
     }
 
     return setmetatable(camera, CameraMT)
@@ -124,6 +128,16 @@ function Camera:setSmoothness(smoothness)
 end
 
 --------------------------------------------------
+--- ### Camera:setZoom(zoom)
+--- Sets the zoom factor of the camera.
+---@param zoom number
+---@return Camerry.Camera self
+function Camera:setZoom(zoom)
+    self.zoom = zoom
+    return self
+end
+
+--------------------------------------------------
 --- ### Camera:setSafeBoundsOffset(x, y)
 --- Sets the camera's safe bounds offset.
 --- 
@@ -158,8 +172,9 @@ end
 ---@return number width
 ---@return number height
 function Camera:getBounds()
-    local width = self.width
-    local height = self.height
+    local zoom = self.zoom * self._zoom
+    local width = self.width / zoom
+    local height = self.height / zoom
     local halfWidth = width / 2
     local halfHeight = height / 2
     return self.x - halfWidth, self.y - halfHeight, width, height
