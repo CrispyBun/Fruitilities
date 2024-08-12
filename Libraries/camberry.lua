@@ -28,11 +28,12 @@ local TargetMT = {__index = Target}
 
 --------------------------------------------------
 --- ### camberry.newCamera(width, height)
---- Creates a new camera. The `width` and `height` parameters set the camera's resolution, default is a resolution of 0x0.
----@param width? number
----@param height? number
+--- Creates a new camera. The `width` and `height` parameters set the camera's resolution.
+---@param width number
+---@param height number
 ---@return Camerry.Camera
 function camberry.newCamera(width, height)
+    if not width or not height then error("Must supply a width and height to the camera.", 2) end
     ---@type Camerry.Camera
     local camera = {
         targets = {},
@@ -44,8 +45,8 @@ function camberry.newCamera(width, height)
         rotation = 0,
         x = 0,
         y = 0,
-        width = width or 0,
-        height = height or 0,
+        width = width,
+        height = height,
         _zoom = 1
     }
 
