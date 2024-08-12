@@ -5,11 +5,12 @@ local camberry = {}
 ---@class Camberry.Camera
 ---@field targets table[] The targets the camera tries to follow. For a target to work, it needs to have both an `x` and a `y` field with a number value.
 ---@field smoothness number How smoothly the camera should interpolate movement. Value from 0 to 1.
----@field safeBoundsOffset [number, number] The distance from the camera's edge (in each axis) that targets must stay in if `snapToFirstTarget` or `zoomToAllTargets` are enabled. Positive values shrink the area, negative values grow it.
----@field snapToFirstTarget boolean Whether or not the camera should snap to always show the first target.
----@field zoomToAllTargets boolean Whether or not the camera should zoom out to always show all targets.
 ---@field zoom number The camera's zoom factor.
 ---@field rotation number The rotation of the camera. Note that this is just visual, and calculations to keep targets within bounds will still be done unrotated.
+---@field snapToFirstTarget boolean Whether or not the camera should snap to always show the first target.
+---@field zoomToAllTargets boolean Whether or not the camera should zoom out to always show all targets.
+---@field safeBoundsOffset [number, number] The distance from the camera's edge (in each axis) that targets must stay in if `snapToFirstTarget` or `zoomToAllTargets` are enabled. Positive values shrink the area, negative values grow it.
+---@field minAutoZoom number The minimum zoom the camera can automatically zoom to when zooming to show targets. This stacks with the currently set zoom value. Default is 0 (unlimited).
 ---@field x number The camera's x position. You shouldn't modify this yourself if you use targets.
 ---@field y number The camera's y position. You shouldn't modify this yourself if you use targets.
 ---@field width number The camera's width.
@@ -38,11 +39,12 @@ function camberry.newCamera(width, height)
     local camera = {
         targets = {},
         smoothness = 0.05,
-        safeBoundsOffset = {0, 0},
-        snapToFirstTarget = true,
-        zoomToAllTargets = false,
         zoom = 1,
         rotation = 0,
+        snapToFirstTarget = true,
+        zoomToAllTargets = true,
+        safeBoundsOffset = {0, 0},
+        minAutoZoom = 0,
         x = 0,
         y = 0,
         width = width,
@@ -395,7 +397,9 @@ function Camera:zoomTargetsToBounds()
     -- then we divide 1 over that number, since that's how zoom works.
     local zoomX = 1 / (1 + differenceX / safeW)
     local zoomY = 1 / (1 + differenceY / safeH)
+
     local zoom = math.min(zoomX, zoomY)
+    zoom = math.max(zoom, self.minAutoZoom)
     if zoom < 1 then self._zoom = zoom end
 end
 
