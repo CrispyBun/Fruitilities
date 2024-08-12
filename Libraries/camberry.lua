@@ -382,7 +382,7 @@ function camberry.graphics.attachCamera(camera)
     love.graphics.push()
     love.graphics.scale(zoom)
     love.graphics.translate(halfWidth, halfHeight)
-    love.graphics.rotate(rotation)
+    love.graphics.rotate(-rotation)
     love.graphics.translate(-x-halfWidth, -y-halfHeight)
 end
 
