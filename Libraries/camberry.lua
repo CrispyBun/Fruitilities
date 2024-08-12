@@ -324,8 +324,12 @@ function Camera:zoomTargetsToBounds()
     local differenceX = math.max(differenceLeft, differenceRight) * 2 -- *2 since both sides scale
     local differenceY = math.max(differenceTop, differenceBottom) * 2
 
-    local zoomX = (1 / (1 + differenceX / safeW))
-    local zoomY = (1 / (1 + differenceY / safeH))
+    -- We get the amount of pixels that we want to grow by (differenceX),
+    -- then we calculate how much percent we need to grow by from that (differenceX / safeW),
+    -- when we convert that to the actual multipliable increase (0.1 becomes 1.1),
+    -- then we divide 1 over that number, since that's how zoom works.
+    local zoomX = 1 / (1 + differenceX / safeW)
+    local zoomY = 1 / (1 + differenceY / safeH)
     local zoom = math.min(zoomX, zoomY)
     if zoom < 1 then self._zoom = zoom end
 end
