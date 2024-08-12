@@ -126,6 +126,70 @@ function Camera:setPosition(x, y)
 end
 
 --------------------------------------------------
+--- ### Camera:toCameraSpace(px, py)
+--- Transforms a point from global space to camera space.
+---@param px number
+---@param py number
+---@return number
+---@return number
+function Camera:toCameraSpace(px, py)
+    local x, y, width, height = self:getBounds()
+    local zoom = self:getZoom()
+    local rotation = self:getRotation()
+
+    local halfWidth = width / 2
+    local halfHeight = height / 2
+
+    px = px - x - halfWidth
+    py = py - y - halfHeight
+
+    local sinr = math.sin(-rotation)
+    local cosr = math.cos(-rotation)
+    local pxRotated = px * cosr - py * sinr
+    local pyRotated = px * sinr + py * cosr
+
+    px = pxRotated + halfWidth
+    py = pyRotated + halfHeight
+
+    px = px * zoom
+    py = py * zoom
+
+    return px, py
+end
+
+--------------------------------------------------
+--- ### Camera:toWorldSpace(px, py)
+--- Transforms a point from camera space to global space.
+---@param px number
+---@param py number
+---@return number
+---@return number
+function Camera:toWorldSpace(px, py)
+    local x, y, width, height = self:getBounds()
+    local zoom = self:getZoom()
+    local rotation = self:getRotation()
+
+    local halfWidth = width / 2
+    local halfHeight = height / 2
+
+    px = px / zoom
+    py = py / zoom
+
+    px = px - halfWidth
+    py = py - halfHeight
+
+    local sinr = math.sin(rotation)
+    local cosr = math.cos(rotation)
+    local pxRotated = px * cosr - py * sinr
+    local pyRotated = px * sinr + py * cosr
+
+    px = pxRotated + x + halfWidth
+    py = pyRotated + y + halfHeight
+
+    return px, py
+end
+
+--------------------------------------------------
 --- ### Camera:setSmoothness(smoothness)
 --- Sets the camera's smoothness.
 ---@param smoothness number
