@@ -55,7 +55,7 @@ end
 
 --------------------------------------------------
 --- ### Camera:addTarget(target)
---- Adds a target for the camera to follow.  
+--- Adds a target for the camera to follow. A valid target is any table with an `x` and `y` numeric field.  
 --- If `target` is not supplied, creates a new SimpleTarget.  
 --- Returns the added target.
 ---@param target? table
