@@ -9,6 +9,7 @@ local camberry = {}
 ---@field snapToFirstTarget boolean Whether or not the camera should snap to always show the first target.
 ---@field zoomToAllTargets boolean Whether or not the camera should zoom out to always show all targets.
 ---@field zoom number The camera's zoom factor.
+---@field rotation number The rotation of the camera. Note that this is just visual, and calculations to keep targets within bounds will still be done unrotated.
 ---@field x number The camera's x position. You shouldn't modify this yourself if you use targets.
 ---@field y number The camera's y position. You shouldn't modify this yourself if you use targets.
 ---@field width number The camera's width.
@@ -40,6 +41,7 @@ function camberry.newCamera(width, height)
         snapToFirstTarget = true,
         zoomToAllTargets = false,
         zoom = 1,
+        rotation = 0,
         x = 0,
         y = 0,
         width = width or 0,
@@ -175,6 +177,13 @@ end
 ---@return number
 function Camera:getZoom()
     return self.zoom * self._zoom
+end
+
+--------------------------------------------------
+--- ### Camera:getRotation()
+--- Returns the camera's rotation.
+function Camera:getRotation()
+    return self.rotation
 end
 
 --------------------------------------------------
@@ -361,12 +370,14 @@ local love = love
 function camberry.graphics.attachCamera(camera)
     local x, y, width, height = camera:getBounds()
     local zoom = camera:getZoom()
+    local rotation = camera:getRotation()
+
     local halfWidth = width / 2
     local halfHeight = height / 2
     love.graphics.push()
     love.graphics.scale(zoom)
     love.graphics.translate(halfWidth, halfHeight)
-    --love.graphics.rotate()
+    love.graphics.rotate(rotation)
     love.graphics.translate(-x-halfWidth, -y-halfHeight)
 end
 
