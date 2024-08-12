@@ -170,6 +170,14 @@ function Camera:setTargetSnapping(snapToFirstTarget, zoomToAllTargets)
 end
 
 --------------------------------------------------
+--- ### Camera:getZoom()
+--- Returns the camera's current zoom, including zoom from internal operations.
+---@return number
+function Camera:getZoom()
+    return self.zoom * self._zoom
+end
+
+--------------------------------------------------
 --- ### Camera:getBounds()
 --- Returns the bounds that the camera sees.
 ---@param ignoreInternalZoom? boolean
@@ -351,11 +359,19 @@ camberry.graphics = {}
 local love = love
 
 function camberry.graphics.attachCamera(camera)
-    -- todo
+    local x, y, width, height = camera:getBounds()
+    local zoom = camera:getZoom()
+    local halfWidth = width / 2
+    local halfHeight = height / 2
+    love.graphics.push()
+    love.graphics.scale(zoom)
+    love.graphics.translate(halfWidth, halfHeight)
+    --love.graphics.rotate()
+    love.graphics.translate(-x-halfWidth, -y-halfHeight)
 end
 
 function camberry.graphics.detachCamera(camera)
-    -- todo
+    love.graphics.pop()
 end
 
 function camberry.graphics.updateCamera(camera)
