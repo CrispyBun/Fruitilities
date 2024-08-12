@@ -2,7 +2,7 @@ local camberry = {}
 
 -- Definitions -------------------------------------------------------------------------------------
 
----@class Camerry.Camera
+---@class Camberry.Camera
 ---@field targets table[] The targets the camera tries to follow. For a target to work, it needs to have both an `x` and a `y` field with a number value.
 ---@field smoothness number How smoothly the camera should interpolate movement. Value from 0 to 1.
 ---@field safeBoundsOffset [number, number] The distance from the camera's edge (in each axis) that targets must stay in if `snapToFirstTarget` or `zoomToAllTargets` are enabled. Positive values shrink the area, negative values grow it.
@@ -31,10 +31,10 @@ local TargetMT = {__index = Target}
 --- Creates a new camera. The `width` and `height` parameters set the camera's resolution.
 ---@param width number
 ---@param height number
----@return Camerry.Camera
+---@return Camberry.Camera
 function camberry.newCamera(width, height)
     if not width or not height then error("Must supply a width and height to the camera.", 2) end
-    ---@type Camerry.Camera
+    ---@type Camberry.Camera
     local camera = {
         targets = {},
         smoothness = 0.05,
@@ -118,7 +118,7 @@ end
 --- Directly sets the camera's position. Only use this if you don't use targets! Otherwise, things will just be jittery and broken.
 ---@param x number
 ---@param y number
----@return Camerry.Camera self
+---@return Camberry.Camera self
 function Camera:setPosition(x, y)
     self.x = x
     self.y = y
@@ -129,7 +129,7 @@ end
 --- ### Camera:setSmoothness(smoothness)
 --- Sets the camera's smoothness.
 ---@param smoothness number
----@return Camerry.Camera self
+---@return Camberry.Camera self
 function Camera:setSmoothness(smoothness)
     self.smoothness = smoothness
     return self
@@ -139,7 +139,7 @@ end
 --- ### Camera:setZoom(zoom)
 --- Sets the zoom factor of the camera.
 ---@param zoom number
----@return Camerry.Camera self
+---@return Camberry.Camera self
 function Camera:setZoom(zoom)
     self.zoom = zoom
     return self
@@ -153,7 +153,7 @@ end
 --- If only one value is supplied, both axes will be set to it.
 ---@param x number The offset in the X direction
 ---@param y? number The offset in the Y direction (Default is `x`)
----@return Camerry.Camera self
+---@return Camberry.Camera self
 function Camera:setSafeBoundsOffset(x, y)
     self.safeBoundsOffset[1] = x
     self.safeBoundsOffset[2] = y or x
@@ -165,7 +165,7 @@ end
 --- Configures how the camera should behave if targets try to leave its view.
 ---@param snapToFirstTarget boolean Whether or not the camera should move to always show the first target
 ---@param zoomToAllTargets boolean Whether or not the camera should zoom to always show all targets
----@return Camerry.Camera self
+---@return Camberry.Camera self
 function Camera:setTargetSnapping(snapToFirstTarget, zoomToAllTargets)
     self.snapToFirstTarget = snapToFirstTarget
     self.zoomToAllTargets = zoomToAllTargets
@@ -229,7 +229,7 @@ end
 --- Sets the camera's resolution.
 ---@param width number
 ---@param height number
----@return Camerry.Camera self
+---@return Camberry.Camera self
 function Camera:setResolution(width, height)
     self.width = width
     self.height = height
