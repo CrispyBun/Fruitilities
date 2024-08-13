@@ -12,6 +12,8 @@ local camberry = {}
 ---@field safeBoundsOffset [number, number] The distance from the camera's edge (in each axis) that targets must stay in if `snapToFirstTarget` or `zoomToAllTargets` are enabled. Positive values shrink the area, negative values grow it.
 ---@field minAutoZoom number The minimum zoom the camera can automatically zoom to when zooming to show targets. This stacks with the currently set zoom value. Default is 0 (unlimited).
 ---@field pixelPerfectMovement boolean Whether or not the camera's position should snap to integer coordinates when rendering.
+---@field dontRenderZoom boolean If true, zoom will still be present in all calculations, but won't be rendered.
+---@field dontRenderRotation boolean If true, rotation will still be set, but won't be rendered.
 ---@field x number The camera's x position. You shouldn't modify this yourself if you use targets.
 ---@field y number The camera's y position. You shouldn't modify this yourself if you use targets.
 ---@field width number The camera's width.
@@ -46,6 +48,8 @@ function camberry.newCamera(width, height)
         zoomToAllTargets = true,
         safeBoundsOffset = {0, 0},
         minAutoZoom = 0,
+        dontRenderZoom = false,
+        dontRenderRotation = false,
         pixelPerfectMovement = false,
         x = 0,
         y = 0,
@@ -295,7 +299,7 @@ end
 --- Returns the bounds the camera should actually render to (takes `pixelPerfectMovement` into account).
 function Camera:getBoundsForRendering()
     local x, y = self.x, self.y
-    local zoom = self.zoom * self._zoom
+    local zoom = self:getZoomForRendering()
 
     if self.pixelPerfectMovement then
         x = math.floor(x + 0.5)
@@ -307,6 +311,22 @@ function Camera:getBoundsForRendering()
     local halfWidth = width / 2
     local halfHeight = height / 2
     return x - halfWidth, y - halfHeight, width, height
+end
+
+--------------------------------------------------
+--- ### Camera:getBoundsForRendering()
+--- Returns the zoom of the camera that rendering should use (takes `dontRenderZoom` into account).
+function Camera:getZoomForRendering()
+    if self.dontRenderZoom then return 1 end
+    return self:getZoom()
+end
+
+--------------------------------------------------
+--- ### Camera:getRotationForRendering()
+--- Returns the rotation of the camera that rendering should use.
+function Camera:getRotationForRendering()
+    if self.dontRenderRotation then return 0 end
+    return self:getRotation()
 end
 
 --------------------------------------------------
@@ -477,8 +497,8 @@ local love = love
 
 function camberry.graphics.attachCamera(camera)
     local x, y, width, height = camera:getBoundsForRendering()
-    local zoom = camera:getZoom()
-    local rotation = camera:getRotation()
+    local zoom = camera:getZoomForRendering()
+    local rotation = camera:getRotationForRendering()
 
     local halfWidth = width / 2
     local halfHeight = height / 2
