@@ -11,6 +11,7 @@ local camberry = {}
 ---@field zoomToAllTargets boolean Whether or not the camera should zoom out to always show all targets.
 ---@field safeBoundsOffset [number, number] The distance from the camera's edge (in each axis) that targets must stay in if `snapToFirstTarget` or `zoomToAllTargets` are enabled. Positive values shrink the area, negative values grow it.
 ---@field minAutoZoom number The minimum zoom the camera can automatically zoom to when zooming to show targets. This stacks with the currently set zoom value. Default is 0 (unlimited).
+---@field pixelPerfectMovement boolean Whether or not the camera's position should snap to integer coordinates when rendering.
 ---@field x number The camera's x position. You shouldn't modify this yourself if you use targets.
 ---@field y number The camera's y position. You shouldn't modify this yourself if you use targets.
 ---@field width number The camera's width.
@@ -45,6 +46,7 @@ function camberry.newCamera(width, height)
         zoomToAllTargets = true,
         safeBoundsOffset = {0, 0},
         minAutoZoom = 0,
+        pixelPerfectMovement = false,
         x = 0,
         y = 0,
         width = width,
@@ -289,6 +291,37 @@ function Camera:getSafeBounds(ignoreInternalZoom)
 end
 
 --------------------------------------------------
+--- ### Camera:getBoundsForRendering()
+--- Returns the bounds the camera should actually render to (takes `pixelPerfectMovement` into account).
+function Camera:getBoundsForRendering()
+    local x, y = self.x, self.y
+    local zoom = self.zoom
+
+    if self.pixelPerfectMovement then
+        x = math.floor(x + 0.5)
+        y = math.floor(y + 0.5)
+    end
+
+    local width = self.width / zoom
+    local height = self.height / zoom
+    local halfWidth = width / 2
+    local halfHeight = height / 2
+    return x - halfWidth, y - halfHeight, width, height
+end
+
+--------------------------------------------------
+--- ### Camera:getPixelPerfectOffset()
+--- Returns a fractional value for each axis saying how much the camera needs to move to reach the nearest integer coordinate position.
+---@return number
+---@return number
+function Camera:getPixelPerfectOffset()
+    local x, y = self.x, self.y
+    return
+        -((x + 0.5) % 1 - 0.5),
+        -((y + 0.5) % 1 - 0.5)
+end
+
+--------------------------------------------------
 --- ### Camera:setResolution(width, height)
 --- ### Camera:setSize(width, height)
 --- ### Camera:setDimensions(width, height)
@@ -441,7 +474,7 @@ camberry.graphics = {}
 local love = love
 
 function camberry.graphics.attachCamera(camera)
-    local x, y, width, height = camera:getBounds()
+    local x, y, width, height = camera:getBoundsForRendering()
     local zoom = camera:getZoom()
     local rotation = camera:getRotation()
 
