@@ -295,7 +295,7 @@ end
 --- Returns the bounds the camera should actually render to (takes `pixelPerfectMovement` into account).
 function Camera:getBoundsForRendering()
     local x, y = self.x, self.y
-    local zoom = self.zoom
+    local zoom = self.zoom * self._zoom
 
     if self.pixelPerfectMovement then
         x = math.floor(x + 0.5)
