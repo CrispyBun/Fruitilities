@@ -14,6 +14,9 @@ local camberry = {}
 ---@field pixelPerfectMovement boolean Whether or not the camera's position should snap to integer coordinates when rendering.
 ---@field dontRenderZoom boolean If true, zoom will still be present in all calculations, but won't be rendered.
 ---@field dontRenderRotation boolean If true, rotation will still be set, but won't be rendered.
+---@field parallaxDepth number The camera's parallax depth. A value of 2 will make the camera move twice as slow, etc. Default is 1.
+---@field parallaxStrengthX number Multiplier for the parallax effect in the X direction. Default is 1.
+---@field parallaxStrengthY number Multiplier for the parallax effect in the Y direction. Default is 0.
 ---@field x number The camera's x position. You shouldn't modify this yourself if you use targets.
 ---@field y number The camera's y position. You shouldn't modify this yourself if you use targets.
 ---@field width number The camera's width.
@@ -27,6 +30,12 @@ local CameraMT = {__index = Camera}
 ---@field y number
 local Target = {}
 local TargetMT = {__index = Target}
+
+-- Lerp :-) ----------------------------------------------------------------------------------------
+
+local function lerp(a, b, t)
+    return a + (b - a) * t
+end
 
 -- Cameras -----------------------------------------------------------------------------------------
 
@@ -51,6 +60,9 @@ function camberry.newCamera(width, height)
         dontRenderZoom = false,
         dontRenderRotation = false,
         pixelPerfectMovement = false,
+        parallaxDepth = 1,
+        parallaxStrengthX = 1,
+        parallaxStrengthY = 0,
         x = 0,
         y = 0,
         width = width,
@@ -114,8 +126,8 @@ function Camera:update(dt)
     local smoothness = self.smoothness
 
     -- lerp(sourceX, targetX, 1 - smoothness ^ dt)
-    self.x = sourceX + (targetX - sourceX) * (1 - smoothness ^ dt)
-    self.y = sourceY + (targetY - sourceY) * (1 - smoothness ^ dt)
+    self.x = lerp(sourceX, targetX, 1 - smoothness ^ dt)
+    self.y = lerp(sourceY, targetY, 1 - smoothness ^ dt)
 
     self:snapTargetsToBounds()
     return camberry.graphics.updateCamera(self)
@@ -245,6 +257,38 @@ function Camera:setTargetSnapping(snapToFirstTarget, zoomToAllTargets)
 end
 
 --------------------------------------------------
+--- ### Camera:setParallaxDepth(depth)
+--- Sets the depth of the camera for a parallax effect. A value of 2 will make the camera move twice as slow etc. Default is 1.  
+--- This affects the next call to `camera:attach()`, as well as calls to `camera:getPixelPerfectOffset()`.
+--- It does not affect the camera's actual position.
+---@param depth number
+---@return Camberry.Camera self
+function Camera:setParallaxDepth(depth)
+    self.parallaxDepth = depth
+    return self
+end
+
+--------------------------------------------------
+--- ### Camera:resetParallaxDepth()
+--- Resets the camera's parallax depth value to remove the parallax effect.
+---@return Camberry.Camera self
+function Camera:resetParallaxDepth()
+    return self:setParallaxDepth(1)
+end
+
+--------------------------------------------------
+--- ### Camera:setParallaxStrength(x, y)
+--- Sets the strength of the parallax effect in each direction.
+---@param x number
+---@param y number
+---@return Camberry.Camera self
+function Camera:setParallaxStrength(x, y)
+    self.parallaxStrengthX = x
+    self.parallaxStrengthY = y
+    return self
+end
+
+--------------------------------------------------
 --- ### Camera:getZoom()
 --- Returns the camera's current zoom, including zoom from internal operations.
 ---@return number
@@ -298,7 +342,9 @@ end
 --- ### Camera:getBoundsForRendering()
 --- Returns the bounds the camera should actually render to (takes `pixelPerfectMovement` into account).
 function Camera:getBoundsForRendering()
-    local x, y = self.x, self.y
+    local depthX, depthY = self:getParallaxDepthValues()
+    local x = self.x / depthX
+    local y = self.y / depthY
     local zoom = self:getZoomForRendering()
 
     if self.pixelPerfectMovement then
@@ -330,12 +376,24 @@ function Camera:getRotationForRendering()
 end
 
 --------------------------------------------------
+--- ### Camera:getParallaxDepthValues()
+--- Gets the final parallax depth values for each axis of the camera.
+---@return number x
+---@return number y
+function Camera:getParallaxDepthValues()
+    local depth = self.parallaxDepth
+    return lerp(1, depth, self.parallaxStrengthX), lerp(1, depth, self.parallaxStrengthY)
+end
+
+--------------------------------------------------
 --- ### Camera:getPixelPerfectOffset()
 --- Returns a fractional value for each axis saying how much the camera needs to move to reach the nearest integer coordinate position.
 ---@return number
 ---@return number
 function Camera:getPixelPerfectOffset()
-    local x, y = self.x, self.y
+    local depthX, depthY = self:getParallaxDepthValues()
+    local x = self.x / depthX
+    local y = self.y / depthY
     return
         -((x + 0.5) % 1 - 0.5),
         -((y + 0.5) % 1 - 0.5)
