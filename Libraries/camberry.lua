@@ -19,6 +19,7 @@ local camberry = {}
 ---@field parallaxDepth number The camera's parallax depth. A value of 2 will make the camera move twice as slow, etc. Default is 1.
 ---@field parallaxStrengthX number Multiplier for the parallax effect in the X direction. Default is 1.
 ---@field parallaxStrengthY number Multiplier for the parallax effect in the Y direction. Default is 0.
+---@field rotationalParallax? number If set, enables parallax on rotation for a trippy effect. Works like parallax strength.
 ---@field x number The camera's x position. You shouldn't modify this yourself if you use targets.
 ---@field y number The camera's y position. You shouldn't modify this yourself if you use targets.
 ---@field width number The camera's width.
@@ -409,6 +410,7 @@ end
 --- Returns the rotation of the camera that rendering should use.
 function Camera:getRotationForRendering()
     if self.dontRenderRotation then return 0 end
+    if self.rotationalParallax then return self:getRotation() / lerp(1, self.parallaxDepth, self.rotationalParallax) end
     return self:getRotation()
 end
 
