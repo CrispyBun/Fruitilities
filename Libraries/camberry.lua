@@ -6,7 +6,7 @@ local camberry = {}
 ---@field targets table[] The targets the camera tries to follow. For a target to work, it needs to have both an `x` and a `y` field with a number value.
 ---@field smoothness number How smoothly the camera should interpolate movement. Value from 0 to 1.
 ---@field zoom number The camera's zoom factor.
----@field rotation number The rotation of the camera. Note that this is just visual, and calculations to keep targets within bounds will still be done unrotated.
+---@field rotation number The rotation of the camera. Note that calculations to keep targets within bounds will still be done unrotated.
 ---@field offsetX number How much to offset the camera's rendering in the X direction. Bypasses parallax effects.
 ---@field offsetY number How much to offset the camera's rendering in the Y direction. Bypasses parallax effects.
 ---@field snapToFirstTarget boolean Whether or not the camera should snap to always show the first target.
@@ -120,6 +120,21 @@ function Camera:detach()
     return camberry.graphics.detachCamera(self)
 end
 Camera.cut = Camera.detach
+
+--------------------------------------------------
+--- ### Camera:draw(func)
+--- Shortcut to:
+--- ```
+--- camera:attach()
+--- func(camera)
+--- camera:detach()
+--- ```
+---@param func fun(camera: Camberry.Camera)
+function Camera:draw(func)
+    self:attach()
+    func(self)
+    self:detach()
+end
 
 --------------------------------------------------
 --- ### Camera:update(dt)
