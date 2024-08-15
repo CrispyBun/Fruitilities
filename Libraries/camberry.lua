@@ -7,6 +7,8 @@ local camberry = {}
 ---@field smoothness number How smoothly the camera should interpolate movement. Value from 0 to 1.
 ---@field zoom number The camera's zoom factor.
 ---@field rotation number The rotation of the camera. Note that this is just visual, and calculations to keep targets within bounds will still be done unrotated.
+---@field offsetX number How much to offset the camera's rendering in the X direction. Bypasses parallax effects.
+---@field offsetY number How much to offset the camera's rendering in the Y direction. Bypasses parallax effects.
 ---@field snapToFirstTarget boolean Whether or not the camera should snap to always show the first target.
 ---@field zoomToAllTargets boolean Whether or not the camera should zoom out to always show all targets.
 ---@field safeBoundsOffset [number, number] The distance from the camera's edge (in each axis) that targets must stay in if `snapToFirstTarget` or `zoomToAllTargets` are enabled. Positive values shrink the area, negative values grow it.
@@ -53,6 +55,8 @@ function camberry.newCamera(width, height)
         smoothness = 0.05,
         zoom = 1,
         rotation = 0,
+        offsetX = 0,
+        offsetY = 0,
         snapToFirstTarget = true,
         zoomToAllTargets = true,
         safeBoundsOffset = {0, 0},
@@ -230,6 +234,28 @@ function Camera:setZoom(zoom)
 end
 
 --------------------------------------------------
+--- ### Camera:setRotation(rotation)
+--- Sets the camera's rotation.
+---@param rotation number
+---@return Camberry.Camera self
+function Camera:setRotation(rotation)
+    self.rotation = rotation
+    return self
+end
+
+--------------------------------------------------
+--- ### Camera:setOffset(x, y)
+--- Sets the camera's rendering offset. The offset bypasses parallax effects.
+---@param x number
+---@param y number
+---@return Camberry.Camera self
+function Camera:setOffset(x, y)
+    self.offsetX = x
+    self.offsetY = y
+    return self
+end
+
+--------------------------------------------------
 --- ### Camera:setSafeBoundsOffset(x, y)
 --- Sets the camera's safe bounds offset.  
 --- Each axis states how far from the camera's edge the targets must stay in. Negative values grow the area, positive shrink it.
@@ -299,8 +325,18 @@ end
 --------------------------------------------------
 --- ### Camera:getRotation()
 --- Returns the camera's rotation.
+---@return number
 function Camera:getRotation()
     return self.rotation
+end
+
+--------------------------------------------------
+--- ### Camera:getOffset()
+--- Returns the camera's rendering offset, including offset from internal operations.
+---@return number offsetX
+---@return number offsetY
+function Camera:getOffset()
+    return self.offsetX, self.offsetY
 end
 
 --------------------------------------------------
@@ -343,8 +379,9 @@ end
 --- Returns the bounds the camera should actually render to (takes `pixelPerfectMovement` into account).
 function Camera:getBoundsForRendering()
     local depthX, depthY = self:getParallaxDepthValues()
-    local x = self.x / depthX
-    local y = self.y / depthY
+    local offsetX, offsetY = self:getOffset()
+    local x = self.x / depthX + offsetX
+    local y = self.y / depthY + offsetY
     local zoom = self:getZoomForRendering()
 
     if self.pixelPerfectMovement then
