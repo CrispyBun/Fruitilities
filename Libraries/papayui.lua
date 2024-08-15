@@ -318,7 +318,7 @@ function papayui.parseRgbString(str)
     elseif string.sub(str, 1, 5) == "rgba(" then firstNumberIndex = 6 end
 
     if not firstNumberIndex then return nil end
-    if not string.sub(str, -1) == ")" then return nil end
+    if not (string.sub(str, -1) == ")") then return nil end
 
     local numStr = string.sub(str, firstNumberIndex, -2)
     numStr = string.gsub(numStr, " ", "")
