@@ -348,8 +348,8 @@ function Camera:getBoundsForRendering()
     local zoom = self:getZoomForRendering()
 
     if self.pixelPerfectMovement then
-        x = math.floor(x + 0.5)
-        y = math.floor(y + 0.5)
+        x = math.floor(x * zoom + 0.5) / zoom
+        y = math.floor(y * zoom + 0.5) / zoom
     end
 
     local width = self.width / zoom
@@ -387,13 +387,14 @@ end
 
 --------------------------------------------------
 --- ### Camera:getPixelPerfectOffset()
---- Returns a fractional value for each axis saying how much the camera needs to move to reach the nearest integer coordinate position.
+--- Returns a fractional value for each axis saying how much the camera needs to move to reach the nearest pixel perfect position. Basically, this just tells you how much the camera is currently offset if `pixelPerfectMovement` is enabled.
 ---@return number
 ---@return number
 function Camera:getPixelPerfectOffset()
+    local zoom = self:getZoomForRendering()
     local depthX, depthY = self:getParallaxDepthValues()
-    local x = self.x / depthX
-    local y = self.y / depthY
+    local x = self.x / depthX * zoom
+    local y = self.y / depthY * zoom
     return
         -((x + 0.5) % 1 - 0.5),
         -((y + 0.5) % 1 - 0.5)
