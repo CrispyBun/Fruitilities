@@ -122,7 +122,7 @@ end
 Camera.cut = Camera.detach
 
 --------------------------------------------------
---- ### Camera:draw(func)
+--- ### Camera:renderTo(func)
 --- Shortcut to:
 --- ```
 --- camera:attach()
@@ -130,7 +130,7 @@ Camera.cut = Camera.detach
 --- camera:detach()
 --- ```
 ---@param func fun(camera: Camberry.Camera)
-function Camera:draw(func)
+function Camera:renderTo(func)
     self:attach()
     func(self)
     self:detach()
