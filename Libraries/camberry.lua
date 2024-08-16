@@ -589,11 +589,14 @@ end
 --- ### camberry.newSimpleTarget()
 --- Creates a new simple target that cameras can use.
 --- Note that a camera's target does not have to be made by this function. A valid target is any table with an `x` and `y` numeric field.
-function camberry.newSimpleTarget()
+---@param x? number
+---@param y? number
+---@return Camberry.SimpleTarget
+function camberry.newSimpleTarget(x, y)
     ---@type Camberry.SimpleTarget
     local target = {
-        x = 0,
-        y = 0
+        x = x or 0,
+        y = y or 0
     }
 
     return setmetatable(target, TargetMT)
@@ -617,9 +620,7 @@ Target.setPos = Target.setPosition
 --- Returns a copy of the target.
 ---@return Camberry.SimpleTarget
 function Target:clone()
-    local target = camberry.newSimpleTarget()
-    target.x = self.x
-    target.y = self.y
+    local target = camberry.newSimpleTarget(self.x, self.y)
     return target
 end
 
