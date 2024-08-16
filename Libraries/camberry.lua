@@ -141,14 +141,7 @@ end
 --- Updates the camera's position.
 ---@param dt number The time in seconds since the last call to update
 function Camera:update(dt)
-    local sourceX, sourceY = self.x, self.y
-    local targetX, targetY = self:getTargetPosition()
-    local smoothness = self.smoothness
-
-    -- lerp(sourceX, targetX, 1 - smoothness ^ dt)
-    self.x = lerp(sourceX, targetX, 1 - smoothness ^ dt)
-    self.y = lerp(sourceY, targetY, 1 - smoothness ^ dt)
-
+    self:moveTowardsTargets(dt)
     self:snapTargetsToBounds()
     return camberry.graphics.updateCamera(self)
 end
@@ -495,6 +488,25 @@ function Camera:getTargetPosition()
     local targetY = targetCountY > 0 and targetSumY / targetCountY or self.y
 
     return targetX, targetY
+end
+
+--------------------------------------------------
+--- ### Camera:moveTowardsTargets(dt)
+--- Moves the camera towards its target(s). This is called automatically by `camera:update()`.
+function Camera:moveTowardsTargets(dt)
+    local sourceX, sourceY = self.x, self.y
+    local targetX, targetY = self:getTargetPosition()
+    local smoothness = self.smoothness
+
+    -- Bypass the slightly more expensive lerp for instant cameras
+    if smoothness == 0 then
+        self.x = targetX
+        self.y = targetY
+        return
+    end
+
+    self.x = lerp(sourceX, targetX, 1 - smoothness ^ dt)
+    self.y = lerp(sourceY, targetY, 1 - smoothness ^ dt)
 end
 
 --------------------------------------------------
