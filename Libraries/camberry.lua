@@ -612,6 +612,17 @@ function Target:setPosition(x, y)
 end
 Target.setPos = Target.setPosition
 
+--------------------------------------------------
+--- ### Target:clone()
+--- Returns a copy of the target.
+---@return Camberry.SimpleTarget
+function Target:clone()
+    local target = camberry.newSimpleTarget()
+    target.x = self.x
+    target.y = self.y
+    return target
+end
+
 -- Abstraction for possible usage outside LÖVE -----------------------------------------------------
 
 -- Can be replaced with functions to perform these actions in non-love2d environments
