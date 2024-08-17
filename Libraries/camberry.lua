@@ -714,20 +714,146 @@ end
 --------------------------------------------------
 --- ### camberry.newRig()
 --- Creates a new rig, capable of animating any number values of a RigReceiver (or a class implementing RigReceiver, such as the Camera).
+---@param duration? number
+---@param easing? string|fun(x: number): number
+---@param sourceValues? table<string, number>
+---@param targetValues? table<string, number>
 ---@return Camberry.Rig
-function camberry.newRig()
+function camberry.newRig(duration, easing, sourceValues, targetValues)
+
+    if type(easing) == "string" then
+        easing = camberry.tweens[easing]
+        if not easing then error("Unknown easing function: " .. easing, 2) end
+    end
+
     ---@type Camberry.Rig
     local rig = {
         progress = 0,
-        duration = 0,
-        easing = camberry.tweens.sineInOut,
+        duration = duration or 1,
+        easing = easing or camberry.tweens.sineInOut,
         reachedEnd = false,
         isAttached = false,
-        sourceValues = {},
-        targetValues = {},
+        sourceValues = sourceValues or {},
+        targetValues = targetValues or {},
     }
 
     return setmetatable(rig, RigMT)
+end
+
+--------------------------------------------------
+--- ### Rig:clone()
+--- Returns a copy of the rig. Any rigs chained after this one are also cloned. (Cyclical chains will loop forever!)
+---@return Camberry.Rig
+function Rig:clone()
+    local rig = camberry.newRig()
+    rig.progress = self.progress
+    rig.duration = self.duration
+    rig.easing = self.easing
+
+    rig.reachedEnd = self.reachedEnd
+    rig.isAttached = false -- A newly cloned rig can't possibly be attached
+
+    rig.onAttach = self.onAttach
+    rig.onBegin = self.onBegin
+    rig.onFinish = self.onFinish
+    rig.onUpdate = self.onUpdate
+
+    for key, value in pairs(self.sourceValues) do
+        rig.sourceValues[key] = value
+    end
+    for key, value in pairs(self.targetValues) do
+        rig.targetValues[key] = value
+    end
+
+    if self.next then rig.next = self.next:clone() end
+
+    return rig
+end
+
+--------------------------------------------------
+--- ### Rig:reset()
+--- Resets the rig to an initial state. If `nonRecursive` is true, the rig will only reset this exact rig, and none of the chained ones.
+---@param nonRecursive? boolean
+---@return Camberry.Rig self
+function Rig:reset(nonRecursive)
+    self.progress = 0
+    self.reachedEnd = false
+
+    if nonRecursive then return self end
+    if self.next then self.next:reset(nonRecursive) end
+    return self
+end
+
+--------------------------------------------------
+--- ### Rig:setDuration(duration)
+--- Sets the rig's animation duration.
+---@param duration number
+---@return Camberry.Rig self
+function Rig:setDuration(duration)
+    self.duration = duration
+    return self
+end
+
+--------------------------------------------------
+--- ### Rig:setEasing(easing)
+--- Sets the rig's easing function.  
+--- Instead of a function, you can also supply the name of an easing function stored in `camberry.tweens`.
+---@param easing string|fun(x: number): number
+---@return Camberry.Rig self
+function Rig:setEasing(easing)
+    if type(easing) == "string" then
+        easing = camberry.tweens[easing]
+        if not easing then error("Unknown easing function: " .. easing, 2) end
+    end
+
+    self.easing = easing
+    return self
+end
+
+--------------------------------------------------
+--- ### Rig:setSourceValues(values)
+--- Sets the rig's source values. These are the initial values the rig will interpolate from.
+---@param values table<string, number>
+---@return Camberry.Rig self
+function Rig:setSourceValues(values)
+    self.sourceValues = values
+    return self
+end
+
+--------------------------------------------------
+--- ### Rig:setTargetValues(values)
+--- Sets the rig's target values. These are the values the rig will interpolate to (starting from the source values).
+---@param values table<string, number>
+---@return Camberry.Rig self
+function Rig:setTargetValues(values)
+    self.targetValues = values
+    return self
+end
+
+--------------------------------------------------
+--- ### Rig:addValue(key, source, target)
+--- Adds a source-target pair of values to the rig for interpolation
+---@param key string The field of the RigReceiver that will be animated
+---@param source number The value the interpolation will start at
+---@param target number The value the interpolation will end at
+---@return Camberry.Rig self
+function Rig:addValue(key, source, target)
+    self.sourceValues[key] = source
+    self.targetValues[key] = target
+    return self
+end
+
+--------------------------------------------------
+--- ### Rig:chain(rig)
+--- Chains another rig after this rig to be played after this one finishes.  
+--- If `rig` is not supplied, a blank new one will be created (and returned).  
+--- Be careful if you're chaining this rig's setters, this function does NOT return self, but the newly added chained rig.
+---@param rig? Camberry.Rig The rig to chain *(Optional, will create a new one if nil)*
+---@return Camberry.Rig chainedRig The newly chained rig
+function Rig:chain(rig)
+    rig = rig or camberry.newRig()
+    self.next = rig
+    return rig
 end
 
 -- Abstraction for possible usage outside LÖVE -----------------------------------------------------
