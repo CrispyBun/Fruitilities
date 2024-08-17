@@ -2,7 +2,7 @@ local camberry = {}
 
 -- Definitions -------------------------------------------------------------------------------------
 
----@class Camberry.Camera
+---@class Camberry.Camera : Camberry.RigReceiver
 ---@field targets table[] The targets the camera tries to follow. For a target to work, it needs to have both an `x` and a `y` field with a number value.
 ---@field smoothness number How smoothly the camera should interpolate movement. Value from 0 to 1.
 ---@field zoom number The camera's zoom factor.
@@ -34,10 +34,68 @@ local CameraMT = {__index = Camera}
 local Target = {}
 local TargetMT = {__index = Target}
 
+---@class Camberry.RigReceiver
+---@field attachedRigs Camberry.Rig[] The current active rigs. These will be updated and used. If any modify the same value, the value will be averaged.
+local RigReceiver = {}
+local RigReceiverMT = {__index = RigReceiver}
+
+---@class Camberry.Rig
+---@field progress number A timer counting towards the max duration.
+---@field duration number The duration of the whole animation. When `progress` reaches this value, the rig will be removed from the RigReceiver.
+---@field easing fun(x: number): number The easing function to use for interpolation. When setting this using `rig:setEasing()`, you can set this with a name of an easing function known by the library.
+---
+---@field next? Camberry.Rig Optional next rig to chain after this one. It will be attached after this one is done playing.
+---@field reachedEnd boolean Will be set to true once the rig has finished playing. Doesn't actually have any function, it's just for quickly being able to tell if a rig is done.
+---@field isAttached boolean This is set automatically by RigReceivers. An error will happen if an already attached rig tries to attach itself again. Rigs stop being attached automatically once they finish playing.
+---
+---@field onAttach? fun(rig: Camberry.Rig, receiver: Camberry.RigReceiver) Called when the rig gets attached to a receiver.
+---@field onBegin? fun(rig: Camberry.Rig, receiver: Camberry.RigReceiver) Called when the rig starts playing.
+---@field onFinish? fun(rig: Camberry.Rig, receiver: Camberry.RigReceiver) Called when the rig finishes playing and stops being attached.
+---@field onUpdate? fun(rig: Camberry.Rig, receiver: Camberry.RigReceiver, dt: number) Called for each update of the rig.
+---
+---@field sourceValues table<string, number> The values of the RigReceiver the rig will interpolate from.
+---@field targetValues table<string, number> The values of the RigReceiver the rig will interpolate to.
+local Rig = {}
+local RigMT = {__index = Rig}
+
 -- Lerp :-) ----------------------------------------------------------------------------------------
 
 local function lerp(a, b, t)
     return a + (b - a) * t
+end
+
+-- Easing functions --------------------------------------------------------------------------------
+
+--- Easing functions for interpolation, intended for use with Rigs.
+---@type table<string, fun(x: number): number>
+camberry.tweens = {}
+
+-- Most of these are implemented from https://easings.net/
+
+function camberry.tweens.linear(x)
+    return x
+end
+
+function camberry.tweens.hold(x)
+    if x < 1 then return 0 end
+    return 1
+end
+
+function camberry.tweens.instant(x)
+    if x > 0 then return 1 end
+    return 0
+end
+
+function camberry.tweens.sineIn(x)
+    return 1 - math.cos((x * math.pi) / 2);
+end
+
+function camberry.tweens.sineOut(x)
+    return math.sin((x * math.pi) / 2);
+end
+
+function camberry.tweens.sineInOut(x)
+    return -(math.cos(x * math.pi) - 1) / 2;
 end
 
 -- Cameras -----------------------------------------------------------------------------------------
@@ -72,7 +130,8 @@ function camberry.newCamera(width, height)
         y = 0,
         width = width,
         height = height,
-        _zoom = 1
+        _zoom = 1,
+        attachedRigs = {}
     }
 
     return setmetatable(camera, CameraMT)
@@ -622,6 +681,53 @@ Target.setPos = Target.setPosition
 function Target:clone()
     local target = camberry.newSimpleTarget(self.x, self.y)
     return target
+end
+
+-- Rig receivers -----------------------------------------------------------------------------------
+
+--------------------------------------------------
+--- ### camberry.newRigReceiver()
+--- Creates a new rig receiver.  
+--- 
+--- A pure instanced rig receiver doesn't actually have any values to interpolate,
+--- the RigReceiver is more meant to be inherited from, as the camera does.  
+--- 
+--- But, if you insert any values into an instance of a RigReceiver, those values can be interpolated (given that they're number values).
+---@return Camberry.RigReceiver
+function camberry.newRigReceiver()
+    ---@type Camberry.RigReceiver
+    local receiver = {
+        attachedRigs = {}
+    }
+
+    return setmetatable(receiver, RigReceiverMT)
+end
+
+-- Slightly crude way of making the cameras inherit from rig receivers (this must happen after the rig receiver has all its methods defined)
+-- I know I could just have another __index metatable on the camera definition, but I prefer having the definition fully flattened into 1 table.
+for key, value in pairs(RigReceiver) do
+    if not Camera[key] then Camera[key] = value end
+end
+
+-- Rigs --------------------------------------------------------------------------------------------
+
+--------------------------------------------------
+--- ### camberry.newRig()
+--- Creates a new rig, capable of animating any number values of a RigReceiver (or a class implementing RigReceiver, such as the Camera).
+---@return Camberry.Rig
+function camberry.newRig()
+    ---@type Camberry.Rig
+    local rig = {
+        progress = 0,
+        duration = 0,
+        easing = camberry.tweens.sineInOut,
+        reachedEnd = false,
+        isAttached = false,
+        sourceValues = {},
+        targetValues = {},
+    }
+
+    return setmetatable(rig, RigMT)
 end
 
 -- Abstraction for possible usage outside LÖVE -----------------------------------------------------
