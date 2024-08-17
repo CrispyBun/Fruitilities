@@ -49,7 +49,6 @@ local RigReceiverMT = {__index = RigReceiver}
 ---@field isAttached boolean This is set automatically by RigReceivers. An error will happen if an already attached rig tries to attach itself again. Rigs stop being attached automatically once they finish playing.
 ---
 ---@field onAttach? fun(rig: Camberry.Rig, receiver: Camberry.RigReceiver) Called when the rig gets attached to a receiver.
----@field onBegin? fun(rig: Camberry.Rig, receiver: Camberry.RigReceiver) Called when the rig starts playing.
 ---@field onFinish? fun(rig: Camberry.Rig, receiver: Camberry.RigReceiver) Called when the rig finishes playing and stops being attached.
 ---@field onUpdate? fun(rig: Camberry.Rig, receiver: Camberry.RigReceiver, dt: number) Called for each update of the rig.
 ---
@@ -107,7 +106,7 @@ end
 ---@param height number
 ---@return Camberry.Camera
 function camberry.newCamera(width, height)
-    if not width or not height then error("Must supply a width and height to the camera.", 2) end
+    if not width or not height then error("Must supply a width and height to the camera", 2) end
     ---@type Camberry.Camera
     local camera = {
         targets = {},
@@ -202,6 +201,7 @@ end
 function Camera:update(dt)
     self:moveTowardsTargets(dt)
     self:snapTargetsToBounds()
+    self:updateRigs(dt)
     return camberry.graphics.updateCamera(self)
 end
 
@@ -703,6 +703,115 @@ function camberry.newRigReceiver()
     return setmetatable(receiver, RigReceiverMT)
 end
 
+--------------------------------------------------
+--- ### RigReceiver:attachRig(rig)
+--- Attaches a rig to the receiver to be updated and used.
+---@param rig Camberry.Rig
+function RigReceiver:attachRig(rig)
+    if rig.isAttached then error("Attempting to attach a rig that's already attached to a different receiver", 2) end
+    rig.isAttached = true
+
+    rig:reset(true)
+    self.attachedRigs[#self.attachedRigs+1] = rig
+    if rig.onAttach then rig.onAttach(rig, self) end
+end
+
+--------------------------------------------------
+---@param receiver Camberry.RigReceiver
+---@param index integer
+local function popRig(receiver, index)
+    local rigs = receiver.attachedRigs
+    local rig = rigs[index]
+    rigs[index], rigs[#rigs] = rigs[#rigs], rigs[index]
+    rigs[#rigs] = nil
+    rig.isAttached = false
+end
+--------------------------------------------------
+--- ### RigReceiver:removeRig(rig)
+--- ### RigReceiver:detachRig(rig)
+--- Removes a rig from the receiver.  
+--- If the rig isn't found, returns false. Otherwise returns true.
+---@param rig Camberry.Rig
+---@return boolean success
+function RigReceiver:removeRig(rig)
+    local rigs = self.attachedRigs
+    for rigIndex = 1, #rigs do
+        if rigs[rigIndex] == rig then
+            popRig(self, rigIndex)
+            return true
+        end
+    end
+    return false
+end
+RigReceiver.detachRig = RigReceiver.removeRig
+
+--------------------------------------------------
+--- ### RigReceiver:clearRigs()
+--- Removes all rigs from the receiver.
+function RigReceiver:clearRigs()
+    local rigs = self.attachedRigs
+    for rigIndex = #rigs, 1, -1 do
+        popRig(self, rigIndex)
+    end
+end
+
+--------------------------------------------------
+--- ### RigReceiver:updateRigs(dt)
+--- Updates the attached rigs, progressing their animations.
+---@param dt number The time in seconds since the last call to updateRigs
+function RigReceiver:updateRigs(dt)
+    if #self.attachedRigs == 0 then return end
+
+    local valueSums = {}
+    local valueCounts = {}
+    local finishedRigs = {}
+
+    local rigs = self.attachedRigs
+    local rigCount = #rigs
+    local rigIndex = 1
+    while rigIndex <= rigCount do
+        local rig = rigs[rigIndex]
+        local duration = rig.duration
+        rig.progress = math.min(rig.progress + dt, duration)
+
+        local time = duration == 0 and 1 or rig.progress / duration
+        local easing = rig.easing
+        local interp = easing(time)
+        for key, value in pairs(rig.sourceValues) do
+            valueSums[key] = valueSums[key] or 0
+            valueCounts[key] = valueCounts[key] or 0
+
+            -- Maybe an unset target value should error but a default 0 makes sense to me too
+            local targetValue = rig.targetValues[key] or 0
+            valueSums[key] = valueSums[key] + lerp(value, targetValue, interp)
+            valueCounts[key] = valueCounts[key] + 1
+        end
+
+        -- God forbid the user messes with the attachedRigs in this function
+        if rig.onUpdate then rig.onUpdate(rig, self, dt) end
+
+        if rig.progress >= duration then
+            popRig(self, rigIndex)
+            rigCount = rigCount - 1
+            rig.reachedEnd = true
+            finishedRigs[#finishedRigs+1] = rig
+        else
+            -- If we popped a rig, there's going to be a new rig at the same index, so only increment if we didn't
+            rigIndex = rigIndex + 1
+        end
+    end
+
+    for finishedRigIndex = 1, #finishedRigs do
+        local rig = finishedRigs[finishedRigIndex]
+        if rig.next then self:attachRig(rig.next) end
+        if rig.onFinish then rig.onFinish(rig, self) end
+    end
+
+    for key, sum in pairs(valueSums) do
+        self[key] = sum / valueCounts[key]
+    end
+end
+
 -- Slightly crude way of making the cameras inherit from rig receivers (this must happen after the rig receiver has all its methods defined)
 -- I know I could just have another __index metatable on the camera definition, but I prefer having the definition fully flattened into 1 table.
 for key, value in pairs(RigReceiver) do
@@ -722,8 +831,8 @@ end
 function camberry.newRig(duration, easing, sourceValues, targetValues)
 
     if type(easing) == "string" then
+        if not camberry.tweens[easing] then error("Unknown easing function: " .. easing, 2) end
         easing = camberry.tweens[easing]
-        if not easing then error("Unknown easing function: " .. easing, 2) end
     end
 
     ---@type Camberry.Rig
@@ -754,7 +863,6 @@ function Rig:clone()
     rig.isAttached = false -- A newly cloned rig can't possibly be attached
 
     rig.onAttach = self.onAttach
-    rig.onBegin = self.onBegin
     rig.onFinish = self.onFinish
     rig.onUpdate = self.onUpdate
 
@@ -772,7 +880,8 @@ end
 
 --------------------------------------------------
 --- ### Rig:reset()
---- Resets the rig to an initial state. If `nonRecursive` is true, the rig will only reset this exact rig, and none of the chained ones.
+--- Resets the rig to an initial state. If `nonRecursive` is true, the rig will only reset this exact rig, and none of the chained ones.  
+--- Note that it's probably not necessary to call this, as attaching a rig resets it automatically.
 ---@param nonRecursive? boolean
 ---@return Camberry.Rig self
 function Rig:reset(nonRecursive)
@@ -802,8 +911,8 @@ end
 ---@return Camberry.Rig self
 function Rig:setEasing(easing)
     if type(easing) == "string" then
+        if not camberry.tweens[easing] then error("Unknown easing function: " .. easing, 2) end
         easing = camberry.tweens[easing]
-        if not easing then error("Unknown easing function: " .. easing, 2) end
     end
 
     self.easing = easing
