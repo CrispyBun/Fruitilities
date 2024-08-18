@@ -37,6 +37,7 @@ local TargetMT = {__index = Target}
 ---@class Camberry.RigReceiver
 ---@field attachedRigs Camberry.Rig[] The current active rigs. These will be updated and used. If any modify the same value, the value will be averaged.
 ---@field waitForAllRigs boolean If true, the receiver will finish and detach its attached rigs all at once, and only after all of them are at the end of the animation.
+---@field stackableRigValues table<string, boolean> If a key in this table is true, and multiple rigs modify a value with that key in the receiver, the values will be summed instead of averaged.
 local RigReceiver = {}
 local RigReceiverMT = {__index = RigReceiver}
 
@@ -134,7 +135,8 @@ function camberry.newCamera(width, height)
         _zoom = 1,
 
         attachedRigs = {},
-        waitForAllRigs = false
+        waitForAllRigs = false,
+        stackableRigValues = {}
     }
 
     return setmetatable(camera, CameraMT)
@@ -702,7 +704,8 @@ function camberry.newRigReceiver()
     ---@type Camberry.RigReceiver
     local receiver = {
         attachedRigs = {},
-        waitForAllRigs = false
+        waitForAllRigs = false,
+        stackableRigValues = {}
     }
 
     return setmetatable(receiver, RigReceiverMT)
@@ -771,6 +774,8 @@ function RigReceiver:updateRigs(dt)
     local valueCounts = {}
     local finishedRigs = {}
 
+    local stackableValues = self.stackableRigValues
+
     local waitForAllRigs = self.waitForAllRigs
     local allRigsFinished = true
 
@@ -823,7 +828,11 @@ function RigReceiver:updateRigs(dt)
     end
 
     for key, sum in pairs(valueSums) do
-        self[key] = sum / valueCounts[key]
+        if stackableValues[key] then
+            self[key] = sum
+        else
+            self[key] = sum / valueCounts[key]
+        end
     end
 end
 
