@@ -36,6 +36,7 @@ local TargetMT = {__index = Target}
 
 ---@class Camberry.RigReceiver
 ---@field attachedRigs Camberry.Rig[] The current active rigs. These will be updated and used. If any modify the same value, the value will be averaged.
+---@field waitForAllRigs boolean If true, the receiver will finish and detach its attached rigs all at once, and only after all of them are at the end of the animation.
 local RigReceiver = {}
 local RigReceiverMT = {__index = RigReceiver}
 
@@ -131,7 +132,9 @@ function camberry.newCamera(width, height)
         width = width,
         height = height,
         _zoom = 1,
-        attachedRigs = {}
+
+        attachedRigs = {},
+        waitForAllRigs = false
     }
 
     return setmetatable(camera, CameraMT)
@@ -698,7 +701,8 @@ end
 function camberry.newRigReceiver()
     ---@type Camberry.RigReceiver
     local receiver = {
-        attachedRigs = {}
+        attachedRigs = {},
+        waitForAllRigs = false
     }
 
     return setmetatable(receiver, RigReceiverMT)
@@ -767,6 +771,9 @@ function RigReceiver:updateRigs(dt)
     local valueCounts = {}
     local finishedRigs = {}
 
+    local waitForAllRigs = self.waitForAllRigs
+    local allRigsFinished = true
+
     local rigs = self.attachedRigs
     local rigCount = #rigs
     local rigIndex = 1
@@ -788,10 +795,12 @@ function RigReceiver:updateRigs(dt)
             valueCounts[key] = valueCounts[key] + 1
         end
 
-        if rig.progress >= duration and not rig.stayAttached then
+        local progressFinished = rig.progress >= duration and not rig.stayAttached
+        if not progressFinished then allRigsFinished = false end
+
+        if progressFinished and not waitForAllRigs then
             popRig(self, rigIndex)
             rigCount = rigCount - 1
-            rig.reachedEnd = true
             finishedRigs[#finishedRigs+1] = rig
         else
             -- If we popped a rig, there's going to be a new rig at the same index, so only increment if we didn't
@@ -799,8 +808,16 @@ function RigReceiver:updateRigs(dt)
         end
     end
 
+    if waitForAllRigs and allRigsFinished then
+        for rigIndex = 1, #rigs do
+            finishedRigs[rigIndex] = rigs[rigIndex]
+        end
+        self:clearRigs()
+    end
+
     for finishedRigIndex = 1, #finishedRigs do
         local rig = finishedRigs[finishedRigIndex]
+        rig.reachedEnd = true
         if rig.next then self:attachRig(rig.next) end
         if rig.onFinish then rig.onFinish(rig, self) end
     end
