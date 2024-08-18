@@ -982,16 +982,67 @@ function Rig:addValue(key, source, target)
 end
 
 --------------------------------------------------
---- ### Rig:chain(rig)
+--- ### Rig:setNext(rig)
 --- Chains another rig after this rig to be played after this one finishes.  
---- If `rig` is not supplied, a blank new one will be created (and returned).  
---- Be careful if you're chaining this rig's setters, this function does NOT return self, but the newly added chained rig.
----@param rig? Camberry.Rig The rig to chain *(Optional, will create a new one if nil)*
+--- If this rig already has a `next` rig set, it will be overwritten.  
+--- The newly added rig will be returned.
+---@param rig Camberry.Rig The rig to chain
 ---@return Camberry.Rig chainedRig The newly chained rig
-function Rig:chain(rig)
-    rig = rig or camberry.newRig()
+function Rig:setNext(rig)
     self.next = rig
+    return self
+end
+
+--------------------------------------------------
+--- ### Rig:appendRig(rig)
+--- Works like `Rig:setNext()`, but if the current rig already has a rig chained after it, it will not be replaced.
+--- Instead, the newly added chain will be inserted into the middle of the chain at this rig's position.  
+--- This function will loop forever if the rig you're adding has a cyclical reference or will cause a cyclical reference.  
+--- 
+--- Returns the newly added rig.
+---@param rig Camberry.Rig The rig to chain
+---@return Camberry.Rig chainedRig The newly chained rig
+function Rig:appendRig(rig)
+    local currentNext = self.next
+    self.next = rig
+
+    if currentNext then
+        local chainEnd = rig
+
+        --- The diagnostics are a little confused here
+        ---@diagnostic disable-next-line: need-check-nil
+        while chainEnd.next do
+            chainEnd = chainEnd.next
+        end
+
+        chainEnd.next = currentNext
+    end
+
     return rig
+end
+
+--------------------------------------------------
+--- ### Rig:chain()
+--- Extends the chain.  
+--- 
+--- This function creates a new rig, copies the easing and duration to it, and copies the target values into its source values.  
+--- The new rig gets appended to the chain after this one and returned.  
+--- This makes it handy to easily create a chain of rigs like so:
+--- ```
+--- -- Swing x to +100, then to -100, then back to 0
+--- rig:addValue("x", 0, 100):chain():to("x", -100):chain():to("x", 0)
+--- ```
+--- If you want to add an already created rig to the chain, use `Rig:appendRig()` or `Rig:setNext()`.
+---@return Camberry.Rig chainedRig The newly chained rig
+function Rig:chain()
+    local chainedRig = camberry.newRig()
+    chainedRig.duration = self.duration
+    chainedRig.easing = self.easing
+    for key, value in pairs(self.targetValues) do
+        chainedRig.sourceValues[key] = value
+    end
+    self:appendRig(chainedRig)
+    return chainedRig
 end
 
 -- Abstraction for possible usage outside LÖVE -----------------------------------------------------
