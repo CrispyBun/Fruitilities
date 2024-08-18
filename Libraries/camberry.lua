@@ -54,6 +54,7 @@ local RigReceiverMT = {__index = RigReceiver}
 ---@field onAttach? fun(rig: Camberry.Rig, receiver: Camberry.RigReceiver) Called when the rig gets attached to a receiver.
 ---@field onFinish? fun(rig: Camberry.Rig, receiver: Camberry.RigReceiver) Called when the rig finishes playing and stops being attached.
 ---@field onUpdate? fun(rig: Camberry.Rig, receiver: Camberry.RigReceiver, dt: number) Called for each update of the rig.
+---@field onReset? fun(rig: Camberry.Rig) Called when the rig is reset.
 ---
 ---@field sourceValues table<string, number> The values of the RigReceiver the rig will interpolate from.
 ---@field targetValues table<string, number> The values of the RigReceiver the rig will interpolate to.
@@ -890,6 +891,7 @@ function Rig:clone()
     rig.onAttach = self.onAttach
     rig.onFinish = self.onFinish
     rig.onUpdate = self.onUpdate
+    rig.onReset = self.onReset
 
     for key, value in pairs(self.sourceValues) do
         rig.sourceValues[key] = value
@@ -912,6 +914,8 @@ end
 function Rig:reset(nonRecursive)
     self.progress = 0
     self.reachedEnd = false
+
+    if self.onReset then self.onReset(self) end
 
     if nonRecursive then return self end
     if self.next then self.next:reset(nonRecursive) end
