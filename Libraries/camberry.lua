@@ -43,6 +43,7 @@ local RigReceiverMT = {__index = RigReceiver}
 ---@field progress number A timer counting towards the max duration.
 ---@field duration number The duration of the whole animation. When `progress` reaches this value, the rig will be removed from the RigReceiver.
 ---@field easing fun(x: number): number The easing function to use for interpolation. When setting this using `rig:setEasing()`, you can set this with a name of an easing function known by the library.
+---@field stayAttached boolean If true, the rig will never finish and will not automatically detach itself when it finished playing, and will have to be removed manually be either setting this to false or calling RemoveRig on the RigReceiver.
 ---
 ---@field next? Camberry.Rig Optional next rig to chain after this one. It will be attached after this one is done playing.
 ---@field reachedEnd boolean Will be set to true once the rig has finished playing. Doesn't actually have any function, it's just for quickly being able to tell if a rig is done.
@@ -787,10 +788,7 @@ function RigReceiver:updateRigs(dt)
             valueCounts[key] = valueCounts[key] + 1
         end
 
-        -- God forbid the user messes with the attachedRigs in this function
-        if rig.onUpdate then rig.onUpdate(rig, self, dt) end
-
-        if rig.progress >= duration then
+        if rig.progress >= duration and not rig.stayAttached then
             popRig(self, rigIndex)
             rigCount = rigCount - 1
             rig.reachedEnd = true
@@ -840,6 +838,7 @@ function camberry.newRig(duration, easing, sourceValues, targetValues)
         progress = 0,
         duration = duration or 1,
         easing = easing or camberry.tweens.sineInOut,
+        stayAttached = false,
         reachedEnd = false,
         isAttached = false,
         sourceValues = sourceValues or {},
