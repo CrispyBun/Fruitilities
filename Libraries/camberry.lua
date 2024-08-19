@@ -26,6 +26,8 @@ local camberry = {}
 ---@field width number The camera's width.
 ---@field height number The camera's height.
 ---@field _zoom number Internally used zoom factor.
+---@field _offsetX number Internally used offset in the X direction.
+---@field _offsetY number Internally used offset in the Y direction.
 local Camera = {}
 local CameraMT = {__index = Camera}
 
@@ -102,6 +104,8 @@ function camberry.newCamera(width, height)
         width = width,
         height = height,
         _zoom = 1,
+        _offsetX = 0,
+        _offsetY = 0,
 
         attachedRigs = {},
         waitForAllRigs = false,
@@ -386,7 +390,7 @@ end
 ---@return number offsetX
 ---@return number offsetY
 function Camera:getOffset()
-    return self.offsetX, self.offsetY
+    return self.offsetX + self._offsetX, self.offsetY + self._offsetY
 end
 
 --------------------------------------------------
@@ -853,6 +857,64 @@ function camberry.newRig(duration, easing, sourceValues, targetValues)
     }
 
     return setmetatable(rig, RigMT)
+end
+
+local random = love and love.math and love.math.random or math.random
+--------------------------------------------------
+--- ### camberry.newShakeRig(intensity, duration, speed)
+--- Creates a new rig intended for shaking a camera.
+---@param intensity? number How many pixels out will the receiver shake
+---@param duration? number How long the shake will last in seconds
+---@param speed? number How many shakes per second will the shake happen at
+---@param easing? string|fun(x: number):number
+---@param xKey? string
+---@param yKey? string
+---@return Camberry.Rig shakeRig
+function camberry.newShakeRig(intensity, duration, speed, easing, xKey, yKey)
+    intensity = intensity or 10
+    duration = duration or 1
+    speed = speed or 30
+    easing = easing or camberry.tweens.hold
+    xKey = xKey or "_offsetX"
+    yKey = yKey or "_offsetY"
+
+    if speed <= 0 then error("Speed must be greater than 0", 2) end
+    local delay = 1 / speed
+
+    local shakeRig = camberry.newRig()
+    shakeRig:setDuration(delay)
+    shakeRig:setEasing(easing)
+    shakeRig:source(xKey, 0)
+    shakeRig:source(yKey, 0)
+
+    local rigCount = duration * speed
+    for _ = 1, rigCount do
+        shakeRig:chain()
+    end
+
+    shakeRig.onReset = function (rig)
+        local iteration = 1
+        local previousRig
+        while rig do
+            local dist = lerp(intensity, 0, (iteration-1) / rigCount)
+            local angle = random() * math.pi * 2
+            local x = math.cos(angle) * dist
+            local y = math.sin(angle) * dist
+
+            if previousRig then
+                rig:source(xKey, previousRig.targetValues[xKey])
+                rig:source(yKey, previousRig.targetValues[yKey])
+            end
+            rig:target(xKey, x)
+            rig:target(yKey, y)
+
+            iteration = iteration + 1
+            previousRig = rig
+            rig = rig.next
+        end
+    end
+
+    return shakeRig
 end
 
 --------------------------------------------------
