@@ -12,6 +12,7 @@ local camberry = {}
 ---@field snapToFirstTarget boolean Whether or not the camera should snap to always show the first target.
 ---@field zoomToAllTargets boolean Whether or not the camera should zoom out to always show all targets.
 ---@field safeBoundsOffset [number, number] The distance from the camera's edge (in each axis) that targets must stay in if `snapToFirstTarget` or `zoomToAllTargets` are enabled. Positive values shrink the area, negative values grow it.
+---@field updateTargetRigs boolean If true, the camera will scan its targets and, if they have an `updateRigs` method, calls it.
 ---@field minAutoZoom number The minimum zoom the camera can automatically zoom to when zooming to show targets. This stacks with the currently set zoom value. Default is 0 (unlimited).
 ---@field pixelPerfectMovement boolean Whether or not the camera's position should snap to integer coordinates when rendering.
 ---@field dontRenderZoom boolean If true, zoom will still be present in all calculations, but won't be rendered.
@@ -28,7 +29,7 @@ local camberry = {}
 local Camera = {}
 local CameraMT = {__index = Camera}
 
----@class Camberry.SimpleTarget
+---@class Camberry.SimpleTarget : Camberry.RigReceiver
 ---@field x number
 ---@field y number
 local Target = {}
@@ -122,6 +123,7 @@ function camberry.newCamera(width, height)
         snapToFirstTarget = true,
         zoomToAllTargets = true,
         safeBoundsOffset = {0, 0},
+        updateTargetRigs = false,
         minAutoZoom = 0,
         dontRenderZoom = false,
         dontRenderRotation = false,
@@ -206,6 +208,13 @@ end
 --- Updates the camera's position.
 ---@param dt number The time in seconds since the last call to update
 function Camera:update(dt)
+    if self.updateTargetRigs then
+        for targetIndex = 1, #self.targets do
+            local target = self.targets[targetIndex]
+            if target.updateRigs then target:updateRigs(dt) end
+        end
+    end
+
     self:moveTowardsTargets(dt)
     self:snapTargetsToBounds()
     self:updateRigs(dt)
@@ -662,7 +671,11 @@ function camberry.newSimpleTarget(x, y)
     ---@type Camberry.SimpleTarget
     local target = {
         x = x or 0,
-        y = y or 0
+        y = y or 0,
+
+        attachedRigs = {},
+        waitForAllRigs = false,
+        stackableRigValues = {}
     }
 
     return setmetatable(target, TargetMT)
@@ -837,10 +850,11 @@ function RigReceiver:updateRigs(dt)
     end
 end
 
--- Slightly crude way of making the cameras inherit from rig receivers (this must happen after the rig receiver has all its methods defined)
--- I know I could just have another __index metatable on the camera definition, but I prefer having the definition fully flattened into 1 table.
+-- Slightly crude way of making the cameras and targets inherit from rig receivers (this must happen after the rig receiver has all its methods defined)
+-- I know I could just have another __index metatable on their definitions pointing to rig receivers, but I prefer having the definition fully flattened into 1 table.
 for key, value in pairs(RigReceiver) do
     if not Camera[key] then Camera[key] = value end
+    if not Target[key] then Target[key] = value end
 end
 
 -- Rigs --------------------------------------------------------------------------------------------
