@@ -68,40 +68,6 @@ local function lerp(a, b, t)
     return a + (b - a) * t
 end
 
--- Easing functions --------------------------------------------------------------------------------
-
---- Easing functions for interpolation, intended for use with Rigs.
----@type table<string, fun(x: number): number>
-camberry.tweens = {}
-
--- Most of these are implemented from https://easings.net/
-
-function camberry.tweens.linear(x)
-    return x
-end
-
-function camberry.tweens.hold(x)
-    if x < 1 then return 0 end
-    return 1
-end
-
-function camberry.tweens.instant(x)
-    if x > 0 then return 1 end
-    return 0
-end
-
-function camberry.tweens.sineIn(x)
-    return 1 - math.cos((x * math.pi) / 2);
-end
-
-function camberry.tweens.sineOut(x)
-    return math.sin((x * math.pi) / 2);
-end
-
-function camberry.tweens.sineInOut(x)
-    return -(math.cos(x * math.pi) - 1) / 2;
-end
-
 -- Cameras -----------------------------------------------------------------------------------------
 
 --------------------------------------------------
@@ -878,7 +844,7 @@ function camberry.newRig(duration, easing, sourceValues, targetValues)
     local rig = {
         progress = 0,
         duration = duration or 1,
-        easing = easing or camberry.tweens.sineInOut,
+        easing = easing or camberry.tweens.smooth,
         stayAttached = false,
         reachedEnd = false,
         isAttached = false,
@@ -1084,6 +1050,166 @@ function Rig:chain()
     self:appendRig(chainedRig)
     return chainedRig
 end
+
+-- Easing functions --------------------------------------------------------------------------------
+
+--- Easing functions for interpolation, intended for use with Rigs.
+---@type table<string, fun(x: number): number>
+camberry.tweens = {}
+
+-- Most of these are implemented from https://easings.net/
+
+function camberry.tweens.linear(x)
+    return x
+end
+
+function camberry.tweens.hold(x)
+    if x < 1 then return 0 end
+    return 1
+end
+
+function camberry.tweens.instant(x)
+    if x > 0 then return 1 end
+    return 0
+end
+
+function camberry.tweens.sineIn(x)
+    return 1 - math.cos((x * math.pi) / 2);
+end
+
+function camberry.tweens.sineOut(x)
+    return math.sin((x * math.pi) / 2);
+end
+
+function camberry.tweens.sineInOut(x)
+    return -(math.cos(x * math.pi) - 1) / 2;
+end
+
+function camberry.tweens.quadIn(x)
+    return x * x
+end
+
+function camberry.tweens.quadOut(x)
+    return 1 - (1 - x) * (1 - x)
+end
+
+function camberry.tweens.quadInOut(x)
+    return x < 0.5 and 2 * x * x or 1 - math.pow(-2 * x + 2, 2) / 2
+end
+
+function camberry.tweens.cubicIn(x)
+    return x * x * x
+end
+
+function camberry.tweens.cubicOut(x)
+    return 1 - math.pow(1 - x, 3)
+end
+
+function camberry.tweens.cubicInOut(x)
+    return x < 0.5 and 4 * x * x * x or 1 - math.pow(-2 * x + 2, 3) / 2
+end
+
+function camberry.tweens.quartIn(x)
+    return x * x * x * x
+end
+
+function camberry.tweens.quartOut(x)
+    return 1 - math.pow(1 - x, 4)
+end
+
+function camberry.tweens.quartInOut(x)
+    return x < 0.5 and 8 * x * x * x * x or 1 - math.pow(-2 * x + 2, 4) / 2
+end
+
+function camberry.tweens.expoIn(x)
+    return x == 0 and 0 or math.pow(2, 10 * x - 10)
+end
+
+function camberry.tweens.expoOut(x)
+    return x == 1 and 1 or 1 - math.pow(2, -10 * x)
+end
+
+function camberry.tweens.expoInOut(x)
+    if x == 0 then return x end
+    if x == 1 then return x end
+    if x < 0.5 then return math.pow(2, 20 * x - 10) / 2 end
+    return (2 - math.pow(2, -20 * x + 10)) / 2
+end
+
+function camberry.tweens.backIn(x)
+    local c1 = 1.70158
+    local c3 = c1 + 1
+    return c3 * x * x * x - c1 * x * x
+end
+
+function camberry.tweens.backOut(x)
+    local c1 = 1.70158
+    local c3 = c1 + 1
+    return 1 + c3 * math.pow(x - 1, 3) + c1 * math.pow(x - 1, 2)
+end
+
+function camberry.tweens.backInOut(x)
+    local c1 = 1.70158
+    local c2 = c1 * 1.525
+    if x < 0.5 then return (math.pow(2 * x, 2) * ((c2 + 1) * 2 * x - c2)) / 2 end
+    return (math.pow(2 * x - 2, 2) * ((c2 + 1) * (x * 2 - 2) + c2) + 2) / 2
+end
+
+function camberry.tweens.elasticIn(x)
+    local c4 = (2 * math.pi) / 3
+    if x == 0 then return 0 end
+    if x == 1 then return 1 end
+    return -math.pow(2, 10 * x - 10) * math.sin((x * 10 - 10.75) * c4)
+end
+
+function camberry.tweens.elasticOut(x)
+    local c4 = (2 * math.pi) / 3
+    if x == 0 then return 0 end
+    if x == 1 then return 1 end
+    return math.pow(2, -10 * x) * math.sin((x * 10 - 0.75) * c4) + 1
+end
+
+function camberry.tweens.elasticInOut(x)
+    local c5 = (2 * math.pi) / 4.5
+    if x == 0 then return 0 end
+    if x == 1 then return 1 end
+    if x < 0.5 then return -(math.pow(2, 20 * x - 10) * math.sin((20 * x - 11.125) * c5)) / 2 end
+    return (math.pow(2, -20 * x + 10) * math.sin((20 * x - 11.125) * c5)) / 2 + 1
+end
+
+function camberry.tweens.bounceIn(x)
+    return 1 - camberry.tweens.bounceOut(1 - x)
+end
+
+function camberry.tweens.bounceOut(x)
+    local n1 = 7.5625
+    local d1 = 2.75
+
+    if x < 1 / d1 then return n1 * x * x end
+    if x < 2 / d1 then
+        x = x - 1.5 / d1
+        return n1 * x * x + 0.75 
+    end
+    if x < 2.5 / d1 then
+        x = x - 2.25 / d1
+        return n1 * x * x + 0.9375
+    end
+    x = x - 2.625 / d1
+    return n1 * x * x + 0.984375
+end
+
+function camberry.tweens.bounceInOut(x)
+    return x < 0.5
+    and (1 - camberry.tweens.bounceOut(1 - 2 * x)) / 2
+    or  (1 + camberry.tweens.bounceOut(2 * x - 1)) / 2
+end
+
+camberry.tweens.smooth = camberry.tweens.quadInOut
+camberry.tweens.fling = camberry.tweens.expoInOut
+camberry.tweens.bounce = camberry.tweens.bounceOut
+camberry.tweens.easeIn = camberry.tweens.quadIn
+camberry.tweens.easeOut = camberry.tweens.quadOut
+camberry.tweens.easeInOut = camberry.tweens.quadInOut
 
 -- Abstraction for possible usage outside LÖVE -----------------------------------------------------
 
