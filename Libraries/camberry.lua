@@ -982,6 +982,32 @@ function Rig:addValue(key, source, target)
 end
 
 --------------------------------------------------
+--- ### Rig:from(key, source)
+--- ### Rig:source(key, source)
+--- Adds a source value to the rig for interpolation. Make sure to also add a target value with the same key.
+---@param key string
+---@param source number
+---@return Camberry.Rig self
+function Rig:from(key, source)
+    self.sourceValues[key] = source
+    return self
+end
+Rig.source = Rig.from
+
+--------------------------------------------------
+--- ### Rig:to(key, target)
+--- ### Rig:target(key, target)
+--- Adds a target value to the rig for interpolation. Make sure to also add a source value with the same key.
+---@param key string
+---@param target number
+---@return Camberry.Rig self
+function Rig:to(key, target)
+    self.targetValues[key] = target
+    return self
+end
+Rig.target = Rig.to
+
+--------------------------------------------------
 --- ### Rig:setNext(rig)
 --- Chains another rig after this rig to be played after this one finishes.  
 --- If this rig already has a `next` rig set, it will be overwritten.  
