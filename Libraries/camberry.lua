@@ -109,7 +109,12 @@ function camberry.newCamera(width, height)
 
         attachedRigs = {},
         waitForAllRigs = false,
-        stackableRigValues = {}
+        stackableRigValues = {
+            offsetX = true,
+            offsetY = true,
+            _offsetX = true,
+            _offsetY = true
+        }
     }
 
     return setmetatable(camera, CameraMT)
@@ -366,6 +371,16 @@ function Camera:setParallaxStrength(x, y)
     self.parallaxStrengthX = x
     self.parallaxStrengthY = y
     return self
+end
+
+--------------------------------------------------
+--- ### Camera:shake(intensity, duration, speed)
+--- Applies a shake effect to the camera for a duration.
+---@param intensity? number How many pixels out will the camera shake
+---@param duration? number How long the shake will last in seconds
+---@param speed? number How many shakes per second will the shake happen at
+function Camera:shake(intensity, duration, speed)
+    self:attachRig(camberry.newShakeRig(intensity, duration, speed))
 end
 
 --------------------------------------------------
@@ -887,8 +902,8 @@ function camberry.newShakeRig(intensity, duration, speed, easing, xKey, yKey)
     shakeRig:source(xKey, 0)
     shakeRig:source(yKey, 0)
 
-    local rigCount = duration * speed
-    for _ = 1, rigCount do
+    local chainedRigCount = duration * speed
+    for _ = 1, chainedRigCount do
         shakeRig:chain()
     end
 
@@ -896,7 +911,7 @@ function camberry.newShakeRig(intensity, duration, speed, easing, xKey, yKey)
         local iteration = 1
         local previousRig
         while rig do
-            local dist = lerp(intensity, 0, (iteration-1) / rigCount)
+            local dist = lerp(intensity, 0, (iteration-1) / chainedRigCount)
             local angle = random() * math.pi * 2
             local x = math.cos(angle) * dist
             local y = math.sin(angle) * dist
