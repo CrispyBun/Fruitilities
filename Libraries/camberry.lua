@@ -17,6 +17,7 @@ local camberry = {}
 ---@field pixelPerfectMovement boolean Whether or not the camera's position should snap to integer coordinates when rendering.
 ---@field dontRenderZoom boolean If true, zoom will still be present in all calculations, but won't be rendered.
 ---@field dontRenderRotation boolean If true, rotation will still be set, but won't be rendered.
+---@field dontRenderOffset boolean If true, offset will still be set, but won't be rendered.
 ---@field parallaxDepth number The camera's parallax depth. A value of 2 will make the camera move twice as slow, etc. Default is 1.
 ---@field parallaxStrengthX number Multiplier for the parallax effect in the X direction. Default is 1.
 ---@field parallaxStrengthY number Multiplier for the parallax effect in the Y direction. Default is 0.
@@ -95,6 +96,7 @@ function camberry.newCamera(width, height)
         minAutoZoom = 0,
         dontRenderZoom = false,
         dontRenderRotation = false,
+        dontRenderOffset = false,
         pixelPerfectMovement = false,
         parallaxDepth = 1,
         parallaxStrengthX = 1,
@@ -141,6 +143,7 @@ function Camera:clone()
     camera.minAutoZoom = self.minAutoZoom
     camera.dontRenderZoom = self.dontRenderZoom
     camera.dontRenderRotation = self.dontRenderRotation
+    camera.dontRenderOffset = self.dontRenderOffset
     camera.pixelPerfectMovement = self.pixelPerfectMovement
     camera.parallaxDepth = self.parallaxDepth
     camera.parallaxStrengthX = self.parallaxStrengthX
@@ -488,7 +491,7 @@ end
 --- Returns the bounds the camera should actually render to (takes `pixelPerfectMovement` into account).
 function Camera:getBoundsForRendering()
     local depthX, depthY = self:getParallaxDepthValues()
-    local offsetX, offsetY = self:getOffset()
+    local offsetX, offsetY = self:getOffsetForRendering()
     local x = self.x / depthX + offsetX
     local y = self.y / depthY + offsetY
     local zoom = self:getZoomForRendering()
@@ -507,7 +510,8 @@ end
 
 --------------------------------------------------
 --- ### Camera:getBoundsForRendering()
---- Returns the zoom of the camera that rendering should use (takes `dontRenderZoom` into account).
+--- Returns the zoom of the camera that rendering should use.
+---@return number
 function Camera:getZoomForRendering()
     if self.dontRenderZoom then return 1 end
     return self:getZoom()
@@ -516,10 +520,21 @@ end
 --------------------------------------------------
 --- ### Camera:getRotationForRendering()
 --- Returns the rotation of the camera that rendering should use.
+---@return number
 function Camera:getRotationForRendering()
     if self.dontRenderRotation then return 0 end
     if self.rotationalParallax then return self:getRotation() / lerp(1, self.parallaxDepth, self.rotationalParallax) end
     return self:getRotation()
+end
+
+--------------------------------------------------
+--- ### Camera:getOffsetForRendering()
+--- Returns the offset of the camera that rendering should use (takes `dontRenderOffset` into account).
+---@return number
+---@return number
+function Camera:getOffsetForRendering()
+    if self.dontRenderOffset then return 0, 0 end
+    return self:getOffset()
 end
 
 --------------------------------------------------
