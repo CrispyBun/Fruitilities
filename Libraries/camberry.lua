@@ -121,6 +121,46 @@ function camberry.newCamera(width, height)
 end
 
 --------------------------------------------------
+--- ### Camera:clone()
+--- Returns a copy of the camera.
+---@return Camberry.Camera
+function Camera:clone()
+    local camera = camberry.newCamera(self.width, self.height)
+    for targetIndex = 1, #self.targets do
+        camera.targets[targetIndex] = self.targets[targetIndex]
+    end
+    camera.smoothness = self.smoothness
+    camera.zoom = self.zoom
+    camera.rotation = self.rotation
+    camera.offsetX = self.offsetX
+    camera.offsetY = self.offsetY
+    camera.snapToFirstTarget = self.snapToFirstTarget
+    camera.zoomToAllTargets = self.zoomToAllTargets
+    camera.safeBoundsOffset[1], camera.safeBoundsOffset[2] = self.safeBoundsOffset[1], self.safeBoundsOffset[2]
+    camera.updateTargetRigs = self.updateTargetRigs
+    camera.minAutoZoom = self.minAutoZoom
+    camera.dontRenderZoom = self.dontRenderZoom
+    camera.dontRenderRotation = self.dontRenderRotation
+    camera.pixelPerfectMovement = self.pixelPerfectMovement
+    camera.parallaxDepth = self.parallaxDepth
+    camera.parallaxStrengthX = self.parallaxStrengthX
+    camera.parallaxStrengthY = self.parallaxStrengthY
+    camera.x = self.x
+    camera.y = self.y
+    camera._zoom = self._zoom
+    camera._offsetX = self._offsetX
+    camera._offsetY = self._offsetY
+
+    -- No point in copying attached rigs, as that'd make them attached to two cameras which would break stuff
+    camera.waitForAllRigs = self.waitForAllRigs
+    for valueIndex = 1, #self.stackableRigValues do
+        camera.stackableRigValues[valueIndex] = self.stackableRigValues[valueIndex]
+    end
+
+    return camera
+end
+
+--------------------------------------------------
 --- ### Camera:addTarget(target)
 --- Adds a target for the camera to follow. A valid target is any table with an `x` and `y` numeric field.  
 --- If `target` is not supplied, creates a new SimpleTarget.  
