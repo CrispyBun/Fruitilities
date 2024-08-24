@@ -540,7 +540,7 @@ function Camera:getBoundsForRendering()
 end
 
 --------------------------------------------------
---- ### Camera:getBoundsForRendering()
+--- ### Camera:getZoomForRendering()
 --- Returns the zoom of the camera that rendering should use.
 ---@return number
 function Camera:getZoomForRendering()
