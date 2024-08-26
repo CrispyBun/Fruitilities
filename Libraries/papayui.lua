@@ -1184,6 +1184,27 @@ function ElementStyle:setGap(horizontalGap, verticalGap)
 end
 
 --------------------------------------------------
+--- ### ElementStyle:setSpacing(horizontalSpacing, verticalSpacing)
+--- Sets both the style's gap and padding.  
+--- Equivalent to:
+--- ```
+--- style:setGap(horizontalSpacing, verticalSpacing):setPadding(horizontalSpacing, verticalSpacing)
+--- ```
+--- 
+--- If only one number is supplied, both the horizontal and vertical spacing is set to it.
+--- If no number is supplied, the spacing in both axis is set to 0.
+---@param horizontalSpacing? number
+---@param verticalSpacing? number
+---@return Papayui.ElementStyle
+function ElementStyle:setSpacing(horizontalSpacing, verticalSpacing)
+    horizontalSpacing = horizontalSpacing or 0
+    verticalSpacing = verticalSpacing or horizontalSpacing
+    self.gap = {horizontalSpacing, verticalSpacing}
+    self.padding = {horizontalSpacing, verticalSpacing, horizontalSpacing, verticalSpacing}
+    return self
+end
+
+--------------------------------------------------
 --- ### ElementStyle:setGrow(horizontalGrow, verticalGrow)
 --- Sets the style's horizontal and vertical grow.
 ---
