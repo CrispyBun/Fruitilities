@@ -1220,9 +1220,37 @@ function ElementStyle:setGrow(horizontalGrow, verticalGrow)
 end
 
 --------------------------------------------------
+--- ### ElementStyle:setLayout(layout)
+--- ### ElementStyle:setLayout(layout, alignment)
 --- ### ElementStyle:setLayout(layout, alignHorizontal, alignVertical)
---- Sets the style's layout as well as alignment.  
----
+--- Sets the style's layout and alignment.
+--- 
+--- If neither `alignHorizontal` nor `alignVertical` are supplied, they are unchanged from the current values.  
+--- If only `alignHorizontal` is supplied, `alignVertical` is set to the same value.
+--- 
+--- This function passes its layout arguments into `ElementStyle:setAlign()`,  
+--- which means it will always set the `alignInside` value. Read the documentation on `ElementStyle:setAlign()` for more detailed information.
+---@param layout Papayui.ElementLayout The layout to use
+---@param alignHorizontal? Papayui.Alignment The horizontal alignment used (Default is the current value)
+---@param alignVertical? Papayui.Alignment The vertical alignment used (Default is alignHorizontal if supplied, or the current value if not)
+---@param alignInside? Papayui.Alignment
+---@param alignInsideSecondary? Papayui.Alignment
+---@return Papayui.ElementStyle
+function ElementStyle:setLayout(layout, alignHorizontal, alignVertical, alignInside, alignInsideSecondary)
+    if not alignHorizontal then
+        alignHorizontal = self.alignHorizontal
+        alignVertical = alignVertical or self.alignVertical
+    end
+
+    self.layout = layout
+
+    return self:setAlign(alignHorizontal, alignVertical, alignInside, alignInsideSecondary)
+end
+
+--------------------------------------------------
+--- ### ElementStyle:setAlign(alignHorizontal, alignVertical)
+--- Sets the style's alignment. It is good to use this setter after the layout has been selected, as options that you don't select manually will be set based on the current layout.
+--- 
 --- For most alignment purposes, setting just the horizontal and vertical align will serve all needs.
 --- If you want to set the alignment in more detail, then:
 --- * alignHorizontal and alignVertical align all the child elements together relative to the parent element
@@ -1232,16 +1260,16 @@ end
 --- If verticalAlign isn't supplied, it is set to the same align as horizontalAlign.  
 --- If alignInside isn't supplied, it will set itself to be same as the align on the cross axis, based on the selected layout.  
 --- If alignInsideSecondary isn't supplied, it won't be changed
----@param layout Papayui.ElementLayout The layout used
 ---@param alignHorizontal Papayui.Alignment The horizontal alignment used
 ---@param alignVertical? Papayui.Alignment The vertical alignment used (Default is alignHorizontal)
 ---@param alignInside? Papayui.Alignment The alignInside used (Default is same as cross axis alignment)
----@param alignInsideSecondary? Papayui.Alignment The alignInsideSecondary used
+---@param alignInsideSecondary? Papayui.Alignment The alignInsideSecondary used (Default is the current value)
 ---@return Papayui.ElementStyle
-function ElementStyle:setLayout(layout, alignHorizontal, alignVertical, alignInside, alignInsideSecondary)
+function ElementStyle:setAlign(alignHorizontal, alignVertical, alignInside, alignInsideSecondary)
     alignVertical = alignVertical or alignHorizontal
     alignInsideSecondary = alignInsideSecondary or self.alignInsideSecondary
 
+    local layout = self.layout
     if not alignInside then
         local alignCross = alignVertical
         if layout == "singlecolumn" or layout == "columns" then
@@ -1250,7 +1278,6 @@ function ElementStyle:setLayout(layout, alignHorizontal, alignVertical, alignIns
         alignInside = alignCross
     end
 
-    self.layout = layout
     self.alignHorizontal = alignHorizontal
     self.alignVertical = alignVertical
     self.alignInside = alignInside
