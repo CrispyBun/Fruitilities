@@ -180,6 +180,8 @@ local ElementMT = {__index = Element}
 ---@field behavior? Papayui.ElementBehavior The behavior for elements made from this template
 ---@field data? table The arbitrary data to be put into elements made from this template
 ---@field init? fun(element: Papayui.Element, ...: unknown) Constructor for when the template is instanced (receives the new element and constructor params)
+---@field cloneStyle boolean Whether or not the style should be cloned when instancing the template. This is false by default.
+---@field cloneBehavior boolean Whether or not the behavior should be cloned when instancing the template This is true by default.
 local Template = {}
 local TemplateMT = {__index = Template}
 
@@ -467,7 +469,9 @@ function papayui.newTemplate(style, behavior, data, init)
         style = style,
         behavior = behavior,
         data = data,
-        init = init
+        init = init,
+        cloneStyle = false,
+        cloneBehavior = true
     }
     return setmetatable(template, TemplateMT)
 end
@@ -1363,7 +1367,10 @@ end
 ---@param ... unknown Constructor params
 ---@return Papayui.Element element The new papayui element
 function Template:instance(...)
-    local element = papayui.newElement(self.style, self.behavior)
+    local style = self.cloneStyle and self.style:clone() or self.style
+    local behavior = self.cloneBehavior and self.behavior:clone() or self.behavior
+
+    local element = papayui.newElement(style, behavior)
     if self.data then element.data = shallowCopy(self.data) end
     if self.init then self.init(element, ...) end
     return element
@@ -1380,7 +1387,9 @@ function Template:clone()
         style = self.style and self.style:clone(),
         behavior = self.behavior and self.behavior:clone(),
         data = self.data and shallowCopy(self.data),
-        init = self.init
+        init = self.init,
+        cloneStyle = self.cloneStyle,
+        cloneBehavior = self.cloneBehavior
     }
     return setmetatable(clonedTemplate, TemplateMT)
 end
@@ -1412,6 +1421,18 @@ end
 ---@return Papayui.Template self
 function Template:setConstructor(func)
     self.init = func
+    return self
+end
+
+--- Determines whether or not the style and behavior should be cloned when the template is instanced.  
+--- By default, this is false for style and true for behavior,
+--- meaning all elements made from the template share the same table for their style but have their own copy of the behavior.
+---@param cloneStyle boolean
+---@param cloneBehavior boolean
+---@return Papayui.Template self
+function Template:setCloningRules(cloneStyle, cloneBehavior)
+    self.cloneStyle = cloneStyle
+    self.cloneBehavior = cloneBehavior
     return self
 end
 
