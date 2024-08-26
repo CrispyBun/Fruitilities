@@ -79,17 +79,24 @@ end
 
 ---@param line string The line to decode, which must already have parsed quotes
 ---@param quotes string[] All parsed quotes that may be present in the line
----@param sep? string The separator to use
+---@param sep string The separator to use
 ---@return string[]
 local function decodeLine(line, quotes, sep)
     local output = {}
-    local matchPattern = "[^" .. sep .. "]+"
-    for value in line:gmatch(matchPattern) do
+
+    local searchStart = 1
+    while searchStart <= #line+1 do -- +1 to take into account a possible trailing comma
+        local commaIndex = string.find(line, sep, searchStart, true)
+        if not commaIndex then commaIndex = #line + 1 end -- no comma, just finish the line
+
+        local value = string.sub(line, searchStart, commaIndex-1)
         local quote = value:match('^"(%d)"$')
         if quote then
             value = quotes[tonumber(quote)]
         end
+
         output[#output+1] = value
+        searchStart = commaIndex + 1
     end
     return output
 end
@@ -101,7 +108,7 @@ end
 --- The optional "sep" parameter defaults to the value of csv.separationSymbol and must be a single character.
 ---@param str string The input CSV
 ---@param sep? string The separator to use
----@return table<string, string>
+---@return table<string, table>
 function csv.decode(str, sep)
     sep = sep or csv.separationSymbol
 
@@ -114,11 +121,13 @@ function csv.decode(str, sep)
 
         if not headers then
             headers = lineValues
+            for _, header in ipairs(headers) do
+                decodedTable[header] = {}
+            end
         else
             for valueIndex = 1, #lineValues do
                 local header = headers[valueIndex]
                 local value = lineValues[valueIndex]
-                if not decodedTable[header] then decodedTable[header] = {} end
                 decodedTable[header][#decodedTable[header]+1] = value
             end
         end
