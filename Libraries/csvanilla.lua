@@ -103,13 +103,18 @@ end
 ------------------------------------------------------------
 
 ------------------------------------------------------------
---- ### csv.decode(str, sep)
---- Returns a key-value table of the decoded CSV, the keys being the first line (header).  
---- The optional "sep" parameter defaults to the value of csv.separationSymbol and must be a single character.
+--- ### csv.decode(str, headerless, sep)
+--- Returns a key-value table of the decoded columns from the CSV.  
+--- * If the `headerless` argument is false, the first line of the CSV will be interpreted as a header, and the keys to the columns will be strings taken from the header.  
+--- * If the `headerless` argument is true, the columns will be numbered, and the keys to the columns will be integers.  
+--- * Each column is an array of strings, in the same order as they appear in the CSV.
+--- 
+--- The optional "sep" parameter defaults to the value of `csv.separationSymbol` and must be a single character.
 ---@param str string The input CSV
+---@param headerless? boolean Whether the CSV has no header (columns will be numbered instead of named)
 ---@param sep? string The separator to use
----@return table<string, table>
-function csv.decode(str, sep)
+---@return table<string|number, string[]>
+function csv.decode(str, headerless, sep)
     sep = sep or csv.separationSymbol
 
     local quotelessString, quotes, err = parseCsvEscapes(str)
@@ -119,14 +124,16 @@ function csv.decode(str, sep)
     for line in quotelessString:gmatch("[^\n]+") do
         local lineValues = decodeLine(line, quotes, sep)
 
-        if not headers then
+        if not headerless and not headers then
             headers = lineValues
             for _, header in ipairs(headers) do
                 decodedTable[header] = {}
             end
         else
             for valueIndex = 1, #lineValues do
-                local header = headers[valueIndex]
+                local header = headerless and valueIndex or headers[valueIndex]
+                decodedTable[header] = decodedTable[header] or {}
+
                 local value = lineValues[valueIndex]
                 decodedTable[header][#decodedTable[header]+1] = value
             end
