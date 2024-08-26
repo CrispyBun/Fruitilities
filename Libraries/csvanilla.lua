@@ -121,7 +121,13 @@ function csv.decode(str, headerless, sep)
 
     local headers
     local decodedTable = {}
-    for line in quotelessString:gmatch("[^\n]+") do
+
+    local searchStart = 1
+    while searchStart <= #quotelessString+1 do
+        local newlineIndex = string.find(quotelessString, "\n", searchStart, true)
+        if not newlineIndex then newlineIndex = #quotelessString + 1 end
+
+        local line = string.sub(quotelessString, searchStart, newlineIndex-1)
         local lineValues = decodeLine(line, quotes, sep)
 
         if not headerless and not headers then
@@ -138,6 +144,8 @@ function csv.decode(str, headerless, sep)
                 decodedTable[header][#decodedTable[header]+1] = value
             end
         end
+
+        searchStart = newlineIndex + 1
     end
 
     return decodedTable
