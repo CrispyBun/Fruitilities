@@ -32,7 +32,11 @@ SOFTWARE.
 local csv = {}
 csv.separationSymbol = ","
 
+---@diagnostic disable-next-line: deprecated
+local unpack = table.unpack or unpack
+
 ------------------------------------------------------------
+--- Parses escapes, puts them into a separate table, and replaces them in the original string with indexes to that table in quotes ("1", "2", etc.)
 ---@param str string
 ---@return string quotelessString
 ---@return string[] quotes
@@ -109,7 +113,7 @@ end
 --- * If the `headerless` argument is true, the columns will be numbered, and the keys to the columns will be integers.  
 --- * Each column is an array of strings, in the same order as they appear in the CSV.
 --- 
---- The optional "sep" parameter defaults to the value of `csv.separationSymbol` and must be a single character.
+--- The optional `sep` parameter defaults to the value of `csv.separationSymbol` and must be a single character.
 ---@param str string The input CSV
 ---@param headerless? boolean Whether the CSV has no header (columns will be numbered instead of named)
 ---@param sep? string The separator to use
@@ -123,7 +127,7 @@ function csv.decode(str, headerless, sep)
     local decodedTable = {}
 
     local searchStart = 1
-    while searchStart <= #quotelessString+1 do
+    while searchStart <= #quotelessString+1 do -- +1 to take into account a possible trailing newline
         local newlineIndex = string.find(quotelessString, "\n", searchStart, true)
         if not newlineIndex then newlineIndex = #quotelessString + 1 end
 
@@ -152,10 +156,77 @@ function csv.decode(str, headerless, sep)
 end
 
 ------------------------------------------------------------
+--- ### csv.encode(t, sep)
+--- Returns a CSV string encoded from a table.  
+--- 
+--- A `keys` table may be supplied to pick which columns to encode, as well as determine their order. If not supplied, all keys in the table are used (and are in an unpredictable order).  
+--- Numeric keys will not be written as a header.  
+--- 
+--- The optional `sep` parameter defaults to the value of `csv.separationSymbol` and should be a single character.
+---@param t table<string|number, string[]> The input table
+---@param keys? (string|number)[] The keys to the columns to use
+---@param sep? string The separator to use
+function csv.encode(t, keys, sep)
+    sep = sep or csv.separationSymbol
+
+    if not keys then
+        keys = {}
+        for key in pairs(t) do
+            keys[#keys+1] = key
+        end
+    end
+
+    local allKeysAreNumeric = true
+    local rowCount = 0
+    for keyIndex = 1, #keys do
+        local key = keys[keyIndex]
+        if type(key) ~= "number" then allKeysAreNumeric = false end
+        rowCount = math.max(rowCount, (t[key] and #t[key] or 0))
+    end
+
+    local lines = {}
+    local startIndex = allKeysAreNumeric and 1 or 0 -- Any string keys must be included as a header
+    for rowIndex = startIndex, rowCount do
+        local line
+
+        if rowIndex == 0 then
+            line = {unpack(keys)}
+        else
+            line = {}
+            for keyIndex = 1, #keys do
+                local key = keys[keyIndex]
+                local value = t[key] and t[key][rowIndex] or ""
+                line[#line+1] = value
+            end
+        end
+
+        for valueIndex = 1, #line do
+            local value = line[valueIndex]
+            local valueType = type(value)
+
+            if valueType == "number" and rowIndex == 0 then value = "" end -- Dont add numbers as headers
+            value = tostring(value)
+
+            value = value:gsub("\"", "\"\"")
+            if string.find(value, sep, 1, true) or string.find(value, "\n", 1, true) then
+                value = "\"" .. value .. "\""
+            end
+
+            line[valueIndex] = value
+        end
+
+        lines[#lines+1] = table.concat(line, sep)
+    end
+
+    return table.concat(lines, "\n")
+end
+
+------------------------------------------------------------
 --- ### csv.validateTable(t)
 --- The encode and decode functions try to parse what they can without erroring, even if the CSV is malformed, so this function serves to check for malformed CSV data.  
 --- 
---- To check if a table returned by `csv.decode()` is fully valid, or to check if a table is fully suitable for encoding, you can pass it into this function.
+--- To check if a table returned by `csv.decode()` is fully valid, or to check if a table is fully suitable for encoding, you can pass it into this function.  
+--- Note that some slightly malformed CSV strings *may* pass this check (notably missing quote pairs do), but if so, they'll still be usable and the tables made from it will be consistent with valid CSVs.
 ---@param t table<string|number, string[]>
 ---@return boolean isValid
 function csv.validateTable(t)
