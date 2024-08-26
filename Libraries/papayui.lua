@@ -1390,8 +1390,10 @@ ElementBehavior.addListener = ElementBehavior.addCallback
 ---@param ... unknown Constructor params
 ---@return Papayui.Element element The new papayui element
 function Template:instance(...)
-    local style = self.cloneStyle and self.style:clone() or self.style
-    local behavior = self.cloneBehavior and self.behavior:clone() or self.behavior
+    local style = self.style
+    local behavior = self.behavior
+    if style and self.cloneStyle then style = style:clone() end
+    if behavior and self.cloneBehavior then behavior = behavior:clone() end
 
     local element = papayui.newElement(style, behavior)
     if self.data then element.data = shallowCopy(self.data) end
