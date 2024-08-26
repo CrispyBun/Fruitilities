@@ -1356,6 +1356,29 @@ function ElementBehavior:clone()
     return setmetatable(copiedTable, ElementBehaviorMT)
 end
 
+--------------------------------------------------
+--- ### ElementBehavior:addCallback(eventType, callback)
+--- ### ElementBehavior:addListener(eventType, callback)
+--- Adds a callback for the specified event.
+--- 
+--- If a callback for this event already exists, it will not be overwritten. Instead, a closure will be created which will call both the previous and the new one.
+---@param eventType Papayui.EventType
+---@param callback fun(event: Papayui.Event)
+---@return Papayui.ElementBehavior self
+function ElementBehavior:addCallback(eventType, callback)
+    local previousCallback = self.callbacks[eventType]
+    if not previousCallback then
+        self.callbacks[eventType] = callback
+        return self
+    end
+    self.callbacks[eventType] = function (event)
+        previousCallback(event)
+        callback(event)
+    end
+    return self
+end
+ElementBehavior.addListener = ElementBehavior.addCallback
+
 -- Template methods --------------------------------------------------------------------------------
 
 --------------------------------------------------
