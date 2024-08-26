@@ -1361,7 +1361,7 @@ end
 --------------------------------------------------
 --- ### Template:instance(...)
 --- ### Template:newElement(...)
---- Creates a new papayui element from the template. (Behavior and style will not be cloned, modifying them will modify the template!)  
+--- Creates a new papayui element from the template.  
 --- 
 --- If the template has a constructor, the vararg passed into this method will be passed into it.
 ---@param ... unknown Constructor params
@@ -1394,6 +1394,9 @@ function Template:clone()
     return setmetatable(clonedTemplate, TemplateMT)
 end
 
+--------------------------------------------------
+--- ### Template:setStyle(style)
+--- Sets the template's style.
 ---@param style Papayui.ElementStyle
 ---@return Papayui.Template self
 function Template:setStyle(style)
@@ -1401,6 +1404,9 @@ function Template:setStyle(style)
     return self
 end
 
+--------------------------------------------------
+--- ### Template:setBehavior(behavior)
+--- Sets the template's behavior.
 ---@param behavior Papayui.ElementBehavior
 ---@return Papayui.Template self
 function Template:setBehavior(behavior)
@@ -1408,6 +1414,9 @@ function Template:setBehavior(behavior)
     return self
 end
 
+--------------------------------------------------
+--- ### Template:setDataField(key, value)
+--- Sets a field in the template's data table.
 ---@param key string
 ---@param value any
 ---@return Papayui.Template self
@@ -1417,6 +1426,9 @@ function Template:setDataField(key, value)
     return self
 end
 
+--------------------------------------------------
+--- ### Template:setConstructor(func)
+--- Sets the constructor to be called each time the template is instanced.
 ---@param func fun(element: Papayui.Element, ...: unknown)
 ---@return Papayui.Template self
 function Template:setConstructor(func)
@@ -1424,7 +1436,10 @@ function Template:setConstructor(func)
     return self
 end
 
+--------------------------------------------------
+--- ### Template:setCloningRules(cloneStyle, cloneBehavior)
 --- Determines whether or not the style and behavior should be cloned when the template is instanced.  
+--- 
 --- By default, this is false for style and true for behavior,
 --- meaning all elements made from the template share the same table for their style but have their own copy of the behavior.
 ---@param cloneStyle boolean
