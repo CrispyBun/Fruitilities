@@ -130,17 +130,37 @@ function csv.decode(str, headerless, sep)
                 decodedTable[header] = {}
             end
         else
-            for valueIndex = 1, #lineValues do
-                local header = headerless and valueIndex or headers[valueIndex]
+            for columnIndex = 1, #lineValues do
+                local header = headers and headers[columnIndex] or columnIndex
                 decodedTable[header] = decodedTable[header] or {}
 
-                local value = lineValues[valueIndex]
+                local value = lineValues[columnIndex]
                 decodedTable[header][#decodedTable[header]+1] = value
             end
         end
     end
 
     return decodedTable
+end
+
+------------------------------------------------------------
+--- ### csv.validateTable(t)
+--- The encode and decode functions try to parse what they can without erroring, even if the CSV is malformed, so this function serves to check for malformed CSV data.  
+--- 
+--- To check if a table returned by `csv.decode()` is fully valid, or to check if a table is fully suitable for encoding, you can pass it into this function.
+---@param t table<string|number, string[]>
+---@return boolean isValid
+function csv.validateTable(t)
+    local columnCount
+    local keyType
+    for key, column in pairs(t) do
+        columnCount = columnCount or #column
+        keyType = keyType or type(key)
+
+        if #column ~= columnCount then return false end
+        if type(key) ~= keyType then return false end -- Either numbered keys or string keys, not both
+    end
+    return true
 end
 
 return csv
