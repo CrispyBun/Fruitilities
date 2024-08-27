@@ -94,7 +94,7 @@ local function decodeLine(line, quotes, sep)
         if not commaIndex then commaIndex = #line + 1 end -- no comma, just finish the line
 
         local value = string.sub(line, searchStart, commaIndex-1)
-        local quote = value:match('^"(%d)"$')
+        local quote = value:match('"(%d)"')
         if quote then
             value = quotes[tonumber(quote)]
         end
