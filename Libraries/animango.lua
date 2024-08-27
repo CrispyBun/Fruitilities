@@ -677,4 +677,7 @@ if not love then
     animango.drawUnknownAnimationError = emptyFunction
 end
 
+animango.Sprite = Sprite       -- The definition of the `Sprite` class, mostly exposed for possible inheritance purposes
+animango.Animation = Animation -- The definition of the `Animation` class, mostly exposed for possible inheritance purposes
+
 return animango

@@ -1411,4 +1411,9 @@ if not love then
     camberry.graphics.updateCamera = emptyFunction
 end
 
+camberry.Camera = Camera           -- The definition of the `Camera` class, mostly exposed for possible inheritance purposes
+camberry.SimpleTarget = Target     -- The definition of the `SimpleTarget` class, mostly exposed for possible inheritance purposes
+camberry.RigReceiver = RigReceiver -- The definition of the `RigReceiver` class, mostly exposed for possible inheritance purposes
+camberry.Rig = Rig                 -- The definition of the `Rig` class, mostly exposed for possible inheritance purposes
+
 return camberry

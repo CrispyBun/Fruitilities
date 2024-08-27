@@ -2939,4 +2939,11 @@ end
 
 -- Fin ---------------------------------------------------------------------------------------------
 
+papayui.ElementStyle = ElementStyle       -- The definition of the `ElementStyle` class, mostly exposed for possible inheritance purposes
+papayui.ElementBehavior = ElementBehavior -- The definition of the `ElementBehavior` class, mostly exposed for possible inheritance purposes
+papayui.Element = Element                 -- The definition of the `Element` class, mostly exposed for possible inheritance purposes
+papayui.UI = UI                           -- The definition of the `UI` class, mostly exposed for possible inheritance purposes
+papayui.LiveMember = LiveMember           -- The definition of the `LiveMember` class, mostly exposed for possible inheritance purposes
+papayui.Template = Template               -- The definition of the `Template` class, mostly exposed for possible inheritance purposes
+
 return papayui
