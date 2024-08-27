@@ -207,8 +207,8 @@ function csv.encode(t, keys, sep)
             if valueType == "number" and rowIndex == 0 then value = "" end -- Dont add numbers as headers
             value = tostring(value)
 
-            value = value:gsub("\"", "\"\"")
-            if string.find(value, sep, 1, true) or string.find(value, "\n", 1, true) then
+            if string.find(value, sep, 1, true) or string.find(value, "\n", 1, true) or string.find(value, "\"", 1, true) then
+                value = value:gsub("\"", "\"\"")
                 value = "\"" .. value .. "\""
             end
 
