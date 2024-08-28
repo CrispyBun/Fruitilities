@@ -1,5 +1,8 @@
 local cocollision = {}
 
+---@diagnostic disable-next-line: deprecated
+local unpack = table.unpack or unpack
+
 -- Definitions -------------------------------------------------------------------------------------
 
 ---@alias Cocollision.ShapeType
@@ -44,6 +47,52 @@ end
 function cocollision.newRectangleShape(x, y, width, height)
     return cocollision.newShape():setShapeToRectangle(x, y, width, height)
 end
+
+--------------------------------------------------
+--- ### Shape:setPosition(x, y)
+--- Sets the shape's position.
+---@param x number
+---@param y number
+---@return Cocollision.Shape self
+function Shape:setPosition(x, y)
+    self.x = x
+    self.y = y
+    return self
+end
+
+--------------------------------------------------
+--- ### Shape:intersects(shape)
+--- ### Shape:collidesWith(shape)
+--- Checks for a collision between two shapes.  
+--- Also may return extra information about the collision as the second return value, depending on the shape types.
+---@param shape Cocollision.Shape The shape to check against
+---@return boolean intersects
+---@return table? collisionInfo
+function Shape:intersects(shape)
+    return self:intersectsAt(shape)
+end
+Shape.collidesWith = Shape.intersects
+
+--------------------------------------------------
+--- ### Shape:intersectsAt(shape, x1, y1, x2, y2)
+--- ### Shape:collisionAt(shape, x1, y1, x2, y2)
+--- Like `Shape:intersects()`, but allows for overriding the positions of the shapes.
+---@param shape Cocollision.Shape The shape to check against
+---@param x1? number The X position of the first shape
+---@param y1? number The Y position of the first shape
+---@param x2? number The X position of the second shape
+---@param y2? number The Y position of the second shape
+---@return boolean intersects
+---@return table? collisionInfo
+function Shape:intersectsAt(shape, x1, y1, x2, y2)
+    x1 = x1 or self.x
+    y1 = y1 or self.y
+    x2 = x2 or shape.x
+    y2 = y2 or shape.y
+    local func = cocollision.collisionLookup[self.shapeType][shape.shapeType]
+    return func(self.vertices, shape.vertices, x1, y1, x2, y2)
+end
+Shape.collisionAt = Shape.intersectsAt
 
 --------------------------------------------------
 --- ### Shape:removeShape()
@@ -94,6 +143,78 @@ function Shape:debugDraw(fullColor)
     return cocollision.graphics.debugDrawShape(self, fullColor)
 end
 
+-- Collision functions -----------------------------------------------------------------------------
+
+-- :-)
+local function returnFalse()
+    return false
+end
+
+--- Checks if two rectangles intersect. Note that the vertices of each rectangle are in absolute positions, not in the `x, y, width, height` format.
+---@param rectangle1 number[] The vertices of the first rectangle
+---@param rectangle2 number[] The vertices of the second rectangle
+---@param x1? number X offset for the first rectangle
+---@param y1? number Y offset for the first rectangle
+---@param x2? number X offset for the second rectangle
+---@param y2? number Y offset for the second rectangle
+---@return boolean intersected
+---@return [number, number] pushVector
+function cocollision.rectanglesIntersect(rectangle1, rectangle2, x1, y1, x2, y2)
+    -- Allow for: `x1, y1, x2, y2, x3, y3, x4, y4`
+    local ax1, ay1, ax2, ay2 = rectangle1[1], rectangle1[2], rectangle1[5], rectangle1[6]
+    local bx1, by1, bx2, by2 = rectangle2[1], rectangle2[2], rectangle2[5], rectangle2[6]
+
+    -- Allow for: `x1, y1, x2, y2`
+    ax2 = ax2 or rectangle1[3]
+    ay2 = ay2 or rectangle1[4]
+    bx2 = bx2 or rectangle2[3]
+    by2 = by2 or rectangle2[4]
+
+    -- Offset
+    x1 = x1 or 0
+    y1 = y1 or 0
+    x2 = x2 or 0
+    y2 = y2 or 0
+    ax1 = ax1 + x1
+    ay1 = ay1 + y1
+    ax2 = ax2 + x1
+    ay2 = ay2 + y1
+    bx1 = bx1 + x2
+    by1 = by1 + y2
+    bx2 = bx2 + x2
+    by2 = by2 + y2
+
+    local leftPush  = bx1 - ax2
+    local rightPush = bx2 - ax1
+    local upPush    = by1 - ay2
+    local downPush  = by2 - ay1
+
+    local noCollision = leftPush > 0 or rightPush < 0 or upPush > 0 or downPush < 0
+
+    local pushX = -leftPush < rightPush and leftPush or rightPush
+    local pushY = -upPush < downPush and upPush or downPush
+    if math.abs(pushX) < math.abs(pushY) then
+        pushY = 0
+    else
+        pushX = 0
+    end
+
+    return not noCollision, {pushX, pushY}
+end
+
+-- Contains a pair of every combination of two shapes, pointing to the appropriate collision functions
+---@type table<Cocollision.ShapeType, table<Cocollision.ShapeType, fun(shape1: number[], shape2: number[], x1?: number, y1?: number, x2?: number, y2?: number): boolean, table?>>
+cocollision.collisionLookup = {}
+local lookup = cocollision.collisionLookup
+
+lookup.none = {}
+lookup.none.none = returnFalse
+lookup.none.rectangle = returnFalse
+
+lookup.rectangle = {}
+lookup.rectangle.none = returnFalse
+lookup.rectangle.rectangle = cocollision.rectanglesIntersect
+
 -- Abstraction for possible usage outside LÖVE -----------------------------------------------------
 -- These are just for visual debugging, and arent't necessary for cocollision to work.
 
@@ -104,14 +225,19 @@ cocollision.graphics = {}
 local love = love
 
 local colorMild = {0.25, 0.5, 1, 0.25}
-local colorFull = {0.25, 0.5, 1}
+local colorFull = {0.25, 0.5, 1, 0.75}
 
 ---@param shape Cocollision.Shape
 ---@param fullColor boolean
 cocollision.graphics.debugDrawShape = function(shape, fullColor)
     local color = fullColor and colorFull or colorMild
 
-    local vertices = shape.vertices
+    local x, y = shape.x, shape.y
+    local vertices = {unpack(shape.vertices)}
+    for vertexIndex = 1, #vertices, 2 do
+        vertices[vertexIndex] = vertices[vertexIndex] + x
+        vertices[vertexIndex + 1] = vertices[vertexIndex + 1] + y
+    end
 
     local cr, cg, cb, ca = love.graphics.getColor()
 
