@@ -3,6 +3,13 @@ local cocollision = {}
 ---@diagnostic disable-next-line: deprecated
 local unpack = table.unpack or unpack
 
+-- Config stuff ------------------------------------------------------------------------------------
+
+-- If this is 0, resolving collisions with the push vector will resolve the shapes
+-- into a position where they are just barely touching.  
+-- This is just a number added to the push vector's distance to make sure the collision is fully resolved.
+cocollision.pushVectorIncrease = 1e-10
+
 -- Definitions -------------------------------------------------------------------------------------
 
 ---@alias Cocollision.ShapeType
@@ -158,7 +165,7 @@ end
 ---@param x2? number X offset for the second rectangle
 ---@param y2? number Y offset for the second rectangle
 ---@return boolean intersected
----@return [number, number] pushVector
+---@return [number, number]? pushVector
 function cocollision.rectanglesIntersect(rectangle1, rectangle2, x1, y1, x2, y2)
     -- Allow for: `x1, y1, x2, y2, x3, y3, x4, y4`
     local ax1, ay1, ax2, ay2 = rectangle1[1], rectangle1[2], rectangle1[5], rectangle1[6]
@@ -189,17 +196,22 @@ function cocollision.rectanglesIntersect(rectangle1, rectangle2, x1, y1, x2, y2)
     local upPush    = by1 - ay2
     local downPush  = by2 - ay1
 
-    local noCollision = leftPush > 0 or rightPush < 0 or upPush > 0 or downPush < 0
+    if leftPush > 0 then return false end
+    if rightPush < 0 then return false end
+    if upPush > 0 then return false end
+    if downPush < 0 then return false end
 
     local pushX = -leftPush < rightPush and leftPush or rightPush
     local pushY = -upPush < downPush and upPush or downPush
     if math.abs(pushX) < math.abs(pushY) then
+        pushX = pushX + (pushX > 0 and cocollision.pushVectorIncrease or -cocollision.pushVectorIncrease)
         pushY = 0
     else
         pushX = 0
+        pushY = pushY + (pushY > 0 and cocollision.pushVectorIncrease or -cocollision.pushVectorIncrease)
     end
 
-    return not noCollision, {pushX, pushY}
+    return true, {pushX, pushY}
 end
 
 -- Contains a pair of every combination of two shapes, pointing to the appropriate collision functions
