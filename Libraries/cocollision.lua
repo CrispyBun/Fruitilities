@@ -2,8 +2,6 @@ local cocollision = {}
 
 -- Definitions -------------------------------------------------------------------------------------
 
----@alias Cocollision.Vertex [number, number]
-
 ---@alias Cocollision.ShapeType
 ---| '"none"' # An empty shape that doesn't collide with anything
 ---| '"rectangle"' # An axis aligned rectangle
@@ -12,7 +10,7 @@ local cocollision = {}
 ---@field shapeType Cocollision.ShapeType
 ---@field x number
 ---@field y number
----@field vertices Cocollision.Vertex[]
+---@field vertices number[] A flat array of the shape's vertices (x and y are alternating)
 local Shape = {}
 local ShapeMT = {__index = Shape}
 
@@ -79,10 +77,10 @@ function Shape:setShapeToRectangle(x, y, width, height)
     self.x = x
     self.y = y
     self.vertices = {
-        {x, y},
-        {x + width, y},
-        {x + width, y + height},
-        {x, y + height}
+        x, y,
+        x + width, y,
+        x + width, y + height,
+        x, y + height,
     }
     return self
 end
@@ -114,29 +112,23 @@ cocollision.graphics.debugDrawShape = function(shape, fullColor)
     local color = fullColor and colorFull or colorMild
 
     local vertices = shape.vertices
-    local verticesFlat = {}
-    for vertexIndex = 1, #vertices do
-        local vertex = vertices[vertexIndex]
-        verticesFlat[#verticesFlat+1] = vertex[1]
-        verticesFlat[#verticesFlat+1] = vertex[2]
-    end
 
     local cr, cg, cb, ca = love.graphics.getColor()
 
-    if #verticesFlat >= 6 then
+    if #vertices >= 6 then
         love.graphics.setColor(color)
-        love.graphics.polygon("fill", verticesFlat)
+        love.graphics.polygon("fill", vertices)
     end
 
-    if #verticesFlat >= 4 then
+    if #vertices >= 4 then
         love.graphics.setColor(colorFull)
-        love.graphics.line(verticesFlat)
-        love.graphics.line(verticesFlat[#verticesFlat-1], verticesFlat[#verticesFlat], verticesFlat[1], verticesFlat[2])
+        love.graphics.line(vertices)
+        love.graphics.line(vertices[#vertices-1], vertices[#vertices], vertices[1], vertices[2])
     end
 
-    if #verticesFlat >= 2 then
+    if #vertices >= 2 then
         love.graphics.setColor(colorFull)
-        love.graphics.points(verticesFlat)
+        love.graphics.points(vertices)
     end
 
     love.graphics.setColor(cr, cg, cb, ca)
