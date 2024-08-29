@@ -21,6 +21,8 @@ cocollision.pushVectorIncrease = 1e-10
 ---@field x number The X position of the shape
 ---@field y number The Y position of the shape
 ---@field rotation number The rotation of the shape. If you change this value directly, call `Shape:refreshTransform()` to put the change into effect.
+---@field scaleX number The scale of the shape on the X axis. If you change this value directly, call `Shape:refreshTransform()` to put the change into effect.
+---@field scaleY number The scale of the shape on the Y axis. If you change this value directly, call `Shape:refreshTransform()` to put the change into effect.
 ---@field originX number The X coordinate of the origin to transform the shape around. If you change this value directly, call `Shape:refreshTransform()` to put the change into effect.
 ---@field originY number The Y coordinate of the origin to transform the shape around. If you change this value directly, call `Shape:refreshTransform()` to put the change into effect.
 ---@field translateX number The amount to translate the shape on the X axis. Unlike the X position, this is actually baked into the shape's transform. If you change this value directly, call `Shape:refreshTransform()` to put the change into effect.
@@ -41,7 +43,7 @@ local ShapeMT = {__index = Shape}
 ---@param translateY number The amount to translate the vertices on the Y axis
 ---@param originX number The X coordinate of the origin
 ---@param originY number The Y coordinate of the origin
-function cocollision.transformVertices(vertices, translateX, translateY, rotation, originX, originY)
+function cocollision.transformVertices(vertices, translateX, translateY, rotation, scaleX, scaleY, originX, originY)
     for vertexIndex = 1, #vertices, 2 do
         local x = vertices[vertexIndex]
         local y = vertices[vertexIndex + 1]
@@ -57,6 +59,9 @@ function cocollision.transformVertices(vertices, translateX, translateY, rotatio
             x = xRotated
             y = yRotated
         end
+
+        x = x * scaleX
+        y = y * scaleY
 
         x = x + translateX
         y = y + translateY
@@ -117,6 +122,8 @@ function cocollision.newShape()
         x = 0,
         y = 0,
         rotation = 0,
+        scaleX = 1,
+        scaleY = 1,
         originX = 0,
         originY = 0,
         translateX = 0,
@@ -199,6 +206,7 @@ Shape.collisionAt = Shape.intersectsAt
 function Shape:removeShape()
     self.shapeType = "none"
     self.vertices = {}
+    self:refreshTransform()
     return self
 end
 
@@ -260,6 +268,19 @@ function Shape:setRotation(r)
 end
 
 --------------------------------------------------
+--- ### Shape:setScale(sx, sy)
+--- Sets the shape's scale. If `sy` is not supplied, sets both axes to the first argument.
+---@param sx number
+---@param sy? number
+---@return Cocollision.Shape self
+function Shape:setScale(sx, sy)
+    self.scaleX = sx
+    self.scaleY = sy or sx
+    self:refreshTransform()
+    return self
+end
+
+--------------------------------------------------
 --- ### Shape:setTranslate(x, y)
 --- Sets the shape's translate.
 ---@param x number
@@ -309,7 +330,7 @@ function Shape:getTransformedVertices()
         local rotation = self.rotation
         if self.shapeType == "rectangle" and not self.doRectangularRotation then rotation = 0 end
 
-        cocollision.transformVertices(transformedVertices, self.translateX, self.translateY, rotation, self.originX, self.originY)
+        cocollision.transformVertices(transformedVertices, self.translateX, self.translateY, rotation, self.scaleX, self.scaleY, self.originX, self.originY)
         if self.shapeType == "rectangle" and rotation ~= 0 then cocollision.generateBoundingBox(transformedVertices, transformedVertices) end
 
         self.transformedVertices = transformedVertices
