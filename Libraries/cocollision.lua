@@ -25,6 +25,7 @@ cocollision.pushVectorIncrease = 1e-10
 ---@field originY number The Y coordinate of the origin to transform the shape around. If you change this value directly, call `Shape:refreshTransform()` to put the change into effect.
 ---@field translateX number The amount to translate the shape on the X axis. Unlike the X position, this is actually baked into the shape's transform. If you change this value directly, call `Shape:refreshTransform()` to put the change into effect.
 ---@field translateY number The amount to translate the shape on the Y axis. Unlike the Y position, this is actually baked into the shape's transform. If you change this value directly, call `Shape:refreshTransform()` to put the change into effect.
+---@field doRectangularRotation boolean By default, `rectangle` shape types do not rotate. If this is true, this shape will rotate even if its type is `rectangle`.
 ---@field vertices number[] A flat array of the shape's vertices (x and y are alternating)
 ---@field transformedVertices number[] The shape's vertices after being transformed (set automatically). This table may be empty or incorrect if indexed directly, to ensure you get the updated vertices, use `Shape:getTransformedVertices()`.
 local Shape = {}
@@ -120,6 +121,7 @@ function cocollision.newShape()
         originY = 0,
         translateX = 0,
         translateY = 0,
+        doRectangularRotation = false,
         vertices = {},
         transformedVertices = {},
     }
@@ -269,6 +271,17 @@ function Shape:setTranslate(x, y)
 end
 
 --------------------------------------------------
+--- ### Shape:setRectangularRotation(doRectangularRotation)
+--- Sets whether the shape should rotate if its type is a rectangle. This is false by default.
+---@param doRectangularRotation boolean
+---@return Cocollision.Shape self
+function Shape:setRectangularRotation(doRectangularRotation)
+    self.doRectangularRotation = doRectangularRotation
+    self:refreshTransform()
+    return self
+end
+
+--------------------------------------------------
 --- ### Shape:refreshTransform()
 --- Refreshes the transformed vertices to update any changes to the transform that have been made. This is called automatically if the transform is changed using setters.
 function Shape:refreshTransform()
@@ -291,8 +304,11 @@ function Shape:getTransformedVertices()
             transformedVertices[vertexIndex] = vertices[vertexIndex]
         end
 
-        cocollision.transformVertices(transformedVertices, self.translateX, self.translateY, self.rotation, self.originX, self.originY)
-        if self.shapeType == "rectangle" and self.rotation ~= 0 then cocollision.generateBoundingBox(transformedVertices, transformedVertices) end
+        local rotation = self.rotation
+        if self.shapeType == "rectangle" and not self.doRectangularRotation then rotation = 0 end
+
+        cocollision.transformVertices(transformedVertices, self.translateX, self.translateY, rotation, self.originX, self.originY)
+        if self.shapeType == "rectangle" and rotation ~= 0 then cocollision.generateBoundingBox(transformedVertices, transformedVertices) end
 
         self.transformedVertices = transformedVertices
     end
