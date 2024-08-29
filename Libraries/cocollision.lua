@@ -18,11 +18,40 @@ cocollision.pushVectorIncrease = 1e-10
 
 ---@class Cocollision.Shape
 ---@field shapeType Cocollision.ShapeType
----@field x number
----@field y number
+---@field x number The X position of the shape
+---@field y number The Y position of the shape
+---@field originX number The X coordinate of the origin to transform the shape around. If you change this value directly, call `Shape:refreshTransform()` to put the change into effect.
+---@field originY number The Y coordinate of the origin to transform the shape around. If you change this value directly, call `Shape:refreshTransform()` to put the change into effect.
 ---@field vertices number[] A flat array of the shape's vertices (x and y are alternating)
+---@field transformedVertices number[] The shape's vertices after being transformed (set automatically). This table may be empty or incorrect if indexed directly, to ensure you get the updated vertices, use `Shape:getTransformedVertices()`.
 local Shape = {}
 local ShapeMT = {__index = Shape}
+
+-- Misc functions ----------------------------------------------------------------------------------
+
+--------------------------------------------------
+--- ### cocollision.transformVertices(vertices, translateX, translateY, originX, originY)
+--- Transforms the given vertices in place.
+---@param vertices number[] A flat array of the vertices to transform (with alternating x and y values)
+---@param translateX number The amount to translate the vertices on the X axis
+---@param translateY number The amount to translate the vertices on the Y axis
+---@param originX number The X coordinate of the origin
+---@param originY number The Y coordinate of the origin
+function cocollision.transformVertices(vertices, translateX, translateY, originX, originY)
+    for vertexIndex = 1, #vertices, 2 do
+        local x = vertices[vertexIndex]
+        local y = vertices[vertexIndex + 1]
+
+        x = x - originX
+        y = y - originY
+
+        x = x + translateX
+        y = y + translateY
+
+        vertices[vertexIndex] = x
+        vertices[vertexIndex + 1] = y
+    end
+end
 
 -- Shapes ------------------------------------------------------------------------------------------
 
@@ -36,7 +65,10 @@ function cocollision.newShape()
         shapeType = "none",
         x = 0,
         y = 0,
-        vertices = {}
+        originX = 0,
+        originY = 0,
+        vertices = {},
+        transformedVertices = {},
     }
     return setmetatable(shape, ShapeMT)
 end
@@ -96,8 +128,12 @@ function Shape:intersectsAt(shape, x1, y1, x2, y2)
     y1 = y1 or self.y
     x2 = x2 or shape.x
     y2 = y2 or shape.y
+
+    local selfVertices = self:getTransformedVertices()
+    local shapeVertices = shape:getTransformedVertices()
+
     local func = cocollision.collisionLookup[self.shapeType][shape.shapeType]
-    return func(self.vertices, shape.vertices, x1, y1, x2, y2)
+    return func(selfVertices, shapeVertices, x1, y1, x2, y2)
 end
 Shape.collisionAt = Shape.intersectsAt
 
@@ -141,6 +177,48 @@ function Shape:setShapeToRectangle(x, y, width, height)
     return self
 end
 Shape.setShapeToAABB = Shape.setShapeToRectangle
+
+--------------------------------------------------
+--- ### Shape:setOrigin(x, y)
+--- Sets the origin of the shape.
+---@param x number
+---@param y number
+---@return Cocollision.Shape self
+function Shape:setOrigin(x, y)
+    self.originX = x
+    self.originY = y
+    self:refreshTransform()
+    return self
+end
+
+--------------------------------------------------
+--- ### Shape:refreshTransform()
+--- Refreshes the transformed vertices to update any changes to the transform that have been made. This is called automatically if the transform is changed using setters.
+function Shape:refreshTransform()
+    local transformedVertices = self.transformedVertices
+    for vertexIndex = 1, #transformedVertices do
+        transformedVertices[vertexIndex] = nil
+    end
+end
+
+--------------------------------------------------
+--- ### Shape:getTransformedVertices()
+--- Returns the shape's vertices after being transformed.
+---@return number[] transformedVertices
+function Shape:getTransformedVertices()
+    local transformedVertices = self.transformedVertices
+
+    if #transformedVertices == 0 then
+        local vertices = self.vertices
+        for vertexIndex = 1, #vertices do
+            transformedVertices[vertexIndex] = vertices[vertexIndex]
+        end
+        cocollision.transformVertices(transformedVertices, 0, 0, self.originX, self.originY)
+        self.transformedVertices = transformedVertices
+    end
+
+    return transformedVertices
+end
 
 --------------------------------------------------
 --- ### Shape:debugDraw(fullColor)
@@ -245,7 +323,7 @@ cocollision.graphics.debugDrawShape = function(shape, fullColor)
     local color = fullColor and colorFull or colorMild
 
     local x, y = shape.x, shape.y
-    local vertices = {unpack(shape.vertices)}
+    local vertices = {unpack(shape:getTransformedVertices())}
     for vertexIndex = 1, #vertices, 2 do
         vertices[vertexIndex] = vertices[vertexIndex] + x
         vertices[vertexIndex + 1] = vertices[vertexIndex + 1] + y
