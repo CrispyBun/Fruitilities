@@ -26,7 +26,7 @@ cocollision.pushVectorIncrease = 1e-10
 ---@field translateX number The amount to translate the shape on the X axis. Unlike the X position, this is actually baked into the shape's transform. If you change this value directly, call `Shape:refreshTransform()` to put the change into effect.
 ---@field translateY number The amount to translate the shape on the Y axis. Unlike the Y position, this is actually baked into the shape's transform. If you change this value directly, call `Shape:refreshTransform()` to put the change into effect.
 ---@field doRectangularRotation boolean By default, `rectangle` shape types do not rotate. If this is true, this shape will rotate even if its type is `rectangle`.
----@field vertices number[] A flat array of the shape's vertices (x and y are alternating)
+---@field vertices number[] A flat array of the shape's vertices (x and y are alternating). You may change these directly, but `Shape:refreshTransform()` should be called afterwards to put the change into effect.
 ---@field transformedVertices number[] The shape's vertices after being transformed (set automatically). This table may be empty or incorrect if indexed directly, to ensure you get the updated vertices, use `Shape:getTransformedVertices()`.
 local Shape = {}
 local ShapeMT = {__index = Shape}
@@ -229,6 +229,8 @@ function Shape:setShapeToRectangle(x, y, width, height)
         x + width, y + height,
         x, y + height,
     }
+
+    self:refreshTransform()
     return self
 end
 Shape.setShapeToAABB = Shape.setShapeToRectangle
