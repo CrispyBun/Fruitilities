@@ -22,6 +22,8 @@ cocollision.pushVectorIncrease = 1e-10
 ---@field y number The Y position of the shape
 ---@field originX number The X coordinate of the origin to transform the shape around. If you change this value directly, call `Shape:refreshTransform()` to put the change into effect.
 ---@field originY number The Y coordinate of the origin to transform the shape around. If you change this value directly, call `Shape:refreshTransform()` to put the change into effect.
+---@field translateX number The amount to translate the shape on the X axis. Unlike the X position, this is actually baked into the shape's transform. If you change this value directly, call `Shape:refreshTransform()` to put the change into effect.
+---@field translateY number The amount to translate the shape on the Y axis. Unlike the Y position, this is actually baked into the shape's transform. If you change this value directly, call `Shape:refreshTransform()` to put the change into effect.
 ---@field vertices number[] A flat array of the shape's vertices (x and y are alternating)
 ---@field transformedVertices number[] The shape's vertices after being transformed (set automatically). This table may be empty or incorrect if indexed directly, to ensure you get the updated vertices, use `Shape:getTransformedVertices()`.
 local Shape = {}
@@ -67,6 +69,8 @@ function cocollision.newShape()
         y = 0,
         originX = 0,
         originY = 0,
+        translateX = 0,
+        translateY = 0,
         vertices = {},
         transformedVertices = {},
     }
@@ -192,6 +196,19 @@ function Shape:setOrigin(x, y)
 end
 
 --------------------------------------------------
+--- ### Shape:setTranslate(x, y)
+--- Sets the shape translate.
+---@param x number
+---@param y number
+---@return Cocollision.Shape self
+function Shape:setTranslate(x, y)
+    self.translateX = x
+    self.translateY = y
+    self:refreshTransform()
+    return self
+end
+
+--------------------------------------------------
 --- ### Shape:refreshTransform()
 --- Refreshes the transformed vertices to update any changes to the transform that have been made. This is called automatically if the transform is changed using setters.
 function Shape:refreshTransform()
@@ -213,7 +230,7 @@ function Shape:getTransformedVertices()
         for vertexIndex = 1, #vertices do
             transformedVertices[vertexIndex] = vertices[vertexIndex]
         end
-        cocollision.transformVertices(transformedVertices, 0, 0, self.originX, self.originY)
+        cocollision.transformVertices(transformedVertices, self.translateX, self.translateY, self.originX, self.originY)
         self.transformedVertices = transformedVertices
     end
 
