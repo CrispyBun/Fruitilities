@@ -454,6 +454,116 @@ function cocollision.rectanglesIntersect(rectangle1, rectangle2, x1, y1, x2, y2)
     return true, {pushX, pushY}
 end
 
+-- http://programmerart.weebly.com/separating-axis-theorem.html
+-- https://hackmd.io/@US4ofdv7Sq2GRdxti381_A/ryFmIZrsl?type=view
+
+--- Checks if two (convex) polygons intersect.
+---@param polygon1 number[] The vertices of the first polygon
+---@param polygon2 number[] The vertices of the second polygon
+---@param x1? number X offset for the first polygon
+---@param y1? number Y offset for the first polygon
+---@param x2? number X offset for the second polygon
+---@param y2? number Y offset for the second polygon
+---@return boolean intersected
+---@return [number, number]? pushVector
+function cocollision.polygonsIntersect(polygon1, polygon2, x1, y1, x2, y2)
+    local pushVectorX, pushVectorY
+    local pushVectorMinDistanceSquared = math.huge
+
+    -- Center calculated for determining push vector's direction (if needed)
+    local polygon1CenterX, polygon1CenterY = 0, 0
+    local polygon2CenterX, polygon2CenterY = 0, 0
+
+    -- Do all the following for both polygons (or more precisely, for each possible separating axis)
+    for loopIndex = 1, 2 do
+        if loopIndex == 2 then
+            polygon1, polygon2 = polygon2, polygon1
+            polygon1CenterX, polygon2CenterX = polygon2CenterX, polygon1CenterX
+            polygon1CenterY, polygon2CenterY = polygon2CenterY, polygon1CenterY
+            x1, y1, x2, y2 = x2, y2, x1, y1
+        end
+
+        for vertexIndex = 1, #polygon1, 2 do
+            local edgeX1 = polygon1[vertexIndex]
+            local edgeY1 = polygon1[vertexIndex + 1]
+            local edgeX2 = polygon1[vertexIndex + 2] or polygon1[1]
+            local edgeY2 = polygon1[vertexIndex + 3] or polygon1[2]
+
+            polygon1CenterX = polygon1CenterX + x1 + edgeX1
+            polygon1CenterY = polygon1CenterY + y1 + edgeY1
+
+            local edgeX = edgeX2 - edgeX1
+            local edgeY = edgeY2 - edgeY1
+
+            local perpendicularX = -edgeY
+            local perpendicularY = edgeX
+
+            -- Bounds of the projections onto the perpendicular vector
+            local min1, max1 = math.huge, -math.huge
+            local min2, max2 = math.huge, -math.huge
+
+            for projectedVertexIndex1 = 1, #polygon1, 2 do
+                local x = polygon1[projectedVertexIndex1] + x1
+                local y = polygon1[projectedVertexIndex1 + 1] + y1
+
+                local projection1 = x * perpendicularX + y * perpendicularY -- dot
+                min1 = math.min(min1, projection1)
+                max1 = math.max(max1, projection1)
+            end
+            for projectedVertexIndex2 = 1, #polygon2, 2 do
+                local x = polygon2[projectedVertexIndex2] + x2
+                local y = polygon2[projectedVertexIndex2 + 1] + y2
+
+                local projection2 = x * perpendicularX + y * perpendicularY -- dot
+                min2 = math.min(min2, projection2)
+                max2 = math.max(max2, projection2)
+            end
+
+            if max1 < min2 or min1 > max2 then
+                -- Separating axis found
+                return false
+            end
+
+            -- Collison not ruled out yet, calculate push vector for this edge
+
+            local pushDistance = math.min(max2 - min1, max1 - min2)
+
+            local distanceNormaliser = pushDistance / (perpendicularX * perpendicularX + perpendicularY * perpendicularY)
+            local testPushVectorX = perpendicularX * distanceNormaliser
+            local testPushVectorY = perpendicularY * distanceNormaliser
+
+            -- Technically the wrong way to do the pushVectorIncrease (adds it to both axes) but no one's gonna know
+            testPushVectorX = testPushVectorX + (testPushVectorX > 0 and cocollision.pushVectorIncrease or testPushVectorX < 0 and -cocollision.pushVectorIncrease or 0)
+            testPushVectorY = testPushVectorY + (testPushVectorY > 0 and cocollision.pushVectorIncrease or testPushVectorY < 0 and -cocollision.pushVectorIncrease or 0)
+
+            pushDistance = testPushVectorX * testPushVectorX + testPushVectorY * testPushVectorY
+
+            if pushDistance < pushVectorMinDistanceSquared then
+                pushVectorMinDistanceSquared = pushDistance
+                pushVectorX = testPushVectorX
+                pushVectorY = testPushVectorY
+            end
+        end
+    end
+
+    -- If we made it here, there was a collision
+
+    -- Make sure the push vector is pointing in the right direction
+    polygon1CenterX = polygon1CenterX / (#polygon1 / 2)
+    polygon1CenterY = polygon1CenterY / (#polygon1 / 2)
+    polygon2CenterX = polygon2CenterX / (#polygon2 / 2)
+    polygon2CenterY = polygon2CenterY / (#polygon2 / 2)
+    local centerDifferenceX = polygon1CenterX - polygon2CenterX -- first minus second because they're actually swapped - polygon1Center becomes the center of polygon2. :p
+    local centerDifferenceY = polygon1CenterY - polygon2CenterY
+    local projection = pushVectorX * centerDifferenceX + pushVectorY * centerDifferenceY
+    if projection > 0 then
+        pushVectorX = -pushVectorX
+        pushVectorY = -pushVectorY
+    end
+
+    return true, {pushVectorX, pushVectorY}
+end
+
 -- Contains a pair of every combination of two shapes, pointing to the appropriate collision functions
 ---@type table<Cocollision.ShapeType, table<Cocollision.ShapeType, fun(shape1: number[], shape2: number[], x1?: number, y1?: number, x2?: number, y2?: number): boolean, table?>>
 cocollision.collisionLookup = {}
@@ -467,12 +577,12 @@ lookup.none.polygon = returnFalse
 lookup.rectangle = {}
 lookup.rectangle.none = returnFalse
 lookup.rectangle.rectangle = cocollision.rectanglesIntersect
-lookup.rectangle.polygon = returnFalse -- todo
+lookup.rectangle.polygon = cocollision.polygonsIntersect
 
 lookup.polygon = {}
 lookup.polygon.none = returnFalse
-lookup.polygon.rectangle = returnFalse -- todo
-lookup.polygon.polygon = returnFalse -- todo
+lookup.polygon.rectangle = cocollision.polygonsIntersect
+lookup.polygon.polygon = cocollision.polygonsIntersect
 
 -- Abstraction for possible usage outside LÖVE -----------------------------------------------------
 -- These are just for visual debugging, and arent't necessary for cocollision to work.
