@@ -191,11 +191,14 @@ function Shape:intersectsAt(shape, x1, y1, x2, y2)
     x2 = x2 or shape.x
     y2 = y2 or shape.y
 
-    local selfVertices = self:getTransformedVertices()
-    local shapeVertices = shape:getTransformedVertices()
+    local selfVertices = self.transformedVertices
+    if #selfVertices == 0 then selfVertices = self:getTransformedVertices() end
 
-    local func = cocollision.collisionLookup[self.shapeType][shape.shapeType]
-    return func(selfVertices, shapeVertices, x1, y1, x2, y2)
+    local shapeVertices = shape.transformedVertices
+    if #shapeVertices == 0 then shapeVertices = shape:getTransformedVertices() end
+
+    local collisionFunction = cocollision.collisionLookup[self.shapeType][shape.shapeType]
+    return collisionFunction(selfVertices, shapeVertices, x1, y1, x2, y2)
 end
 Shape.collisionAt = Shape.intersectsAt
 
