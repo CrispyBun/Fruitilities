@@ -15,6 +15,7 @@ cocollision.pushVectorIncrease = 1e-10
 ---@alias Cocollision.ShapeType
 ---| '"none"' # An empty shape that doesn't collide with anything
 ---| '"rectangle"' # An axis aligned rectangle
+---| '"polygon"' # A convex polygon
 
 ---@class Cocollision.Shape
 ---@field shapeType Cocollision.ShapeType
@@ -138,7 +139,8 @@ end
 --------------------------------------------------
 --- ### cocollision.newRectangleShape(x, y, width, height)
 --- ### cocollision.newRectangleShape(width, height)
---- Creates a new axis aligned rectangle shape.
+--- Creates a new axis aligned rectangle shape.  
+--- Rectangles output a push vector as the second argument in collisions with other rectangles or polygons.
 ---@param x number
 ---@param y number
 ---@param width number
@@ -147,6 +149,18 @@ end
 ---@overload fun(width: number, height: number): Cocollision.Shape
 function cocollision.newRectangleShape(x, y, width, height)
     return cocollision.newShape():setShapeToRectangle(x, y, width, height)
+end
+
+--------------------------------------------------
+--- ### cocollision.newPolygonShape(...)
+--- ### cocollision.newPolygonShape(vertices)
+--- Creates a new convex polygon shape. The vertices may be supplied as alternating X and Y coordinates in either a single flat array or a vararg.  
+--- Polygons output a push vector as the second argument in collisions with other rectangles or polygons.
+---@param ... number
+---@return Cocollision.Shape
+---@overload fun(vertices: number[]): Cocollision.Shape
+function cocollision.newPolygonShape(...)
+    return cocollision.newShape():setShapeToPolygon(...)
 end
 
 --------------------------------------------------
@@ -216,7 +230,8 @@ end
 --------------------------------------------------
 --- ### Shape:setShapeToRectangle(x, y, width, height)
 --- ### Shape:setShapeToRectangle(width, height)
---- Sets the shape to be an axis aligned rectangle.
+--- Sets the shape to be an axis aligned rectangle.  
+--- Rectangles output a push vector as the second argument in collisions with other rectangles or polygons.
 ---@param x number
 ---@param y number
 ---@param width number
@@ -232,8 +247,6 @@ function Shape:setShapeToRectangle(x, y, width, height)
     end
 
     self.shapeType = "rectangle"
-    self.x = x
-    self.y = y
     self.vertices = {
         x, y,
         x + width, y,
@@ -245,6 +258,33 @@ function Shape:setShapeToRectangle(x, y, width, height)
     return self
 end
 Shape.setShapeToAABB = Shape.setShapeToRectangle
+
+--------------------------------------------------
+--- ### Shape:setShapeToPolygon(...)
+--- ### Shape:setShapeToPolygon(vertices)
+--- Sets the shape to be a convex polygon. The vertices may be supplied as alternating X and Y coordinates in either a single flat array or a vararg.  
+--- Polygons output a push vector as the second argument in collisions with other rectangles or polygons.
+---@param ... number
+---@return Cocollision.Shape self
+---@overload fun(self: Cocollision.Shape, vertices: number[]): Cocollision.Shape
+function Shape:setShapeToPolygon(...)
+    local vertices
+
+    if select("#", ...) == 0 then
+        vertices = {}
+    elseif type(...) == "table" then
+        ---@diagnostic disable-next-line: param-type-mismatch
+        vertices = {unpack((...))}
+    else
+        vertices = {...}
+    end
+
+    self.shapeType = "polygon"
+    self.vertices = vertices
+
+    self:refreshTransform()
+    return self
+end
 
 --------------------------------------------------
 --- ### Shape:setOrigin(x, y)
@@ -422,10 +462,17 @@ local lookup = cocollision.collisionLookup
 lookup.none = {}
 lookup.none.none = returnFalse
 lookup.none.rectangle = returnFalse
+lookup.none.polygon = returnFalse
 
 lookup.rectangle = {}
 lookup.rectangle.none = returnFalse
 lookup.rectangle.rectangle = cocollision.rectanglesIntersect
+lookup.rectangle.polygon = returnFalse -- todo
+
+lookup.polygon = {}
+lookup.polygon.none = returnFalse
+lookup.polygon.rectangle = returnFalse -- todo
+lookup.polygon.polygon = returnFalse -- todo
 
 -- Abstraction for possible usage outside LÖVE -----------------------------------------------------
 -- These are just for visual debugging, and arent't necessary for cocollision to work.
