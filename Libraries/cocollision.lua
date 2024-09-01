@@ -346,6 +346,93 @@ function Shape:setShapeToPolygon(...)
 end
 
 --------------------------------------------------
+--- ### Shape:getVertexCount()
+--- Returns the amount of vertices in the shape.
+---@return number
+function Shape:getVertexCount()
+    return #self.vertices / 2
+end
+
+--------------------------------------------------
+--- ### Shape:getVertex(n)
+--- Returns the nth vertex of the shape.
+---@param n integer
+---@return number x
+---@return number y
+function Shape:getVertex(n)
+    local vertices = self.vertices
+    return vertices[n * 2 - 1], vertices[n * 2]
+end
+
+--------------------------------------------------
+--- ### Shape:setVertex(n, x, y)
+--- Sets the nth vertex of the shape to a new position.
+---@param n integer
+---@param x number
+---@param y number
+---@return Cocollision.Shape self
+function Shape:setVertex(n, x, y)
+    local vertices = self.vertices
+    vertices[n * 2 - 1] = x
+    vertices[n * 2] = y
+    self:refreshTransform()
+    return self
+end
+
+--------------------------------------------------
+--- ### Shape:removeVertex(n)
+--- Removes the nth vertex of the shape.
+---@param n integer
+---@return Cocollision.Shape self
+function Shape:removeVertex(n)
+    local vertices = self.vertices
+    table.remove(vertices, n * 2 - 1)
+    table.remove(vertices, n * 2 - 1)
+    self:refreshTransform()
+    return self
+end
+
+--------------------------------------------------
+--- ### Shape:addVertex(x, y)
+--- Appends a new vertex to the shape (after the last vertex).
+---@param x number
+---@param y number
+---@return Cocollision.Shape self
+function Shape:addVertex(x, y)
+    local vertices = self.vertices
+    vertices[#vertices + 1] = x
+    vertices[#vertices + 1] = y
+    self:refreshTransform()
+    return self
+end
+
+--------------------------------------------------
+--- ### Shape:insertVertex(n, x, y)
+--- Inserts a new vertex into the shape before the nth vertex.
+---@param n integer
+---@param x number
+---@param y number
+---@return Cocollision.Shape self
+function Shape:insertVertex(n, x, y)
+    local vertices = self.vertices
+    table.insert(vertices, n * 2 - 1, x)
+    table.insert(vertices, n * 2, y)
+    self:refreshTransform()
+    return self
+end
+
+--------------------------------------------------
+--- ### Shape:getVertexWorldPosition(n)
+--- Returns the actual position (post transform and movement) of the nth vertex of the shape.
+---@param n integer
+---@return number x
+---@return number y
+function Shape:getVertexWorldPosition(n)
+    local verties = self:getTransformedVertices()
+    return self.x + verties[n * 2 - 1], self.y + verties[n * 2]
+end
+
+--------------------------------------------------
 --- ### Shape:setOrigin(x, y)
 --- Sets the origin of the shape.
 ---@param x number
