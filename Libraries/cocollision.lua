@@ -10,6 +10,13 @@ local unpack = table.unpack or unpack
 -- This is just a number added to the push vector's distance to make sure the collision is fully resolved.
 cocollision.pushVectorIncrease = 1e-10
 
+-- Shapes for which a bounding box is not calculated or checked.  
+-- There's likely no reason for you to change this table, unless you're adding your own shape types.
+cocollision.boundlessShapes = {
+    none = true,
+    rectangle = true
+}
+
 -- Definitions -------------------------------------------------------------------------------------
 
 ---@alias Cocollision.ShapeType
@@ -31,6 +38,7 @@ cocollision.pushVectorIncrease = 1e-10
 ---@field doRectangularRotation boolean By default, `rectangle` shape types do not rotate. If this is true, this shape will rotate even if its type is `rectangle`.
 ---@field vertices number[] A flat array of the shape's vertices (x and y are alternating). You may change these directly, but `Shape:refreshTransform()` should be called afterwards to put the change into effect.
 ---@field transformedVertices number[] The shape's vertices after being transformed (set automatically). This table may be empty or incorrect if indexed directly, to ensure you get the updated vertices, use `Shape:getTransformedVertices()`.
+---@field boundingBox number[] The transformed vertices' bounding box (set automatically). This table may be empty or incorrect if indexed directly, to ensure you get the updated bounding box, use `Shape:getBoundingBox()`. For consistency with other vertices in the library, the bounding box contains all four corners, not just two.
 local Shape = {}
 local ShapeMT = {__index = Shape}
 
@@ -74,7 +82,7 @@ end
 
 --------------------------------------------------
 --- ### cocollision.generateBoundingBox(vertices)
---- Generates and returns a bounding box from a set of vertices.  
+--- Generates and returns a bounding box from a set of vertices. The outputted table contains all four vertices of the bounding box, not just the two corners.  
 --- You can also supply a table as the second argument to have it receive the bounding box, instead of a new table being created.
 ---@param vertices number[]
 ---@param _receivingTable? table
@@ -94,6 +102,7 @@ function cocollision.generateBoundingBox(vertices, _receivingTable)
     for vertexIndex = 1, #_receivingTable do
         _receivingTable[vertexIndex] = nil
     end
+    if #vertices == 0 then return _receivingTable end
 
     _receivingTable[1] = minX
     _receivingTable[2] = minY
@@ -108,6 +117,48 @@ function cocollision.generateBoundingBox(vertices, _receivingTable)
     _receivingTable[8] = maxY
 
     return _receivingTable
+end
+
+--------------------------------------------------
+--- ### cocollision.boundsIntersect(bbox1, bbox2)
+--- Checks if two bounding boxes intersect.
+---@param bbox1 number[]
+---@param bbox2 number[]
+---@param x1? number
+---@param y1? number
+---@param x2? number
+---@param y2? number
+---@return boolean
+function cocollision.boundsIntersect(bbox1, bbox2, x1, y1, x2, y2)
+    -- Allow for: `x1, y1, x2, y2, x3, y3, x4, y4`
+    local ax1, ay1, ax2, ay2 = bbox1[1], bbox1[2], bbox1[5], bbox1[6]
+    local bx1, by1, bx2, by2 = bbox2[1], bbox2[2], bbox2[5], bbox2[6]
+
+    -- Allow for: `x1, y1, x2, y2`
+    ax2 = ax2 or bbox1[3]
+    ay2 = ay2 or bbox1[4]
+    bx2 = bx2 or bbox2[3]
+    by2 = by2 or bbox2[4]
+
+    -- Offset
+    x1 = x1 or 0
+    y1 = y1 or 0
+    x2 = x2 or 0
+    y2 = y2 or 0
+    ax1 = ax1 + x1
+    ay1 = ay1 + y1
+    ax2 = ax2 + x1
+    ay2 = ay2 + y1
+    bx1 = bx1 + x2
+    by1 = by1 + y2
+    bx2 = bx2 + x2
+    by2 = by2 + y2
+
+    if ax1 > bx2 then return false end
+    if ax2 < bx1 then return false end
+    if ay1 > by2 then return false end
+    if ay2 < by1 then return false end
+    return true
 end
 
 -- Shapes ------------------------------------------------------------------------------------------
@@ -132,6 +183,7 @@ function cocollision.newShape()
         doRectangularRotation = false,
         vertices = {},
         transformedVertices = {},
+        boundingBox = {},
     }
     return setmetatable(shape, ShapeMT)
 end
@@ -205,14 +257,21 @@ function Shape:intersectsAt(shape, x1, y1, x2, y2)
     x2 = x2 or shape.x
     y2 = y2 or shape.y
 
-    local selfVertices = self.transformedVertices
-    if #selfVertices == 0 then selfVertices = self:getTransformedVertices() end
+    local selfVertices = self:getTransformedVertices()
+    local otherVertices = shape:getTransformedVertices()
 
-    local shapeVertices = shape.transformedVertices
-    if #shapeVertices == 0 then shapeVertices = shape:getTransformedVertices() end
+    local selfShapeType = self.shapeType
+    local otherShapeType = shape.shapeType
 
-    local collisionFunction = cocollision.collisionLookup[self.shapeType][shape.shapeType]
-    return collisionFunction(selfVertices, shapeVertices, x1, y1, x2, y2)
+    local checkBounds = not (cocollision.boundlessShapes[selfShapeType] or cocollision.boundlessShapes[otherShapeType])
+    if checkBounds then
+        local selfBounds = self:getBoundingBox()
+        local otherBounds = shape:getBoundingBox()
+        if not cocollision.boundsIntersect(selfBounds, otherBounds, x1, y1, x2, y2) then return false end
+    end
+
+    local collisionFunction = cocollision.collisionLookup[selfShapeType][otherShapeType]
+    return collisionFunction(selfVertices, otherVertices, x1, y1, x2, y2)
 end
 Shape.collisionAt = Shape.intersectsAt
 
@@ -352,8 +411,12 @@ end
 --- Refreshes the transformed vertices to update any changes to the transform that have been made. This is called automatically if the transform is changed using setters.
 function Shape:refreshTransform()
     local transformedVertices = self.transformedVertices
+    local boundingBox = self.boundingBox
     for vertexIndex = 1, #transformedVertices do
         transformedVertices[vertexIndex] = nil
+    end
+    for vertexIndex = 1, #boundingBox do
+        boundingBox[vertexIndex] = nil
     end
 end
 
@@ -380,6 +443,19 @@ function Shape:getTransformedVertices()
     end
 
     return transformedVertices
+end
+
+--------------------------------------------------
+--- ### Shape:getBoundingBox()
+--- Returns the shape's (post-transform) bounding box. It does not take into account the position of the shape.
+function Shape:getBoundingBox()
+    local bbox = self.boundingBox
+    if #bbox == 0 then
+        local transformedVertices = self:getTransformedVertices()
+        cocollision.generateBoundingBox(transformedVertices, bbox)
+        self.boundingBox = bbox
+    end
+    return bbox
 end
 
 --------------------------------------------------
