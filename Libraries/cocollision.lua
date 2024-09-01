@@ -14,6 +14,8 @@ cocollision.pushVectorIncrease = 1e-10
 -- There's likely no reason for you to change this table, unless you're adding your own shape types.
 cocollision.boundlessShapes = {
     none = true,
+    ray = true,
+    line = true,
     rectangle = true
 }
 
@@ -22,6 +24,8 @@ cocollision.boundlessShapes = {
 ---@alias Cocollision.ShapeType
 ---| '"none"' # An empty shape that doesn't collide with anything
 ---| '"edge"' # A line segment
+---| '"ray"' # A ray (half-line)
+---| '"line"' # An infinite line
 ---| '"rectangle"' # An axis aligned rectangle
 ---| '"polygon"' # A convex polygon
 
@@ -239,6 +243,36 @@ end
 function cocollision.newEdgeShape(x1, y1, x2, y2)
     return cocollision.newShape():setShapeToEdge(x1, y1, x2, y2)
 end
+cocollision.newSegmentShape = cocollision.newEdgeShape
+
+--------------------------------------------------
+--- ### cocollision.newRayShape(x1, y1, x2, y2)
+--- ### cocollision.newRayShape(x2, y2)
+--- Creates a new ray shape.
+---@param x1 number
+---@param y1 number
+---@param x2 number
+---@param y2 number
+---@return Cocollision.Shape
+---@overload fun(x2: number, y2: number): Cocollision.Shape
+function cocollision.newRayShape(x1, y1, x2, y2)
+    return cocollision.newShape():setShapeToRay(x1, y1, x2, y2)
+end
+cocollision.newRaycastShape = cocollision.newRayShape
+
+--------------------------------------------------
+--- ### cocollision.newLineShape(x1, y1, x2, y2)
+--- ### cocollision.newLineShape(x2, y2)
+--- Creates a new infinite line shape.
+---@param x1 number
+---@param y1 number
+---@param x2 number
+---@param y2 number
+---@return Cocollision.Shape
+---@overload fun(x2: number, y2: number): Cocollision.Shape
+function cocollision.newLineShape(x1, y1, x2, y2)
+    return cocollision.newShape():setShapeToLine(x1, y1, x2, y2)
+end
 
 --------------------------------------------------
 --- ### Shape:setPosition(x, y)
@@ -395,6 +429,39 @@ function Shape:setShapeToEdge(x1, y1, x2, y2)
     return self
 end
 Shape.setShapeToSegment = Shape.setShapeToEdge
+
+--------------------------------------------------
+--- ### Shape:setShapeToRay(x1, y1, x2, y2)
+--- ### Shape:setShapeToRay(x2, y2)
+--- Sets the shape to be a ray.
+---@param x1 number
+---@param y1 number
+---@param x2 number
+---@param y2 number
+---@return Cocollision.Shape self
+---@overload fun(self: Cocollision.Shape, x2: number, y2: number): Cocollision.Shape
+function Shape:setShapeToRay(x1, y1, x2, y2)
+    self:setShapeToEdge(x1, y1, x2, y2)
+    self.shapeType = "ray"
+    return self
+end
+Shape.setShapeToRaycast = Shape.setShapeToRay
+
+--------------------------------------------------
+--- ### Shape:setShapeToLine(x1, y1, x2, y2)
+--- ### Shape:setShapeToLine(x2, y2)
+--- Sets the shape to be an infinite line.
+---@param x1 number
+---@param y1 number
+---@param x2 number
+---@param y2 number
+---@return Cocollision.Shape self
+---@overload fun(self: Cocollision.Shape, x2: number, y2: number): Cocollision.Shape
+function Shape:setShapeToLine(x1, y1, x2, y2)
+    self:setShapeToEdge(x1, y1, x2, y2)
+    self.shapeType = "line"
+    return self
+end
 
 --------------------------------------------------
 --- ### Shape:getVertexCount()
@@ -795,24 +862,48 @@ local lookup = cocollision.collisionLookup
 lookup.none = {}
 lookup.none.none = returnFalse
 lookup.none.edge = returnFalse
+lookup.none.ray = returnFalse
+lookup.none.line = returnFalse
 lookup.none.rectangle = returnFalse
 lookup.none.polygon = returnFalse
 
 lookup.edge = {}
 lookup.edge.none = returnFalse
 lookup.edge.edge = returnFalse -- todo
+lookup.edge.ray = returnFalse -- todo
+lookup.edge.line = returnFalse -- todo
 lookup.edge.rectangle = returnFalse -- todo
 lookup.edge.polygon = returnFalse -- todo
+
+lookup.ray = {}
+lookup.ray.none = returnFalse
+lookup.ray.edge = returnFalse -- todo
+lookup.ray.ray = returnFalse -- todo
+lookup.ray.line = returnFalse -- todo
+lookup.ray.rectangle = returnFalse -- todo
+lookup.ray.polygon = returnFalse -- todo
+
+lookup.line = {}
+lookup.line.none = returnFalse
+lookup.line.edge = returnFalse -- todo
+lookup.line.ray = returnFalse -- todo
+lookup.line.line = returnFalse -- todo
+lookup.line.rectangle = returnFalse -- todo
+lookup.line.polygon = returnFalse -- todo
 
 lookup.rectangle = {}
 lookup.rectangle.none = returnFalse
 lookup.rectangle.edge = returnFalse -- todo
+lookup.rectangle.ray = returnFalse -- todo
+lookup.rectangle.line = returnFalse -- todo
 lookup.rectangle.rectangle = cocollision.rectanglesIntersect
 lookup.rectangle.polygon = cocollision.polygonsIntersect
 
 lookup.polygon = {}
 lookup.polygon.none = returnFalse
 lookup.polygon.edge = returnFalse -- todo
+lookup.polygon.ray = returnFalse -- todo
+lookup.polygon.line = returnFalse -- todo
 lookup.polygon.rectangle = cocollision.polygonsIntersect
 lookup.polygon.polygon = cocollision.polygonsIntersect
 
@@ -841,9 +932,26 @@ cocollision.graphics.debugDrawShape = function(shape, fullColor, drawBounds)
         vertices[vertexIndex + 1] = vertices[vertexIndex + 1] + y
     end
 
+    if shape.shapeType == "ray" then
+        vertices[3] = vertices[1] + (vertices[3] - vertices[1]) * 1000
+        vertices[4] = vertices[2] + (vertices[4] - vertices[2]) * 1000
+    elseif shape.shapeType == "line" then
+        local x1 = vertices[1]
+        local y1 = vertices[2]
+        local x2 = vertices[3]
+        local y2 = vertices[4]
+        local dx = x2 - x1
+        local dy = y2 - y1
+        vertices[1] = x2 - dx * 1000
+        vertices[2] = y2 - dy * 1000
+        vertices[3] = x1 + dx * 1000
+        vertices[4] = y1 + dy * 1000
+    end
+
     local cr, cg, cb, ca = love.graphics.getColor()
 
-    if drawBounds then
+    local hasBounds = not cocollision.boundlessShapes[shape.shapeType]
+    if drawBounds and hasBounds then
         love.graphics.setColor(colorMild)
         local bbox = shape:getBoundingBox()
         if #bbox == 8 then
