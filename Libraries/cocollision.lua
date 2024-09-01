@@ -854,6 +854,109 @@ function cocollision.polygonsIntersect(polygon1, polygon2, x1, y1, x2, y2)
     return true, {pushVectorX, pushVectorY}
 end
 
+-- https://stackoverflow.com/a/565282
+-- https://paulbourke.net/geometry/pointlineplane/javascript.txt
+-- https://www.shadertoy.com/view/sl3XRn
+
+--- Checks if two lines intersect. By default checks for infinite lines, but each line can be changed to be either a ray or a segment using the endpoint count parameter:  
+--- * `lineEndpointCount = 0` - Infinite line
+--- * `lineEndpointCount = 1` - Ray
+--- * `lineEndpointCount = 2` - Segment
+---@param line1 number[] The vertices of the first line
+---@param line2 number[] The vertices of the second line
+---@param x1? number X offset for the first line
+---@param y1? number Y offset for the first line
+---@param x2? number X offset for the second line
+---@param y2? number Y offset for the second line
+---@param line1EndpointCount? integer How many endpoints the first line has
+---@param line2EndpointCount? integer How many endpoints the second line has
+---@return boolean intersected
+---@return {t: number, u: number}? lineIntersectionParameters
+function cocollision.linesIntersect(line1, line2, x1, y1, x2, y2, line1EndpointCount, line2EndpointCount)
+    line1EndpointCount = line1EndpointCount or 0
+    line2EndpointCount = line2EndpointCount or 0
+    x1 = x1 or 0
+    y1 = y1 or 0
+    x2 = x2 or 0
+    y2 = y2 or 0
+
+    -- I have to shorten variable names here because otherwise it's genuinely illegible
+    -- lines `a`, `b` (start points), going in directions `aDir`, `bDir`
+    -- `t` and `u` are the parameters determining the intersection point for each line respectively
+
+    local aX = line1[1] + x1
+    local aY = line1[2] + y1
+    local aDirX = line1[3] - aX + x1
+    local aDirY = line1[4] - aY + y1
+
+    local bX = line2[1] + x2
+    local bY = line2[2] + y2
+    local bDirX = line2[3] - bX + x2
+    local bDirY = line2[4] - bY + y2
+
+    local denominator = aDirX * bDirY - aDirY * bDirX -- 2D cross product
+
+    local t = ((bX - aX) * bDirY - (bY - aY) * bDirX) / denominator
+    local u = ((bX - aX) * aDirY - (bY - aY) * aDirX) / denominator
+
+    if denominator ~= 0 then -- lines are non-collinear
+        local tMin = line1EndpointCount == 0 and -math.huge or 0
+        local tMax = line1EndpointCount <= 1 and math.huge or 1
+        local uMin = line2EndpointCount == 0 and -math.huge or 0
+        local uMax = line2EndpointCount <= 1 and math.huge or 1
+
+        if t >= tMin and t <= tMax and u >= uMin and u <= uMax then
+            return true, {t = t, u = u}
+        end
+    end
+
+    -- lines are collinear
+    -- which is a bit trickier to solve:
+
+    if t == t and u == u then
+        -- t and u are not NaN
+        -- so ((bX - aX) * bDirY - (bY - aY) * bDirX) = 0
+        -- so lines are collinear and not intersecting
+        return false
+    end
+
+    -- if either line is infinite, no point for checking the segments, they'll always intersect
+    if line1EndpointCount == 0 or line2EndpointCount == 0 then return true end
+
+    -- for rays and segments, we still need to check if they're overlapping:
+
+    local baX = bX - aX
+    local baY = bY - aY
+
+    local t0 = (baX * aDirX + baY * aDirY) / (aDirX * aDirX + aDirY * aDirY)
+    local t1 = t0 + (aDirX * bDirX + aDirY * bDirY) / (aDirX * aDirX + aDirY * aDirY)
+
+    local intervalMin = line2EndpointCount == 1 and -math.huge or 0 -- "if you're a ray, you can be as far behind me as you want"
+    local intervalMax = line1EndpointCount == 1 and math.huge or 1 -- "if i'm a ray, you can be as far in front of me as you want"
+
+    if aDirX * bDirX + aDirY * bDirY < 0 then -- lines pointing in opposite directions
+        t0, t1 = t1, t0 -- interval needs to be swapped
+        intervalMin = 0
+        intervalMax = line2EndpointCount == 1 and math.huge or intervalMax -- "if you're a ray, nvm, you can be as far *in front* of me as you want"
+    end
+
+    if t0 >= intervalMin and t0 <= intervalMax then return true end
+    if t1 >= intervalMin and t1 <= intervalMax then return true end
+    return false
+end
+
+--- Checks if two line segments intersect.
+---@param segment1 number[] The vertices of the first segment
+---@param segment2 number[] The vertices of the second segment
+---@param x1? number X offset for the first segment
+---@param y1? number Y offset for the first segment
+---@param x2? number X offset for the second segment
+---@param y2? number Y offset for the second segment
+---@return boolean intersected
+function cocollision.segmentsIntersect(segment1, segment2, x1, y1, x2, y2)
+    return cocollision.linesIntersect(segment1, segment2, x1, y1, x2, y2, 2, 2)
+end
+
 -- Contains a pair of every combination of two shapes, pointing to the appropriate collision functions
 ---@type table<Cocollision.ShapeType, table<Cocollision.ShapeType, fun(shape1: number[], shape2: number[], x1?: number, y1?: number, x2?: number, y2?: number): boolean, table?>>
 cocollision.collisionLookup = {}
@@ -869,25 +972,25 @@ lookup.none.polygon = returnFalse
 
 lookup.edge = {}
 lookup.edge.none = returnFalse
-lookup.edge.edge = returnFalse -- todo
-lookup.edge.ray = returnFalse -- todo
-lookup.edge.line = returnFalse -- todo
+lookup.edge.edge = cocollision.segmentsIntersect
+lookup.edge.ray = function (shape1, shape2, x1, y1, x2, y2) return cocollision.linesIntersect(shape1, shape2, x1, y1, x2, y2, 2, 1) end
+lookup.edge.line = function (shape1, shape2, x1, y1, x2, y2) return cocollision.linesIntersect(shape1, shape2, x1, y1, x2, y2, 2, 0) end
 lookup.edge.rectangle = returnFalse -- todo
 lookup.edge.polygon = returnFalse -- todo
 
 lookup.ray = {}
 lookup.ray.none = returnFalse
-lookup.ray.edge = returnFalse -- todo
-lookup.ray.ray = returnFalse -- todo
-lookup.ray.line = returnFalse -- todo
+lookup.ray.edge = function (shape1, shape2, x1, y1, x2, y2) return cocollision.linesIntersect(shape1, shape2, x1, y1, x2, y2, 1, 2) end
+lookup.ray.ray = function (shape1, shape2, x1, y1, x2, y2) return cocollision.linesIntersect(shape1, shape2, x1, y1, x2, y2, 1, 1) end
+lookup.ray.line = function (shape1, shape2, x1, y1, x2, y2) return cocollision.linesIntersect(shape1, shape2, x1, y1, x2, y2, 1, 0) end
 lookup.ray.rectangle = returnFalse -- todo
 lookup.ray.polygon = returnFalse -- todo
 
 lookup.line = {}
 lookup.line.none = returnFalse
-lookup.line.edge = returnFalse -- todo
-lookup.line.ray = returnFalse -- todo
-lookup.line.line = returnFalse -- todo
+lookup.line.edge = function (shape1, shape2, x1, y1, x2, y2) return cocollision.linesIntersect(shape1, shape2, x1, y1, x2, y2, 0, 2) end
+lookup.line.ray = function (shape1, shape2, x1, y1, x2, y2) return cocollision.linesIntersect(shape1, shape2, x1, y1, x2, y2, 0, 1) end
+lookup.line.line = cocollision.linesIntersect
 lookup.line.rectangle = returnFalse -- todo
 lookup.line.polygon = returnFalse -- todo
 
