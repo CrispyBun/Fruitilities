@@ -21,6 +21,7 @@ cocollision.boundlessShapes = {
 
 ---@alias Cocollision.ShapeType
 ---| '"none"' # An empty shape that doesn't collide with anything
+---| '"edge"' # A line segment
 ---| '"rectangle"' # An axis aligned rectangle
 ---| '"polygon"' # A convex polygon
 
@@ -226,6 +227,20 @@ function cocollision.newPolygonShape(...)
 end
 
 --------------------------------------------------
+--- ### cocollision.newEdgeShape(x1, y1, x2, y2)
+--- ### cocollision.newEdgeShape(x2, y2)
+--- Creates a new line segment shape.
+---@param x1 number
+---@param y1 number
+---@param x2 number
+---@param y2 number
+---@return Cocollision.Shape
+---@overload fun(x2: number, y2: number): Cocollision.Shape
+function cocollision.newEdgeShape(x1, y1, x2, y2)
+    return cocollision.newShape():setShapeToEdge(x1, y1, x2, y2)
+end
+
+--------------------------------------------------
 --- ### Shape:setPosition(x, y)
 --- Sets the shape's position.
 ---@param x number
@@ -354,6 +369,32 @@ function Shape:setShapeToPolygon(...)
     self:refreshTransform()
     return self
 end
+
+--------------------------------------------------
+--- ### Shape:setShapeToEdge(x1, y1, x2, y2)
+--- ### Shape:setShapeToEdge(x2, y2)
+--- Sets the shape to be a line segment.
+---@param x1 number
+---@param y1 number
+---@param x2 number
+---@param y2 number
+---@return Cocollision.Shape self
+---@overload fun(self: Cocollision.Shape, x2: number, y2: number): Cocollision.Shape
+function Shape:setShapeToEdge(x1, y1, x2, y2)
+    if not (x2 and y2) then
+        x2 = x1
+        y2 = y1
+        x1 = 0
+        y1 = 0
+    end
+
+    self.shapeType = "edge"
+    self.vertices = {x1, y1, x2, y2}
+
+    self:refreshTransform()
+    return self
+end
+Shape.setShapeToSegment = Shape.setShapeToEdge
 
 --------------------------------------------------
 --- ### Shape:getVertexCount()
@@ -753,16 +794,25 @@ local lookup = cocollision.collisionLookup
 
 lookup.none = {}
 lookup.none.none = returnFalse
+lookup.none.edge = returnFalse
 lookup.none.rectangle = returnFalse
 lookup.none.polygon = returnFalse
 
+lookup.edge = {}
+lookup.edge.none = returnFalse
+lookup.edge.edge = returnFalse -- todo
+lookup.edge.rectangle = returnFalse -- todo
+lookup.edge.polygon = returnFalse -- todo
+
 lookup.rectangle = {}
 lookup.rectangle.none = returnFalse
+lookup.rectangle.edge = returnFalse -- todo
 lookup.rectangle.rectangle = cocollision.rectanglesIntersect
 lookup.rectangle.polygon = cocollision.polygonsIntersect
 
 lookup.polygon = {}
 lookup.polygon.none = returnFalse
+lookup.polygon.edge = returnFalse -- todo
 lookup.polygon.rectangle = cocollision.polygonsIntersect
 lookup.polygon.polygon = cocollision.polygonsIntersect
 
