@@ -102,7 +102,17 @@ function cocollision.generateBoundingBox(vertices, _receivingTable)
     for vertexIndex = 1, #_receivingTable do
         _receivingTable[vertexIndex] = nil
     end
-    if #vertices == 0 then return _receivingTable end
+    if #vertices == 0 then -- No vertices, just make bbox 0,0,0,0
+        _receivingTable[1] = 0
+        _receivingTable[2] = 0
+        _receivingTable[3] = 0
+        _receivingTable[4] = 0
+        _receivingTable[5] = 0
+        _receivingTable[6] = 0
+        _receivingTable[7] = 0
+        _receivingTable[8] = 0
+        return _receivingTable
+    end
 
     _receivingTable[1] = minX
     _receivingTable[2] = minY
@@ -643,6 +653,8 @@ function cocollision.polygonsIntersect(polygon1, polygon2, x1, y1, x2, y2)
     -- Center calculated for determining push vector's direction (if needed)
     local polygon1CenterX, polygon1CenterY = 0, 0
     local polygon2CenterX, polygon2CenterY = 0, 0
+
+    if #polygon1 == 0 or #polygon2 == 0 then return false end
 
     -- Do all the following for both polygons (or more precisely, for each possible separating axis)
     for loopIndex = 1, 2 do
