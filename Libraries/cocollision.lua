@@ -459,11 +459,13 @@ function Shape:getBoundingBox()
 end
 
 --------------------------------------------------
---- ### Shape:debugDraw(fullColor)
---- Draws the shape for debugging purposes (just visualises the shape's vertices, doesn't reflect the shape's type in any way).  
+--- ### Shape:debugDraw()
+--- Draws the shape for debugging purposes.  
 --- This is the only platform dependent function. If shape drawing isn't implemented, this function does nothing.
-function Shape:debugDraw(fullColor)
-    return cocollision.graphics.debugDrawShape(self, fullColor)
+---@param fullColor? boolean
+---@param drawBounds? boolean
+function Shape:debugDraw(fullColor, drawBounds)
+    return cocollision.graphics.debugDrawShape(self, fullColor, drawBounds)
 end
 
 -- Collision functions -----------------------------------------------------------------------------
@@ -678,8 +680,9 @@ local colorMild = {0.25, 0.5, 1, 0.25}
 local colorFull = {0.25, 0.5, 1, 0.75}
 
 ---@param shape Cocollision.Shape
----@param fullColor boolean
-cocollision.graphics.debugDrawShape = function(shape, fullColor)
+---@param fullColor? boolean
+---@param drawBounds? boolean
+cocollision.graphics.debugDrawShape = function(shape, fullColor, drawBounds)
     local color = fullColor and colorFull or colorMild
 
     local x, y = shape.x, shape.y
@@ -690,6 +693,17 @@ cocollision.graphics.debugDrawShape = function(shape, fullColor)
     end
 
     local cr, cg, cb, ca = love.graphics.getColor()
+
+    if drawBounds then
+        love.graphics.setColor(colorMild)
+        local bbox = shape:getBoundingBox()
+        if #bbox == 8 then
+            love.graphics.line(bbox[1] + x, bbox[2] + y, bbox[3] + x, bbox[4] + y)
+            love.graphics.line(bbox[3] + x, bbox[4] + y, bbox[5] + x, bbox[6] + y)
+            love.graphics.line(bbox[5] + x, bbox[6] + y, bbox[7] + x, bbox[8] + y)
+            love.graphics.line(bbox[7] + x, bbox[8] + y, bbox[1] + x, bbox[2] + y)
+        end
+    end
 
     if #vertices >= 6 then
         love.graphics.setColor(color)
