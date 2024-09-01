@@ -467,6 +467,11 @@ end
 ---@return boolean intersected
 ---@return [number, number]? pushVector
 function cocollision.polygonsIntersect(polygon1, polygon2, x1, y1, x2, y2)
+    x1 = x1 or 0
+    y1 = y1 or 0
+    x2 = x2 or 0
+    y2 = y2 or 0
+
     local pushVectorX, pushVectorY
     local pushVectorMinDistanceSquared = math.huge
 
