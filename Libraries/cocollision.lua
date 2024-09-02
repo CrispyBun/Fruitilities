@@ -11,9 +11,9 @@ local unpack = table.unpack or unpack
 cocollision.pushVectorIncrease = 1e-10
 
 -- The margin of error for point on point and point on line intersections.  
--- * If this is 0, the point must be *exactly* on the other point or line to intersect, which might not be what you want in most cases.  
+-- * If this is 0, the point must be *exactly* on the other point or line to intersect, which might not be what you want.  
 -- * If this is >0, it's the distance from the true colliding location that's still considered colliding.
-cocollision.pointIntersectionMargin = 1e-5
+cocollision.pointIntersectionMargin = 0.5
 
 -- Shapes for which a bounding box is not calculated or checked.  
 -- There's likely no reason for you to change this table, unless you're adding your own shape types.
@@ -844,10 +844,10 @@ function cocollision.polygonsIntersect(polygon1, polygon2, x1, y1, x2, y2)
             local edgeX = edgeX2 - edgeX1
             local edgeY = edgeY2 - edgeY1
 
-            local perpendicularX = -edgeY
-            local perpendicularY = edgeX
+            local orthogonalX = -edgeY
+            local orthogonalY = edgeX
 
-            -- Bounds of the projections onto the perpendicular vector
+            -- Bounds of the projections onto the orthogonal vector
             local min1, max1 = math.huge, -math.huge
             local min2, max2 = math.huge, -math.huge
 
@@ -855,7 +855,7 @@ function cocollision.polygonsIntersect(polygon1, polygon2, x1, y1, x2, y2)
                 local x = polygon1[projectedVertexIndex1] + x1
                 local y = polygon1[projectedVertexIndex1 + 1] + y1
 
-                local projection1 = x * perpendicularX + y * perpendicularY -- dot
+                local projection1 = x * orthogonalX + y * orthogonalY -- dot
                 min1 = math.min(min1, projection1)
                 max1 = math.max(max1, projection1)
             end
@@ -863,7 +863,7 @@ function cocollision.polygonsIntersect(polygon1, polygon2, x1, y1, x2, y2)
                 local x = polygon2[projectedVertexIndex2] + x2
                 local y = polygon2[projectedVertexIndex2 + 1] + y2
 
-                local projection2 = x * perpendicularX + y * perpendicularY -- dot
+                local projection2 = x * orthogonalX + y * orthogonalY -- dot
                 min2 = math.min(min2, projection2)
                 max2 = math.max(max2, projection2)
             end
@@ -877,9 +877,9 @@ function cocollision.polygonsIntersect(polygon1, polygon2, x1, y1, x2, y2)
 
             local pushDistance = math.min(max2 - min1, max1 - min2)
 
-            local distanceNormaliser = pushDistance / (perpendicularX * perpendicularX + perpendicularY * perpendicularY)
-            local testPushVectorX = perpendicularX * distanceNormaliser
-            local testPushVectorY = perpendicularY * distanceNormaliser
+            local distanceNormaliser = pushDistance / (orthogonalX * orthogonalX + orthogonalY * orthogonalY)
+            local testPushVectorX = orthogonalX * distanceNormaliser
+            local testPushVectorY = orthogonalY * distanceNormaliser
 
             -- Technically the wrong way to do the pushVectorIncrease (adds it to both axes) but no one's gonna know
             testPushVectorX = testPushVectorX + (testPushVectorX > 0 and cocollision.pushVectorIncrease or testPushVectorX < 0 and -cocollision.pushVectorIncrease or 0)
@@ -938,6 +938,78 @@ function cocollision.pointIsOnPoint(point1, point2, x1, y1, x2, y2)
     return distance <= cocollision.pointIntersectionMargin
 end
 local pointIsOnPoint = cocollision.pointIsOnPoint
+
+--- Checks if a point is on a line. The line is an infinite line by default, but can be configured to be a ray or a segment using the `lineEndpointCount` parameter - see `cocollision.linesIntersect` for details.
+---@param pointX number The X position of the point
+---@param pointY number The Y position of the point
+---@param lineX1 number The X position of the first vertex of the line
+---@param lineY1 number The Y position of the first vertex of the line
+---@param lineX2 number The X position of the second vertex of the line
+---@param lineY2 number The Y position of the second vertex of the line
+---@param lineEndpointCount? number How many endpoints the line has
+---@return boolean intersects
+function cocollision.pointOnLine(pointX, pointY, lineX1, lineY1, lineX2, lineY2, lineEndpointCount)
+    lineEndpointCount = lineEndpointCount or 0
+
+    local lineX = lineX2 - lineX1
+    local lineY = lineY2 - lineY1
+
+    -- The point's position relative to the line's first vertex
+    local lineToPointX = pointX - lineX1
+    local lineToPointY = pointY - lineY1
+
+    local slope = lineY / lineX
+
+    if slope ~= slope then
+        -- slope is NaN => line distance is 0 => line is actually just a point
+        -- which is an invalid line, so for consistency with the line-on-line function:
+        return false
+    end
+
+    local distanceFromLine
+
+    if slope == math.huge or slope == -math.huge then
+        -- slope is infinite => lineX is 0 => line is vertical
+        distanceFromLine = math.abs(lineToPointX)
+    else
+        local orthogonalX = -lineY
+        local orthogonalY = lineX
+        local orthogonalLength = math.sqrt(orthogonalX * orthogonalX + orthogonalY * orthogonalY)
+
+        -- point's position relative to the line, projected onto line's orthogonal vector
+        -- leaves us with how far along the orthogonal vector the point is, which is the distance from the line
+        distanceFromLine = math.abs(lineToPointX * orthogonalX + lineToPointY * orthogonalY) / orthogonalLength
+    end
+
+    if distanceFromLine > cocollision.pointIntersectionMargin then return false end
+    if lineEndpointCount == 0 then return true end -- lines solved
+
+    -- project to get the parameter of the intersection, normalising not needed
+    local unnormalisedParameter = (lineX * lineToPointX + lineY * lineToPointY)
+
+    if unnormalisedParameter < 0 then return false end -- point is behind the line
+    if lineEndpointCount == 1 then return true end -- rays solved
+
+    local lineLengthSquared = lineX * lineX + lineY * lineY
+    if unnormalisedParameter > lineLengthSquared then return false end -- point is in front of the line
+
+    return true -- segments solved
+end
+local pointOnLine = cocollision.pointOnLine
+
+local function pointOnLineVert(point, line, x1, y1, x2, y2, lineEndpointCount)
+    x1 = x1 or 0
+    y1 = y1 or 0
+    x2 = x2 or 0
+    y2 = y2 or 0
+    return pointOnLine(point[1] + x1, point[2] + y1, line[1] + x2, line[2] + y2, line[3] + x2, line[4] + y2, lineEndpointCount)
+end
+
+local function pointOnRayVert(point, ray, x1, y1, x2, y2) return pointOnLineVert(point, ray, x1, y1, x2, y2, 1) end
+local function pointOnSegmentVert(point, segment, x1, y1, x2, y2) return pointOnLineVert(point, segment, x1, y1, x2, y2, 2) end
+local function lineIsUnderPointVert(line, point, x1, y1, x2, y2) return pointOnLineVert(point, line, x2, y2, x1, y1) end
+local function rayIsUnderPointVert(ray, point, x1, y1, x2, y2) return pointOnLineVert(point, ray, x2, y2, x1, y1, 1) end
+local function segmentIsUnderPointVert(segment, point, x1, y1, x2, y2) return pointOnLineVert(point, segment, x2, y2, x1, y1, 2) end
 
 -- https://stackoverflow.com/a/565282
 -- https://paulbourke.net/geometry/pointlineplane/javascript.txt
@@ -1075,7 +1147,7 @@ function cocollision.lineCrossesPolygon(lineX1, lineY1, lineX2, lineY2, polygon,
 
     local vertexCount = #polygon / 2
     if vertexCount == 0 then return false end
-    if vertexCount == 1 then return false end -- todo: pointOnLine
+    if vertexCount == 1 then return pointOnLine(polygon[1] + polygonX, polygon[2] + polygonY, lineX1, lineY1, lineX2, lineY2, lineEndpointCount) end
 
     for vertexIndex = 1, vertexCount do
         local vertexX1 = polygon[vertexIndex * 2 - 1] + polygonX
@@ -1125,15 +1197,15 @@ lookup.none.polygon = returnFalse
 lookup.point = {}
 lookup.point.none = returnFalse
 lookup.point.point = pointIsOnPoint
-lookup.point.edge = returnFalse -- todo
-lookup.point.ray = returnFalse -- todo
-lookup.point.line = returnFalse -- todo
+lookup.point.edge = pointOnSegmentVert
+lookup.point.ray = pointOnRayVert
+lookup.point.line = pointOnLineVert
 lookup.point.rectangle = returnFalse -- todo
 lookup.point.polygon = returnFalse -- todo
 
 lookup.edge = {}
 lookup.edge.none = returnFalse
-lookup.edge.point = returnFalse -- todo
+lookup.edge.point = segmentIsUnderPointVert
 lookup.edge.edge = segmentsIntersectVert
 lookup.edge.ray = segmentCrossesRayVert
 lookup.edge.line = segmentCrossesLineVert
@@ -1142,7 +1214,7 @@ lookup.edge.polygon = segmentCrossesPolygonVert
 
 lookup.ray = {}
 lookup.ray.none = returnFalse
-lookup.ray.point = returnFalse -- todo
+lookup.ray.point = rayIsUnderPointVert
 lookup.ray.edge = rayCrossesSegmentVert
 lookup.ray.ray = raysIntersectVert
 lookup.ray.line = rayCrossesLineVert
@@ -1151,7 +1223,7 @@ lookup.ray.polygon = rayCrossesPolygonVert
 
 lookup.line = {}
 lookup.line.none = returnFalse
-lookup.line.point = returnFalse -- todo
+lookup.line.point = lineIsUnderPointVert
 lookup.line.edge = lineCrossesSegmentVert
 lookup.line.ray = lineCrossesRayVert
 lookup.line.line = linesIntersectVert
