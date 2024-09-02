@@ -1016,6 +1016,73 @@ function cocollision.segmentsIntersectVert(segment1, segment2, x1, y1, x2, y2)
     return cocollision.linesIntersectVert(segment1, segment2, x1, y1, x2, y2, 2, 2)
 end
 
+---@param lineX1 number
+---@param lineY1 number
+---@param lineX2 number
+---@param lineY2 number
+---@param polygon number[]
+---@param polygonX? number
+---@param polygonY? number
+---@param lineEndpointCount? integer
+---@return boolean intersected
+function cocollision.lineCrossesPolygon(lineX1, lineY1, lineX2, lineY2, polygon, polygonX, polygonY, lineEndpointCount)
+    polygonX = polygonX or 0
+    polygonY = polygonY or 0
+    lineEndpointCount = lineEndpointCount or 0
+
+    -- todo: wholly contained segments arent considered colliding,
+    -- add a point in polygon check here when that function is implemented
+
+    local vertexCount = #polygon / 2
+    if vertexCount < 2 then return false end -- todo: pointOnLine
+
+    for vertexIndex = 1, vertexCount do
+        local vertexX1 = polygon[vertexIndex * 2 - 1] + polygonX
+        local vertexY1 = polygon[vertexIndex * 2] + polygonY
+        local vertexX2 = (polygon[vertexIndex * 2 + 1] or polygon[1]) + polygonX
+        local vertexY2 = (polygon[vertexIndex * 2 + 2] or polygon[2]) + polygonY
+
+        if cocollision.linesIntersect(lineX1, lineY1, lineX2, lineY2, vertexX1, vertexY1, vertexX2, vertexY2, lineEndpointCount, 2) then
+            return true
+        end
+    end
+
+    return false
+end
+
+---@param rayX1 number
+---@param rayY1 number
+---@param rayX2 number
+---@param rayY2 number
+---@param polygon number[]
+---@param polygonX? number
+---@param polygonY? number
+---@return boolean intersected
+function cocollision.rayHitsPolygon(rayX1, rayY1, rayX2, rayY2, polygon, polygonX, polygonY)
+    return cocollision.lineCrossesPolygon(rayX1, rayY1, rayX2, rayY2, polygon, polygonX, polygonY, 1)
+end
+
+---@param line number[]
+---@param polygon number[]
+---@param x1? number
+---@param y1? number
+---@param x2? number
+---@param y2? number
+---@param lineEndpointCount? number
+---@return boolean intersected
+function cocollision.lineCrossesPolygonVert(line, polygon, x1, y1, x2, y2, lineEndpointCount)
+    x1 = x1 or 0
+    y1 = y1 or 0
+    x2 = x2 or 0
+    y2 = y2 or 0
+    lineEndpointCount = lineEndpointCount or 0
+    return cocollision.lineCrossesPolygon(line[1] + x1, line[2] + y1, line[3] + x1, line[4] + y1, polygon, x2, y2, lineEndpointCount)
+end
+
+local function polygonGetsHitByLineVert(polygon, line, x1, y1, x2, y2, lineEndpointCount)
+    return cocollision.lineCrossesPolygonVert(line, polygon, x2, y2, x1, y1, lineEndpointCount)
+end
+
 -- Contains a pair of every combination of two shapes, pointing to the appropriate collision functions
 ---@type table<Cocollision.ShapeType, table<Cocollision.ShapeType, fun(shape1: number[], shape2: number[], x1?: number, y1?: number, x2?: number, y2?: number): boolean, table?>>
 cocollision.collisionLookup = {}
@@ -1034,38 +1101,38 @@ lookup.edge.none = returnFalse
 lookup.edge.edge = cocollision.segmentsIntersectVert
 lookup.edge.ray = function (shape1, shape2, x1, y1, x2, y2) return cocollision.linesIntersectVert(shape1, shape2, x1, y1, x2, y2, 2, 1) end
 lookup.edge.line = function (shape1, shape2, x1, y1, x2, y2) return cocollision.linesIntersectVert(shape1, shape2, x1, y1, x2, y2, 2, 0) end
-lookup.edge.rectangle = returnFalse -- todo
-lookup.edge.polygon = returnFalse -- todo
+lookup.edge.rectangle = function (shape1, shape2, x1, y1, x2, y2) return cocollision.lineCrossesPolygonVert(shape1, shape2, x1, y1, x2, y2, 2) end
+lookup.edge.polygon = function (shape1, shape2, x1, y1, x2, y2) return cocollision.lineCrossesPolygonVert(shape1, shape2, x1, y1, x2, y2, 2) end
 
 lookup.ray = {}
 lookup.ray.none = returnFalse
 lookup.ray.edge = function (shape1, shape2, x1, y1, x2, y2) return cocollision.linesIntersectVert(shape1, shape2, x1, y1, x2, y2, 1, 2) end
 lookup.ray.ray = function (shape1, shape2, x1, y1, x2, y2) return cocollision.linesIntersectVert(shape1, shape2, x1, y1, x2, y2, 1, 1) end
 lookup.ray.line = function (shape1, shape2, x1, y1, x2, y2) return cocollision.linesIntersectVert(shape1, shape2, x1, y1, x2, y2, 1, 0) end
-lookup.ray.rectangle = returnFalse -- todo
-lookup.ray.polygon = returnFalse -- todo
+lookup.ray.rectangle = function (shape1, shape2, x1, y1, x2, y2) return cocollision.lineCrossesPolygonVert(shape1, shape2, x1, y1, x2, y2, 1) end
+lookup.ray.polygon = function (shape1, shape2, x1, y1, x2, y2) return cocollision.lineCrossesPolygonVert(shape1, shape2, x1, y1, x2, y2, 1) end
 
 lookup.line = {}
 lookup.line.none = returnFalse
 lookup.line.edge = function (shape1, shape2, x1, y1, x2, y2) return cocollision.linesIntersectVert(shape1, shape2, x1, y1, x2, y2, 0, 2) end
 lookup.line.ray = function (shape1, shape2, x1, y1, x2, y2) return cocollision.linesIntersectVert(shape1, shape2, x1, y1, x2, y2, 0, 1) end
 lookup.line.line = cocollision.linesIntersectVert
-lookup.line.rectangle = returnFalse -- todo
-lookup.line.polygon = returnFalse -- todo
+lookup.line.rectangle = cocollision.lineCrossesPolygonVert
+lookup.line.polygon = cocollision.lineCrossesPolygonVert
 
 lookup.rectangle = {}
 lookup.rectangle.none = returnFalse
-lookup.rectangle.edge = returnFalse -- todo
-lookup.rectangle.ray = returnFalse -- todo
-lookup.rectangle.line = returnFalse -- todo
+lookup.rectangle.edge = function (shape1, shape2, x1, y1, x2, y2) return polygonGetsHitByLineVert(shape1, shape2, x1, y1, x2, y2, 2) end
+lookup.rectangle.ray = function (shape1, shape2, x1, y1, x2, y2) return polygonGetsHitByLineVert(shape1, shape2, x1, y1, x2, y2, 1) end
+lookup.rectangle.line = polygonGetsHitByLineVert
 lookup.rectangle.rectangle = cocollision.rectanglesIntersect
 lookup.rectangle.polygon = cocollision.polygonsIntersect
 
 lookup.polygon = {}
 lookup.polygon.none = returnFalse
-lookup.polygon.edge = returnFalse -- todo
-lookup.polygon.ray = returnFalse -- todo
-lookup.polygon.line = returnFalse -- todo
+lookup.polygon.edge = function (shape1, shape2, x1, y1, x2, y2) return polygonGetsHitByLineVert(shape1, shape2, x1, y1, x2, y2, 2) end
+lookup.polygon.ray = function (shape1, shape2, x1, y1, x2, y2) return polygonGetsHitByLineVert(shape1, shape2, x1, y1, x2, y2, 1) end
+lookup.polygon.line = polygonGetsHitByLineVert
 lookup.polygon.rectangle = cocollision.polygonsIntersect
 lookup.polygon.polygon = cocollision.polygonsIntersect
 
