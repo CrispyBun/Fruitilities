@@ -10,13 +10,19 @@ local unpack = table.unpack or unpack
 -- This is just a number added to the push vector's distance to make sure the collision is fully resolved.
 cocollision.pushVectorIncrease = 1e-10
 
+-- The margin of error for point on point and point on line intersections.  
+-- * If this is 0, the point must be *exactly* on the other point or line to intersect, which might not be what you want in most cases.  
+-- * If this is >0, it's the distance from the true colliding location that's still considered colliding.
+cocollision.pointIntersectionMargin = 1e-5
+
 -- Shapes for which a bounding box is not calculated or checked.  
 -- There's likely no reason for you to change this table, unless you're adding your own shape types.
 cocollision.boundlessShapes = {
+    rectangle = true, -- Doesn't need bounds, it *is* the bounds
+    point = true, -- Can't have a bbox check because that would make `pointIntersectionMargin` not work
     none = true,
     ray = true,
     line = true,
-    rectangle = true
 }
 
 -- Definitions -------------------------------------------------------------------------------------
@@ -925,7 +931,11 @@ function cocollision.pointIsOnPoint(point1, point2, x1, y1, x2, y2)
     local p1y = point1[2] + y1
     local p2x = point2[1] + x2
     local p2y = point2[2] + y2
-    return p1x == p2x and p1y == p2y -- todo: pointIntersectionMargin
+
+    local differenceX = p1x - p2x
+    local differenceY = p1y - p2y
+    local distance = math.sqrt(differenceX * differenceX + differenceY * differenceY)
+    return distance <= cocollision.pointIntersectionMargin
 end
 local pointIsOnPoint = cocollision.pointIsOnPoint
 
