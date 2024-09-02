@@ -233,7 +233,8 @@ end
 --------------------------------------------------
 --- ### cocollision.newEdgeShape(x1, y1, x2, y2)
 --- ### cocollision.newEdgeShape(x2, y2)
---- Creates a new line segment shape.
+--- Creates a new line segment shape.  
+--- Line segments may output the intersection parameters `t` and `u` when intersecting with other segments, rays, or lines.
 ---@param x1 number
 ---@param y1 number
 ---@param x2 number
@@ -248,7 +249,8 @@ cocollision.newSegmentShape = cocollision.newEdgeShape
 --------------------------------------------------
 --- ### cocollision.newRayShape(x1, y1, x2, y2)
 --- ### cocollision.newRayShape(x2, y2)
---- Creates a new ray shape.
+--- Creates a new ray shape.  
+--- Rays may output the intersection parameters `t` and `u` when intersecting with other segments, rays, or lines.
 ---@param x1 number
 ---@param y1 number
 ---@param x2 number
@@ -263,7 +265,8 @@ cocollision.newRaycastShape = cocollision.newRayShape
 --------------------------------------------------
 --- ### cocollision.newLineShape(x1, y1, x2, y2)
 --- ### cocollision.newLineShape(x2, y2)
---- Creates a new infinite line shape.
+--- Creates a new infinite line shape.  
+--- Lines may output the intersection parameters `t` and `u` when intersecting with other segments, rays, or lines.
 ---@param x1 number
 ---@param y1 number
 ---@param x2 number
@@ -407,7 +410,8 @@ end
 --------------------------------------------------
 --- ### Shape:setShapeToEdge(x1, y1, x2, y2)
 --- ### Shape:setShapeToEdge(x2, y2)
---- Sets the shape to be a line segment.
+--- Sets the shape to be a line segment.  
+--- Line segments may output the intersection parameters `t` and `u` when intersecting with other segments, rays, or lines.
 ---@param x1 number
 ---@param y1 number
 ---@param x2 number
@@ -433,7 +437,8 @@ Shape.setShapeToSegment = Shape.setShapeToEdge
 --------------------------------------------------
 --- ### Shape:setShapeToRay(x1, y1, x2, y2)
 --- ### Shape:setShapeToRay(x2, y2)
---- Sets the shape to be a ray.
+--- Sets the shape to be a ray.  
+--- Rays may output the intersection parameters `t` and `u` when intersecting with other segments, rays, or lines.
 ---@param x1 number
 ---@param y1 number
 ---@param x2 number
@@ -450,7 +455,8 @@ Shape.setShapeToRaycast = Shape.setShapeToRay
 --------------------------------------------------
 --- ### Shape:setShapeToLine(x1, y1, x2, y2)
 --- ### Shape:setShapeToLine(x2, y2)
---- Sets the shape to be an infinite line.
+--- Sets the shape to be an infinite line.  
+--- Lines may output the intersection parameters `t` and `u` when intersecting with other segments, rays, or lines.
 ---@param x1 number
 ---@param y1 number
 ---@param x2 number
