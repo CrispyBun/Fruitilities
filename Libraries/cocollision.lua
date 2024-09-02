@@ -862,37 +862,37 @@ end
 --- * `lineEndpointCount = 0` - Infinite line
 --- * `lineEndpointCount = 1` - Ray
 --- * `lineEndpointCount = 2` - Segment
----@param line1 number[] The vertices of the first line
----@param line2 number[] The vertices of the second line
----@param x1? number X offset for the first line
----@param y1? number Y offset for the first line
----@param x2? number X offset for the second line
----@param y2? number Y offset for the second line
+--- 
+--- The function may return the intersection parameters `t` and `u` as the second return, which determine how far along the line the intersection happened, for each line respectively.
+---@param ax1 number The X position of the first line's first point
+---@param ay1 number The Y position of the first line's first point
+---@param ax2 number The X position of the first line's second point
+---@param ay2 number The Y position of the first line's second point
+---@param bx1 number The X position of the second line's first point
+---@param by1 number The Y position of the second line's first point
+---@param bx2 number The X position of the second line's second point
+---@param by2 number The Y position of the second line's second point
 ---@param line1EndpointCount? integer How many endpoints the first line has
 ---@param line2EndpointCount? integer How many endpoints the second line has
 ---@return boolean intersected
 ---@return {t: number, u: number}? lineIntersectionParameters
-function cocollision.linesIntersect(line1, line2, x1, y1, x2, y2, line1EndpointCount, line2EndpointCount)
+function cocollision.linesIntersect(ax1, ay1, ax2, ay2, bx1, by1, bx2, by2, line1EndpointCount, line2EndpointCount)
     line1EndpointCount = line1EndpointCount or 0
     line2EndpointCount = line2EndpointCount or 0
-    x1 = x1 or 0
-    y1 = y1 or 0
-    x2 = x2 or 0
-    y2 = y2 or 0
 
     -- I have to shorten variable names here because otherwise it's genuinely illegible
     -- lines `a`, `b` (start points), going in directions `aDir`, `bDir`
     -- `t` and `u` are the parameters determining the intersection point for each line respectively
 
-    local aX = line1[1] + x1
-    local aY = line1[2] + y1
-    local aDirX = line1[3] - aX + x1
-    local aDirY = line1[4] - aY + y1
+    local aX = ax1
+    local aY = ay1
+    local aDirX = ax2 - ax1
+    local aDirY = ay2 - ay1
 
-    local bX = line2[1] + x2
-    local bY = line2[2] + y2
-    local bDirX = line2[3] - bX + x2
-    local bDirY = line2[4] - bY + y2
+    local bX = bx1
+    local bY = by1
+    local bDirX = bx2 - bx1
+    local bDirY = by2 - by1
 
     local denominator = aDirX * bDirY - aDirY * bDirX -- 2D cross product
 
@@ -945,7 +945,39 @@ function cocollision.linesIntersect(line1, line2, x1, y1, x2, y2, line1EndpointC
     return false
 end
 
---- Checks if two line segments intersect.
+--- Checks if two lines, defined by two tables of vertices, intersect. By default checks for infinite lines, but each line can be changed to be either a ray or a segment using the endpoint count parameter:  
+--- * `lineEndpointCount = 0` - Infinite line
+--- * `lineEndpointCount = 1` - Ray
+--- * `lineEndpointCount = 2` - Segment
+--- 
+--- The function may return the intersection parameters `t` and `u` as the second return, which determine how far along the line the intersection happened, for each line respectively.
+---@param line1 number[] The vertices of the first line
+---@param line2 number[] The vertices of the second line
+---@param x1? number X offset for the first line
+---@param y1? number Y offset for the first line
+---@param x2? number X offset for the second line
+---@param y2? number Y offset for the second line
+---@param line1EndpointCount? integer How many endpoints the first line has
+---@param line2EndpointCount? integer How many endpoints the second line has
+---@return boolean intersected
+---@return {t: number, u: number}? lineIntersectionParameters
+function cocollision.linesIntersectVert(line1, line2, x1, y1, x2, y2, line1EndpointCount, line2EndpointCount)
+    x1 = x1 or 0
+    y1 = y1 or 0
+    x2 = x2 or 0
+    y2 = y2 or 0
+    local ax1 = line1[1] + x1
+    local ay1 = line1[2] + y1
+    local ax2 = line1[3] + x1
+    local ay2 = line1[4] + y1
+    local bx1 = line2[1] + x2
+    local by1 = line2[2] + y2
+    local bx2 = line2[3] + x2
+    local by2 = line2[4] + y2
+    return cocollision.linesIntersect(ax1, ay1, ax2, ay2, bx1, by1, bx2, by2, line1EndpointCount, line2EndpointCount)
+end
+
+--- Checks if two line segments, defined by two tables of vertices, intersect.
 ---@param segment1 number[] The vertices of the first segment
 ---@param segment2 number[] The vertices of the second segment
 ---@param x1? number X offset for the first segment
@@ -953,8 +985,9 @@ end
 ---@param x2? number X offset for the second segment
 ---@param y2? number Y offset for the second segment
 ---@return boolean intersected
-function cocollision.segmentsIntersect(segment1, segment2, x1, y1, x2, y2)
-    return cocollision.linesIntersect(segment1, segment2, x1, y1, x2, y2, 2, 2)
+---@return {t: number, u: number}? lineIntersectionParameters
+function cocollision.segmentsIntersectVert(segment1, segment2, x1, y1, x2, y2)
+    return cocollision.linesIntersectVert(segment1, segment2, x1, y1, x2, y2, 2, 2)
 end
 
 -- Contains a pair of every combination of two shapes, pointing to the appropriate collision functions
@@ -972,25 +1005,25 @@ lookup.none.polygon = returnFalse
 
 lookup.edge = {}
 lookup.edge.none = returnFalse
-lookup.edge.edge = cocollision.segmentsIntersect
-lookup.edge.ray = function (shape1, shape2, x1, y1, x2, y2) return cocollision.linesIntersect(shape1, shape2, x1, y1, x2, y2, 2, 1) end
-lookup.edge.line = function (shape1, shape2, x1, y1, x2, y2) return cocollision.linesIntersect(shape1, shape2, x1, y1, x2, y2, 2, 0) end
+lookup.edge.edge = cocollision.segmentsIntersectVert
+lookup.edge.ray = function (shape1, shape2, x1, y1, x2, y2) return cocollision.linesIntersectVert(shape1, shape2, x1, y1, x2, y2, 2, 1) end
+lookup.edge.line = function (shape1, shape2, x1, y1, x2, y2) return cocollision.linesIntersectVert(shape1, shape2, x1, y1, x2, y2, 2, 0) end
 lookup.edge.rectangle = returnFalse -- todo
 lookup.edge.polygon = returnFalse -- todo
 
 lookup.ray = {}
 lookup.ray.none = returnFalse
-lookup.ray.edge = function (shape1, shape2, x1, y1, x2, y2) return cocollision.linesIntersect(shape1, shape2, x1, y1, x2, y2, 1, 2) end
-lookup.ray.ray = function (shape1, shape2, x1, y1, x2, y2) return cocollision.linesIntersect(shape1, shape2, x1, y1, x2, y2, 1, 1) end
-lookup.ray.line = function (shape1, shape2, x1, y1, x2, y2) return cocollision.linesIntersect(shape1, shape2, x1, y1, x2, y2, 1, 0) end
+lookup.ray.edge = function (shape1, shape2, x1, y1, x2, y2) return cocollision.linesIntersectVert(shape1, shape2, x1, y1, x2, y2, 1, 2) end
+lookup.ray.ray = function (shape1, shape2, x1, y1, x2, y2) return cocollision.linesIntersectVert(shape1, shape2, x1, y1, x2, y2, 1, 1) end
+lookup.ray.line = function (shape1, shape2, x1, y1, x2, y2) return cocollision.linesIntersectVert(shape1, shape2, x1, y1, x2, y2, 1, 0) end
 lookup.ray.rectangle = returnFalse -- todo
 lookup.ray.polygon = returnFalse -- todo
 
 lookup.line = {}
 lookup.line.none = returnFalse
-lookup.line.edge = function (shape1, shape2, x1, y1, x2, y2) return cocollision.linesIntersect(shape1, shape2, x1, y1, x2, y2, 0, 2) end
-lookup.line.ray = function (shape1, shape2, x1, y1, x2, y2) return cocollision.linesIntersect(shape1, shape2, x1, y1, x2, y2, 0, 1) end
-lookup.line.line = cocollision.linesIntersect
+lookup.line.edge = function (shape1, shape2, x1, y1, x2, y2) return cocollision.linesIntersectVert(shape1, shape2, x1, y1, x2, y2, 0, 2) end
+lookup.line.ray = function (shape1, shape2, x1, y1, x2, y2) return cocollision.linesIntersectVert(shape1, shape2, x1, y1, x2, y2, 0, 1) end
+lookup.line.line = cocollision.linesIntersectVert
 lookup.line.rectangle = returnFalse -- todo
 lookup.line.polygon = returnFalse -- todo
 
