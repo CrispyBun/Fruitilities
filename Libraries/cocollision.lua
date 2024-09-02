@@ -908,6 +908,27 @@ function cocollision.polygonsIntersect(polygon1, polygon2, x1, y1, x2, y2)
 end
 local polygonsIntersect = cocollision.polygonsIntersect
 
+--- Checks if a point is on top of another point.
+---@param point1 number[] The vertices of the first point
+---@param point2 number[] The vertices of the second point
+---@param x1? number X offset for the first point
+---@param y1? number Y offset for the first point
+---@param x2? number X offset for the second point
+---@param y2? number Y offset for the second point
+---@return boolean intersected
+function cocollision.pointIsOnPoint(point1, point2, x1, y1, x2, y2)
+    x1 = x1 or 0
+    y1 = y1 or 0
+    x2 = x2 or 0
+    y2 = y2 or 0
+    local p1x = point1[1] + x1
+    local p1y = point1[2] + y1
+    local p2x = point2[1] + x2
+    local p2y = point2[2] + y2
+    return p1x == p2x and p1y == p2y -- todo: pointIntersectionMargin
+end
+local pointIsOnPoint = cocollision.pointIsOnPoint
+
 -- https://stackoverflow.com/a/565282
 -- https://paulbourke.net/geometry/pointlineplane/javascript.txt
 -- https://www.shadertoy.com/view/sl3XRn
@@ -1093,7 +1114,7 @@ lookup.none.polygon = returnFalse
 
 lookup.point = {}
 lookup.point.none = returnFalse
-lookup.point.point = returnFalse -- todo
+lookup.point.point = pointIsOnPoint
 lookup.point.edge = returnFalse -- todo
 lookup.point.ray = returnFalse -- todo
 lookup.point.line = returnFalse -- todo
