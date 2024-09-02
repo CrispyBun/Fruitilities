@@ -939,18 +939,22 @@ function cocollision.pointIsOnPoint(point1, point2, x1, y1, x2, y2)
 end
 local pointIsOnPoint = cocollision.pointIsOnPoint
 
---- Checks if a point is on a line. The line is an infinite line by default, but can be configured to be a ray or a segment using the `lineEndpointCount` parameter - see `cocollision.linesIntersect` for details.
----@param pointX number The X position of the point
----@param pointY number The Y position of the point
+--- Checks if a circle is on a line. The line is an infinite line by default, but can be configured to be a ray or a segment using the `lineEndpointCount` parameter - see `cocollision.linesIntersect` for details.
+---@param circleX number The X position of the point
+---@param circleY number The Y position of the point
+---@param circleRadius number The radius of the circle
 ---@param lineX1 number The X position of the first vertex of the line
 ---@param lineY1 number The Y position of the first vertex of the line
 ---@param lineX2 number The X position of the second vertex of the line
 ---@param lineY2 number The Y position of the second vertex of the line
 ---@param lineEndpointCount? number How many endpoints the line has
 ---@return boolean intersects
-function cocollision.pointOnLine(pointX, pointY, lineX1, lineY1, lineX2, lineY2, lineEndpointCount)
+function cocollision.circleOnLine(circleX, circleY, circleRadius, lineX1, lineY1, lineX2, lineY2, lineEndpointCount)
     lineEndpointCount = lineEndpointCount or 0
 
+    local pointX = circleX
+    local pointY = circleY
+    local radius = circleRadius
     local lineX = lineX2 - lineX1
     local lineY = lineY2 - lineY1
 
@@ -981,19 +985,48 @@ function cocollision.pointOnLine(pointX, pointY, lineX1, lineY1, lineX2, lineY2,
         distanceFromLine = math.abs(lineToPointX * orthogonalX + lineToPointY * orthogonalY) / orthogonalLength
     end
 
-    if distanceFromLine > cocollision.pointIntersectionMargin then return false end
+    if distanceFromLine > radius then return false end
     if lineEndpointCount == 0 then return true end -- lines solved
 
-    -- project to get the parameter of the intersection, normalising not needed
-    local unnormalisedParameter = (lineX * lineToPointX + lineY * lineToPointY)
+    local lineLength = math.sqrt(lineX * lineX + lineY * lineY)
 
-    if unnormalisedParameter < 0 then return false end -- point is behind the line
+    -- how far away from the edge of the line the circle can go
+    -- (distance from the edge of the line to the point on the circle it crosses)
+    --
+    --      _ _ _ _ _ _
+    --    /             \
+    --  /                 \
+    -- |  radius           |
+    -- |     _ - X         |
+    -- | _ ⁻     |   <- distanceFromLine
+    -- |/________|         |
+    --  \     ^ segmentMargin
+    --    \ _ _ _ _ _ _ /
+    --
+    local segmentMargin = math.sqrt(radius * radius - distanceFromLine * distanceFromLine)
+
+    -- project to get the value of how far along the line the circle is
+    local unnormalisedParameter = (lineX * lineToPointX + lineY * lineToPointY) / lineLength
+
+    if unnormalisedParameter < -segmentMargin then return false end -- circle is behind the line
     if lineEndpointCount == 1 then return true end -- rays solved
 
-    local lineLengthSquared = lineX * lineX + lineY * lineY
-    if unnormalisedParameter > lineLengthSquared then return false end -- point is in front of the line
+    if unnormalisedParameter > lineLength + segmentMargin then return false end -- point is in front of the line
 
     return true -- segments solved
+end
+
+--- Checks if a point is on a line. The line is an infinite line by default, but can be configured to be a ray or a segment using the `lineEndpointCount` parameter - see `cocollision.linesIntersect` for details.
+---@param pointX number The X position of the point
+---@param pointY number The Y position of the point
+---@param lineX1 number The X position of the first vertex of the line
+---@param lineY1 number The Y position of the first vertex of the line
+---@param lineX2 number The X position of the second vertex of the line
+---@param lineY2 number The Y position of the second vertex of the line
+---@param lineEndpointCount? number How many endpoints the line has
+---@return boolean intersects
+function cocollision.pointOnLine(pointX, pointY, lineX1, lineY1, lineX2, lineY2, lineEndpointCount)
+    return cocollision.circleOnLine(pointX, pointY, cocollision.pointIntersectionMargin, lineX1, lineY1, lineX2, lineY2, lineEndpointCount)
 end
 local pointOnLine = cocollision.pointOnLine
 
@@ -1116,7 +1149,7 @@ local function linesIntersectVert(line1, line2, x1, y1, x2, y2, line1EndpointCou
     local by1 = line2[2] + y2
     local bx2 = line2[3] + x2
     local by2 = line2[4] + y2
-    return cocollision.linesIntersect(ax1, ay1, ax2, ay2, bx1, by1, bx2, by2, line1EndpointCount, line2EndpointCount)
+    return linesIntersect(ax1, ay1, ax2, ay2, bx1, by1, bx2, by2, line1EndpointCount, line2EndpointCount)
 end
 
 local function segmentsIntersectVert(segment1, segment2, x1, y1, x2, y2) return linesIntersectVert(segment1, segment2, x1, y1, x2, y2, 2, 2) end
