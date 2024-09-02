@@ -23,6 +23,7 @@ cocollision.boundlessShapes = {
 
 ---@alias Cocollision.ShapeType
 ---| '"none"' # An empty shape that doesn't collide with anything
+---| '"point"' # A single vertex
 ---| '"edge"' # A line segment
 ---| '"ray"' # A ray (half-line)
 ---| '"line"' # An infinite line
@@ -251,6 +252,17 @@ function cocollision.newPolygonShape(...)
 end
 
 --------------------------------------------------
+--- ### cocollision.newPointShape(x, y)
+--- Creates a new point shape.
+---@param x? number
+---@param y? number
+---@return Cocollision.Shape
+function cocollision.newPointShape(x, y)
+    return cocollision.newShape():setShapeToPoint(x, y)
+end
+cocollision.newVertexShape = cocollision.newPointShape
+
+--------------------------------------------------
 --- ### cocollision.newEdgeShape(x1, y1, x2, y2)
 --- ### cocollision.newEdgeShape(x2, y2)
 --- Creates a new line segment shape.  
@@ -426,6 +438,20 @@ function Shape:setShapeToPolygon(...)
     self:refreshTransform()
     return self
 end
+
+--------------------------------------------------
+--- ### Shape:setShapeToPoint(x, y)
+--- Sets the shape to be a single point.
+---@param x? number
+---@param y? number
+---@return Cocollision.Shape self
+function Shape:setShapeToPoint(x, y)
+    self.shapeType = "point"
+    self.vertices = {x or 0, y or 0}
+    self:refreshTransform()
+    return self
+end
+Shape.setShapeToVertex = Shape.setShapeToPoint
 
 --------------------------------------------------
 --- ### Shape:setShapeToEdge(x1, y1, x2, y2)
@@ -1058,14 +1084,25 @@ local lookup = cocollision.collisionLookup
 
 lookup.none = {}
 lookup.none.none = returnFalse
+lookup.none.point = returnFalse
 lookup.none.edge = returnFalse
 lookup.none.ray = returnFalse
 lookup.none.line = returnFalse
 lookup.none.rectangle = returnFalse
 lookup.none.polygon = returnFalse
 
+lookup.point = {}
+lookup.point.none = returnFalse
+lookup.point.point = returnFalse -- todo
+lookup.point.edge = returnFalse -- todo
+lookup.point.ray = returnFalse -- todo
+lookup.point.line = returnFalse -- todo
+lookup.point.rectangle = returnFalse -- todo
+lookup.point.polygon = returnFalse -- todo
+
 lookup.edge = {}
 lookup.edge.none = returnFalse
+lookup.edge.point = returnFalse -- todo
 lookup.edge.edge = segmentsIntersectVert
 lookup.edge.ray = segmentCrossesRayVert
 lookup.edge.line = segmentCrossesLineVert
@@ -1074,6 +1111,7 @@ lookup.edge.polygon = segmentCrossesPolygonVert
 
 lookup.ray = {}
 lookup.ray.none = returnFalse
+lookup.ray.point = returnFalse -- todo
 lookup.ray.edge = rayCrossesSegmentVert
 lookup.ray.ray = raysIntersectVert
 lookup.ray.line = rayCrossesLineVert
@@ -1082,6 +1120,7 @@ lookup.ray.polygon = rayCrossesPolygonVert
 
 lookup.line = {}
 lookup.line.none = returnFalse
+lookup.line.point = returnFalse -- todo
 lookup.line.edge = lineCrossesSegmentVert
 lookup.line.ray = lineCrossesRayVert
 lookup.line.line = linesIntersectVert
@@ -1090,6 +1129,7 @@ lookup.line.polygon = lineCrossesPolygonVert
 
 lookup.rectangle = {}
 lookup.rectangle.none = returnFalse
+lookup.rectangle.point = returnFalse -- todo
 lookup.rectangle.edge = polygonGetsHitBySegmentVert
 lookup.rectangle.ray = polygonGetsHitByRayVert
 lookup.rectangle.line = polygonGetsHitByLineVert
@@ -1098,6 +1138,7 @@ lookup.rectangle.polygon = polygonsIntersect
 
 lookup.polygon = {}
 lookup.polygon.none = returnFalse
+lookup.polygon.point = returnFalse -- todo
 lookup.polygon.edge = polygonGetsHitBySegmentVert
 lookup.polygon.ray = polygonGetsHitByRayVert
 lookup.polygon.line = polygonGetsHitByLineVert
