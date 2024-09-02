@@ -50,6 +50,26 @@ local ShapeMT = {__index = Shape}
 -- Misc functions ----------------------------------------------------------------------------------
 
 --------------------------------------------------
+--- ### cocollision.lineParameterToCoordinates(line, t)
+--- Converts a parameter of a line to the position in space it represents.  
+--- The line can be a line/ray/edge Shape object or a flat table of vertices defining the line.
+---@param line Cocollision.Shape|number[] The line
+---@param t number The parameter
+---@return number x The X coordinate
+---@return number y The Y coordinate
+function cocollision.lineParameterToCoordinates(line, t)
+    local vertices = line.vertices or line
+    local offsetX = line.x or 0
+    local offsetY = line.y or 0
+
+    local x1, y1 = vertices[1] + offsetX, vertices[2] + offsetY
+    local x2, y2 = vertices[3] + offsetX, vertices[4] + offsetY
+    local dx = x2 - x1
+    local dy = y2 - y1
+    return x1 + dx * t, y1 + dy * t
+end
+
+--------------------------------------------------
 --- ### cocollision.transformVertices(vertices, translateX, translateY, originX, originY)
 --- Transforms the given vertices in place.
 ---@param vertices number[] A flat array of the vertices to transform (with alternating x and y values)
