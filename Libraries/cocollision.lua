@@ -248,7 +248,7 @@ end
 --------------------------------------------------
 --- ### cocollision.newPolygonShape(...)
 --- ### cocollision.newPolygonShape(vertices)
---- Creates a new convex polygon shape. The vertices may be supplied as alternating X and Y coordinates in either a single flat array or a vararg.  
+--- Creates a new convex polygon shape. The vertices may be supplied as alternating X and Y coordinates in either a single flat array or a vararg. The polygon shape type also supports any amount of vertices, and can be basically a point or a segment.  
 --- Polygons output a push vector as the second argument in collisions with other rectangles or polygons.
 ---@param ... number
 ---@return Cocollision.Shape
@@ -421,7 +421,7 @@ Shape.setShapeToAABB = Shape.setShapeToRectangle
 --------------------------------------------------
 --- ### Shape:setShapeToPolygon(...)
 --- ### Shape:setShapeToPolygon(vertices)
---- Sets the shape to be a convex polygon. The vertices may be supplied as alternating X and Y coordinates in either a single flat array or a vararg.  
+--- Sets the shape to be a convex polygon. The vertices may be supplied as alternating X and Y coordinates in either a single flat array or a vararg. The polygon shape type also supports any amount of vertices, and can be basically a point or a segment.  
 --- Polygons output a push vector as the second argument in collisions with other rectangles or polygons.
 ---@param ... number
 ---@return Cocollision.Shape self
