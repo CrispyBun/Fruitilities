@@ -915,29 +915,26 @@ end
 local polygonsIntersect = cocollision.polygonsIntersect
 
 --- Checks if a point is on top of another point.
----@param point1 number[] The vertices of the first point
----@param point2 number[] The vertices of the second point
----@param x1? number X offset for the first point
----@param y1? number Y offset for the first point
----@param x2? number X offset for the second point
----@param y2? number Y offset for the second point
+---@param p1x number The X position of the first point
+---@param p1y number The Y position of the first point
+---@param p2x number The X position of the second point
+---@param p2y number The Y position of the second point
 ---@return boolean intersected
-function cocollision.pointIsOnPoint(point1, point2, x1, y1, x2, y2)
-    x1 = x1 or 0
-    y1 = y1 or 0
-    x2 = x2 or 0
-    y2 = y2 or 0
-    local p1x = point1[1] + x1
-    local p1y = point1[2] + y1
-    local p2x = point2[1] + x2
-    local p2y = point2[2] + y2
-
+function cocollision.pointIsOnPoint(p1x, p1y, p2x, p2y)
     local differenceX = p1x - p2x
     local differenceY = p1y - p2y
     local distance = math.sqrt(differenceX * differenceX + differenceY * differenceY)
     return distance <= cocollision.pointIntersectionMargin
 end
 local pointIsOnPoint = cocollision.pointIsOnPoint
+
+local function pointIsOnPointVert(point1, point2, x1, y1, x2, y2)
+    x1 = x1 or 0
+    y1 = y1 or 0
+    x2 = x2 or 0
+    y2 = y2 or 0
+    return pointIsOnPoint(point1[1] + x1, point1[2] + y1, point2[1] + x2, point2[2] + y2)
+end
 
 --- Checks if a circle is on a line. The line is an infinite line by default, but can be configured to be a ray or a segment using the `lineEndpointCount` parameter - see `cocollision.linesIntersect` for details.
 ---@param circleX number The X position of the point
@@ -1229,7 +1226,7 @@ lookup.none.polygon = returnFalse
 
 lookup.point = {}
 lookup.point.none = returnFalse
-lookup.point.point = pointIsOnPoint
+lookup.point.point = pointIsOnPointVert
 lookup.point.edge = pointOnSegmentVert
 lookup.point.ray = pointOnRayVert
 lookup.point.line = pointOnLineVert
