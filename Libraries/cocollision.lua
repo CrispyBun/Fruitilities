@@ -1258,8 +1258,10 @@ function cocollision.lineCrossesPolygon(lineX1, lineY1, lineX2, lineY2, polygon,
     polygonY = polygonY or 0
     lineEndpointCount = lineEndpointCount or 0
 
-    -- todo: wholly contained segments arent considered colliding,
-    -- add a point in polygon check here when that function is implemented
+    if lineEndpointCount >= 2 then -- segment could be wholly contained by the polygon
+        if pointInPolygon(lineX1, lineY1, polygon, polygonX, polygonY) then return true end
+        if pointInPolygon(lineX2, lineY2, polygon, polygonX, polygonY) then return true end
+    end
 
     local vertexCount = #polygon / 2
     if vertexCount == 0 then return false end
