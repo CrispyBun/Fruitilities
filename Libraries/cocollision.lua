@@ -915,29 +915,26 @@ end
 local polygonsIntersect = cocollision.polygonsIntersect
 
 --- Checks if a point is on top of another point.
----@param point1 number[] The vertices of the first point
----@param point2 number[] The vertices of the second point
----@param x1? number X offset for the first point
----@param y1? number Y offset for the first point
----@param x2? number X offset for the second point
----@param y2? number Y offset for the second point
+---@param p1x number The X position of the first point
+---@param p1y number The Y position of the first point
+---@param p2x number The X position of the second point
+---@param p2y number The Y position of the second point
 ---@return boolean intersected
-function cocollision.pointIsOnPoint(point1, point2, x1, y1, x2, y2)
-    x1 = x1 or 0
-    y1 = y1 or 0
-    x2 = x2 or 0
-    y2 = y2 or 0
-    local p1x = point1[1] + x1
-    local p1y = point1[2] + y1
-    local p2x = point2[1] + x2
-    local p2y = point2[2] + y2
-
+function cocollision.pointIsOnPoint(p1x, p1y, p2x, p2y)
     local differenceX = p1x - p2x
     local differenceY = p1y - p2y
     local distance = math.sqrt(differenceX * differenceX + differenceY * differenceY)
     return distance <= cocollision.pointIntersectionMargin
 end
 local pointIsOnPoint = cocollision.pointIsOnPoint
+
+local function pointIsOnPointVert(point1, point2, x1, y1, x2, y2)
+    x1 = x1 or 0
+    y1 = y1 or 0
+    x2 = x2 or 0
+    y2 = y2 or 0
+    return pointIsOnPoint(point1[1] + x1, point1[2] + y1, point2[1] + x2, point2[2] + y2)
+end
 
 --- Checks if a circle is on a line. The line is an infinite line by default, but can be configured to be a ray or a segment using the `lineEndpointCount` parameter - see `cocollision.linesIntersect` for details.
 ---@param circleX number The X position of the point
@@ -1161,17 +1158,13 @@ local function rayCrossesLineVert(ray, line, x1, y1, x2, y2) return linesInterse
 local function lineCrossesSegmentVert(line, segment, x1, y1, x2, y2) return linesIntersectVert(line, segment, x1, y1, x2, y2, 0, 2) end
 local function lineCrossesRayVert(line, ray, x1, y1, x2, y2) return linesIntersectVert(line, ray, x1, y1, x2, y2, 0, 1) end
 
----@param point number[]
+---@param pointX number
+---@param pointY number
 ---@param rectangle number[]
----@param x1? number
----@param y1? number
----@param x2? number
----@param y2? number
+---@param rectangleX? number
+---@param rectangleY? number
 ---@return boolean intersected
-function cocollision.pointInRectangle(point, rectangle, x1, y1, x2, y2)
-    local pointX = point[1] + x1
-    local pointY = point[2] + y1
-
+function cocollision.pointInRectangle(pointX, pointY, rectangle, rectangleX, rectangleY)
     -- Allow for: `x1, y1, x2, y2, x3, y3, x4, y4`
     local rectangleX1, rectangleY1, rectangleX2, rectangleY2 = rectangle[1], rectangle[2], rectangle[5], rectangle[6]
 
@@ -1180,14 +1173,12 @@ function cocollision.pointInRectangle(point, rectangle, x1, y1, x2, y2)
     rectangleY2 = rectangleY2 or rectangle[4]
 
     -- Offset
-    x1 = x1 or 0
-    y1 = y1 or 0
-    x2 = x2 or 0
-    y2 = y2 or 0
-    rectangleX1 = rectangleX1 + x2
-    rectangleY1 = rectangleY1 + y2
-    rectangleX2 = rectangleX2 + x2
-    rectangleY2 = rectangleY2 + y2
+    rectangleX = rectangleX or 0
+    rectangleY = rectangleY or 0
+    rectangleX1 = rectangleX1 + rectangleX
+    rectangleY1 = rectangleY1 + rectangleY
+    rectangleX2 = rectangleX2 + rectangleX
+    rectangleY2 = rectangleY2 + rectangleY
 
     if pointX > rectangleX2 then return false end
     if pointX < rectangleX1 then return false end
@@ -1196,33 +1187,35 @@ function cocollision.pointInRectangle(point, rectangle, x1, y1, x2, y2)
     return true
 end
 local pointInRectangle = cocollision.pointInRectangle
-local function rectangleIsUnderPoint(rectangle, point, x1, y1, x2, y2) return pointInRectangle(point, rectangle, x2, y2, x1, y1) end
 
--- https://en.m.wikipedia.org/wiki/Even%E2%8093odd_rule
--- https://www.jeffreythompson.org/collision-detection/poly-point.php
-
----@param point number[]
----@param polygon number[]
----@param x1? number
----@param y1? number
----@param x2? number
----@param y2? number
----@return boolean intersected
-function cocollision.pointInPolygon(point, polygon, x1, y1, x2, y2)
+local function pointInRectangleVert(point, rectangle, x1, y1, x2, y2)
     x1 = x1 or 0
     y1 = y1 or 0
     x2 = x2 or 0
     y2 = y2 or 0
+    return pointInRectangle(point[1] + x1, point[2] + y1, rectangle, x2, y2)
+end
+local function rectangleIsUnderPointVert(rectangle, point, x1, y1, x2, y2) return pointInRectangleVert(point, rectangle, x2, y2, x1, y1) end
 
-    local pointX = point[1] + x1
-    local pointY = point[2] + y1
+-- https://en.m.wikipedia.org/wiki/Even%E2%8093odd_rule
+-- https://www.jeffreythompson.org/collision-detection/poly-point.php
+
+---@param pointX number
+---@param pointY number
+---@param polygon number[]
+---@param polygonX? number
+---@param polygonY? number
+---@return boolean intersected
+function cocollision.pointInPolygon(pointX, pointY, polygon, polygonX, polygonY)
+    polygonX = polygonX or 0
+    polygonY = polygonY or 0
 
     local intersected = false
     for vertexIndex = 1, #polygon, 2 do
-        local vertexX1 = polygon[vertexIndex] + x2
-        local vertexY1 = polygon[vertexIndex + 1] + y2
-        local vertexX2 = (polygon[vertexIndex + 2] or polygon[1]) + x2
-        local vertexY2 = (polygon[vertexIndex + 3] or polygon[2]) + y2
+        local vertexX1 = polygon[vertexIndex] + polygonX
+        local vertexY1 = polygon[vertexIndex + 1] + polygonY
+        local vertexX2 = (polygon[vertexIndex + 2] or polygon[1]) + polygonX
+        local vertexY2 = (polygon[vertexIndex + 3] or polygon[2]) + polygonY
 
         if pointX == vertexX1 and pointY == vertexY1 then
             return true -- point is on a corner
@@ -1241,7 +1234,15 @@ function cocollision.pointInPolygon(point, polygon, x1, y1, x2, y2)
     return intersected
 end
 local pointInPolygon = cocollision.pointInPolygon
-local function polygonIsUnderPoint(polygon, point, x1, y1, x2, y2) return pointInPolygon(point, polygon, x2, y2, x1, y1) end
+
+local function pointInPolygonVert(point, polygon, x1, y1, x2, y2)
+    x1 = x1 or 0
+    y1 = y1 or 0
+    x2 = x2 or 0
+    y2 = y2 or 0
+    return pointInPolygon(point[1] + x1, point[2] + y1, polygon, x2, y2)
+end
+local function polygonIsUnderPointVert(polygon, point, x1, y1, x2, y2) return pointInPolygonVert(point, polygon, x2, y2, x1, y1) end
 
 ---@param lineX1 number
 ---@param lineY1 number
@@ -1311,12 +1312,12 @@ lookup.none.polygon = returnFalse
 
 lookup.point = {}
 lookup.point.none = returnFalse
-lookup.point.point = pointIsOnPoint
+lookup.point.point = pointIsOnPointVert
 lookup.point.edge = pointOnSegmentVert
 lookup.point.ray = pointOnRayVert
 lookup.point.line = pointOnLineVert
-lookup.point.rectangle = pointInRectangle
-lookup.point.polygon = pointInPolygon
+lookup.point.rectangle = pointInRectangleVert
+lookup.point.polygon = pointInPolygonVert
 
 lookup.edge = {}
 lookup.edge.none = returnFalse
@@ -1347,7 +1348,7 @@ lookup.line.polygon = lineCrossesPolygonVert
 
 lookup.rectangle = {}
 lookup.rectangle.none = returnFalse
-lookup.rectangle.point = rectangleIsUnderPoint
+lookup.rectangle.point = rectangleIsUnderPointVert
 lookup.rectangle.edge = polygonGetsHitBySegmentVert
 lookup.rectangle.ray = polygonGetsHitByRayVert
 lookup.rectangle.line = polygonGetsHitByLineVert
@@ -1356,7 +1357,7 @@ lookup.rectangle.polygon = polygonsIntersect
 
 lookup.polygon = {}
 lookup.polygon.none = returnFalse
-lookup.polygon.point = polygonIsUnderPoint
+lookup.polygon.point = polygonIsUnderPointVert
 lookup.polygon.edge = polygonGetsHitBySegmentVert
 lookup.polygon.ray = polygonGetsHitByRayVert
 lookup.polygon.line = polygonGetsHitByLineVert
