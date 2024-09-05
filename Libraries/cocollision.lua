@@ -1161,6 +1161,42 @@ local function rayCrossesLineVert(ray, line, x1, y1, x2, y2) return linesInterse
 local function lineCrossesSegmentVert(line, segment, x1, y1, x2, y2) return linesIntersectVert(line, segment, x1, y1, x2, y2, 0, 2) end
 local function lineCrossesRayVert(line, ray, x1, y1, x2, y2) return linesIntersectVert(line, ray, x1, y1, x2, y2, 0, 1) end
 
+---@param point number[]
+---@param rectangle number[]
+---@param x1? number
+---@param y1? number
+---@param x2? number
+---@param y2? number
+function cocollision.pointInRectangle(point, rectangle, x1, y1, x2, y2)
+    local pointX = point[1] + x1
+    local pointY = point[2] + y1
+
+    -- Allow for: `x1, y1, x2, y2, x3, y3, x4, y4`
+    local rectangleX1, rectangleY1, rectangleX2, rectangleY2 = rectangle[1], rectangle[2], rectangle[5], rectangle[6]
+
+    -- Allow for: `x1, y1, x2, y2`
+    rectangleX2 = rectangleX2 or rectangle[3]
+    rectangleY2 = rectangleY2 or rectangle[4]
+
+    -- Offset
+    x1 = x1 or 0
+    y1 = y1 or 0
+    x2 = x2 or 0
+    y2 = y2 or 0
+    rectangleX1 = rectangleX1 + x2
+    rectangleY1 = rectangleY1 + y2
+    rectangleX2 = rectangleX2 + x2
+    rectangleY2 = rectangleY2 + y2
+
+    if pointX > rectangleX2 then return false end
+    if pointX < rectangleX1 then return false end
+    if pointY > rectangleY2 then return false end
+    if pointY < rectangleY1 then return false end
+    return true
+end
+local pointInRectangle = cocollision.pointInRectangle
+local function rectangleIsUnderPoint(rectangle, point, x1, y1, x2, y2) return pointInRectangle(point, rectangle, x2, y2, x1, y1) end
+
 ---@param lineX1 number
 ---@param lineY1 number
 ---@param lineX2 number
@@ -1233,7 +1269,7 @@ lookup.point.point = pointIsOnPoint
 lookup.point.edge = pointOnSegmentVert
 lookup.point.ray = pointOnRayVert
 lookup.point.line = pointOnLineVert
-lookup.point.rectangle = returnFalse -- todo
+lookup.point.rectangle = pointInRectangle
 lookup.point.polygon = returnFalse -- todo
 
 lookup.edge = {}
@@ -1265,7 +1301,7 @@ lookup.line.polygon = lineCrossesPolygonVert
 
 lookup.rectangle = {}
 lookup.rectangle.none = returnFalse
-lookup.rectangle.point = returnFalse -- todo
+lookup.rectangle.point = rectangleIsUnderPoint
 lookup.rectangle.edge = polygonGetsHitBySegmentVert
 lookup.rectangle.ray = polygonGetsHitByRayVert
 lookup.rectangle.line = polygonGetsHitByLineVert
