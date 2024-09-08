@@ -35,6 +35,7 @@ cocollision.boundlessShapes = {
 ---| '"line"' # An infinite line
 ---| '"rectangle"' # An axis aligned rectangle
 ---| '"polygon"' # A convex polygon
+---| '"circle"' # A circle
 
 ---@class Cocollision.Shape
 ---@field shapeType Cocollision.ShapeType
@@ -234,7 +235,7 @@ end
 --- ### cocollision.newRectangleShape(x, y, width, height)
 --- ### cocollision.newRectangleShape(width, height)
 --- Creates a new axis aligned rectangle shape.  
---- Rectangles output a push vector as the second argument in collisions with other rectangles or polygons.
+--- Rectangles output a push vector as the second argument in collisions with other rectangles, polygons or circles.
 ---@param x number
 ---@param y number
 ---@param width number
@@ -249,7 +250,7 @@ end
 --- ### cocollision.newPolygonShape(...)
 --- ### cocollision.newPolygonShape(vertices)
 --- Creates a new convex polygon shape. The vertices may be supplied as alternating X and Y coordinates in either a single flat array or a vararg. The polygon shape type also supports any amount of vertices, and can be basically a point or a segment.  
---- Polygons output a push vector as the second argument in collisions with other rectangles or polygons.
+--- Polygons output a push vector as the second argument in collisions with other rectangles, polygons or circles.
 ---@param ... number
 ---@return Cocollision.Shape
 ---@overload fun(vertices: number[]): Cocollision.Shape
@@ -313,6 +314,20 @@ cocollision.newRaycastShape = cocollision.newRayShape
 ---@overload fun(x2: number, y2: number): Cocollision.Shape
 function cocollision.newLineShape(x1, y1, x2, y2)
     return cocollision.newShape():setShapeToLine(x1, y1, x2, y2)
+end
+
+--------------------------------------------------
+--- ### cocollision.newCircleShape(radius)
+--- ### cocollision.newCircleShape(x, y, radius)
+--- Creates a new circle shape.  
+--- Circles output a push vector as the second argument in collisions with other rectangles, polygons, or circles.
+---@param x number
+---@param y number
+---@param radius number
+---@return Cocollision.Shape
+---@overload fun(radius: number): Cocollision.Shape
+function cocollision.newCircleShape(x, y, radius)
+    return cocollision.newShape():setShapeToCircle(x, y, radius)
 end
 
 --------------------------------------------------
@@ -390,7 +405,7 @@ end
 --- ### Shape:setShapeToRectangle(x, y, width, height)
 --- ### Shape:setShapeToRectangle(width, height)
 --- Sets the shape to be an axis aligned rectangle.  
---- Rectangles output a push vector as the second argument in collisions with other rectangles or polygons.
+--- Rectangles output a push vector as the second argument in collisions with other rectangles, polygons, or circles.
 ---@param x number
 ---@param y number
 ---@param width number
@@ -422,7 +437,7 @@ Shape.setShapeToAABB = Shape.setShapeToRectangle
 --- ### Shape:setShapeToPolygon(...)
 --- ### Shape:setShapeToPolygon(vertices)
 --- Sets the shape to be a convex polygon. The vertices may be supplied as alternating X and Y coordinates in either a single flat array or a vararg. The polygon shape type also supports any amount of vertices, and can be basically a point or a segment.  
---- Polygons output a push vector as the second argument in collisions with other rectangles or polygons.
+--- Polygons output a push vector as the second argument in collisions with other rectangles, polygons, or circles.
 ---@param ... number
 ---@return Cocollision.Shape self
 ---@overload fun(self: Cocollision.Shape, vertices: number[]): Cocollision.Shape
@@ -518,6 +533,35 @@ Shape.setShapeToRaycast = Shape.setShapeToRay
 function Shape:setShapeToLine(x1, y1, x2, y2)
     self:setShapeToEdge(x1, y1, x2, y2)
     self.shapeType = "line"
+    return self
+end
+
+--------------------------------------------------
+--- ### Shape:setShapeToCircle(radius)
+--- ### Shape:setShapeToCircle(x, y, radius)
+--- Sets the shape to be a circle.  
+--- Circles output a push vector as the second argument in collisions with other rectangles, polygons, or circles.
+---@param x number
+---@param y number
+---@param radius number
+---@return Cocollision.Shape self
+---@overload fun(radius: number): Cocollision.Shape
+function Shape:setShapeToCircle(x, y, radius)
+    x = x or 0
+    y = y or 0
+    if not radius then
+        radius = x
+        x = 0
+        y = 0
+    end
+
+    self.shapeType = "circle"
+    self.vertices = {
+        x, y,
+        x + radius, y
+    }
+
+    self:refreshTransform()
     return self
 end
 
@@ -698,6 +742,7 @@ function Shape:getTransformedVertices()
 
         local rotation = self.rotation
         if self.shapeType == "rectangle" and not self.doRectangularRotation then rotation = 0 end
+        if self.shapeType == "circle" then rotation = 0 end
 
         cocollision.transformVertices(transformedVertices, self.translateX, self.translateY, rotation, self.scaleX, self.scaleY, self.originX, self.originY)
         if self.shapeType == "rectangle" and rotation ~= 0 then cocollision.generateBoundingBox(transformedVertices, transformedVertices) end
@@ -715,8 +760,21 @@ function Shape:getBoundingBox()
     local bbox = self.boundingBox
     if #bbox == 0 then
         local transformedVertices = self:getTransformedVertices()
+
+        if self.shapeType == "circle" then
+            local radius = transformedVertices[3] - transformedVertices[1]
+            bbox[1] = transformedVertices[1] - radius
+            bbox[2] = transformedVertices[2] - radius
+            bbox[3] = transformedVertices[1] + radius
+            bbox[4] = transformedVertices[2] - radius
+            bbox[5] = transformedVertices[1] + radius
+            bbox[6] = transformedVertices[2] + radius
+            bbox[7] = transformedVertices[1] - radius
+            bbox[8] = transformedVertices[2] + radius
+            return bbox
+        end
+
         cocollision.generateBoundingBox(transformedVertices, bbox)
-        self.boundingBox = bbox
     end
     return bbox
 end
@@ -1311,6 +1369,7 @@ lookup.none.ray = returnFalse
 lookup.none.line = returnFalse
 lookup.none.rectangle = returnFalse
 lookup.none.polygon = returnFalse
+lookup.none.circle = returnFalse
 
 lookup.point = {}
 lookup.point.none = returnFalse
@@ -1320,6 +1379,7 @@ lookup.point.ray = pointOnRayVert
 lookup.point.line = pointOnLineVert
 lookup.point.rectangle = pointInRectangleVert
 lookup.point.polygon = pointInPolygonVert
+lookup.point.circle = returnFalse -- todo
 
 lookup.edge = {}
 lookup.edge.none = returnFalse
@@ -1329,6 +1389,7 @@ lookup.edge.ray = segmentCrossesRayVert
 lookup.edge.line = segmentCrossesLineVert
 lookup.edge.rectangle = segmentCrossesPolygonVert
 lookup.edge.polygon = segmentCrossesPolygonVert
+lookup.edge.circle = returnFalse -- todo
 
 lookup.ray = {}
 lookup.ray.none = returnFalse
@@ -1338,6 +1399,7 @@ lookup.ray.ray = raysIntersectVert
 lookup.ray.line = rayCrossesLineVert
 lookup.ray.rectangle = rayCrossesPolygonVert
 lookup.ray.polygon = rayCrossesPolygonVert
+lookup.ray.circle = returnFalse -- todo
 
 lookup.line = {}
 lookup.line.none = returnFalse
@@ -1347,6 +1409,7 @@ lookup.line.ray = lineCrossesRayVert
 lookup.line.line = linesIntersectVert
 lookup.line.rectangle = lineCrossesPolygonVert
 lookup.line.polygon = lineCrossesPolygonVert
+lookup.line.circle = returnFalse -- todo
 
 lookup.rectangle = {}
 lookup.rectangle.none = returnFalse
@@ -1356,6 +1419,7 @@ lookup.rectangle.ray = polygonGetsHitByRayVert
 lookup.rectangle.line = polygonGetsHitByLineVert
 lookup.rectangle.rectangle = rectanglesIntersect
 lookup.rectangle.polygon = polygonsIntersect
+lookup.rectangle.circle = returnFalse -- todo
 
 lookup.polygon = {}
 lookup.polygon.none = returnFalse
@@ -1365,6 +1429,17 @@ lookup.polygon.ray = polygonGetsHitByRayVert
 lookup.polygon.line = polygonGetsHitByLineVert
 lookup.polygon.rectangle = polygonsIntersect
 lookup.polygon.polygon = polygonsIntersect
+lookup.polygon.circle = returnFalse -- todo
+
+lookup.circle = {}
+lookup.circle.none = returnFalse
+lookup.circle.point = returnFalse -- todo
+lookup.circle.edge = returnFalse -- todo
+lookup.circle.ray = returnFalse -- todo
+lookup.circle.line = returnFalse -- todo
+lookup.circle.rectangle = returnFalse -- todo
+lookup.circle.polygon = returnFalse -- todo
+lookup.circle.circle = returnFalse -- todo
 
 -- Abstraction for possible usage outside LÖVE -----------------------------------------------------
 -- These are just for visual debugging, and arent't necessary for cocollision to work.
@@ -1419,6 +1494,13 @@ cocollision.graphics.debugDrawShape = function(shape, fullColor, drawBounds)
             love.graphics.line(bbox[5] + x, bbox[6] + y, bbox[7] + x, bbox[8] + y)
             love.graphics.line(bbox[7] + x, bbox[8] + y, bbox[1] + x, bbox[2] + y)
         end
+    end
+
+    if shape.shapeType == "circle" then
+        love.graphics.setColor(color)
+        love.graphics.circle("fill", vertices[1], vertices[2], vertices[3] - vertices[1])
+        love.graphics.setColor(colorFull)
+        love.graphics.circle("line", vertices[1], vertices[2], vertices[3] - vertices[1])
     end
 
     if #vertices >= 6 then
