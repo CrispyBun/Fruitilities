@@ -1116,6 +1116,37 @@ local function polygonIntersectsCircleVert(polygon, circle, x1, y1, x2, y2, _rev
 end
 local function circleIntersectsPolygonVert(circle, polygon, x1, y1, x2, y2) return polygonIntersectsCircleVert(polygon, circle, x2, y2, x1, y1, true) end
 
+---@param circle1X number
+---@param circle1Y number
+---@param circle1Radius number
+---@param circle2X number
+---@param circle2Y number
+---@param circle2Radius number
+---@return boolean intersected
+---@return [number, number]? pushVector
+function cocollision.circlesIntersect(circle1X, circle1Y, circle1Radius, circle2X, circle2Y, circle2Radius)
+    local differenceX = circle1X - circle2X
+    local differenceY = circle1Y - circle2Y
+    local distance = math.sqrt(differenceX * differenceX + differenceY * differenceY)
+    if distance > circle1Radius + circle2Radius then return false end
+
+    local pushDistance = circle1Radius + circle2Radius - distance
+    local pushVectorX = differenceX / distance * pushDistance
+    local pushVectorY = differenceY / distance * pushDistance
+    return true, {pushVectorX, pushVectorY}
+end
+local circlesIntersect = cocollision.circlesIntersect
+
+local function circlesIntersectVert(circle1, circle2, x1, y1, x2, y2)
+    x1 = x1 or 0
+    y1 = y1 or 0
+    x2 = x2 or 0
+    y2 = y2 or 0
+    local radius1 = circle1[3] - circle1[1]
+    local radius2 = circle2[3] - circle2[1]
+    return circlesIntersect(circle1[1] + x1, circle1[2] + y1, radius1, circle2[1] + x2, circle2[2] + y2, radius2)
+end
+
 --- Checks if a point is on top of another point.
 ---@param p1x number The X position of the first point
 ---@param p1y number The Y position of the first point
@@ -1623,7 +1654,7 @@ lookup.circle.ray = circleOnRayVert
 lookup.circle.line = circleOnLineVert
 lookup.circle.rectangle = circleIntersectsPolygonVert
 lookup.circle.polygon = circleIntersectsPolygonVert
-lookup.circle.circle = returnFalse -- todo
+lookup.circle.circle = circlesIntersectVert
 
 -- Abstraction for possible usage outside LÖVE -----------------------------------------------------
 -- These are just for visual debugging, and arent't necessary for cocollision to work.
