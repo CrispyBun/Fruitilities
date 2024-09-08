@@ -1094,6 +1094,22 @@ function cocollision.circleOnLine(circleX, circleY, circleRadius, lineX1, lineY1
 
     return true -- segments solved
 end
+local circleOnLine = cocollision.circleOnLine
+
+local function circleOnLineVert(circle, line, x1, y1, x2, y2, lineEndpointCount)
+    x1 = x1 or 0
+    y1 = y1 or 0
+    x2 = x2 or 0
+    y2 = y2 or 0
+    local radius = circle[3] - circle[1]
+    return circleOnLine(circle[1] + x1, circle[2] + y1, radius, line[1] + x2, line[2] + y2, line[3] + x2, line[4] + y2, lineEndpointCount)
+end
+
+local function circleOnRayVert(circle, ray, x1, y1, x2, y2) return circleOnLineVert(circle, ray, x1, y1, x2, y2, 1) end
+local function circleOnSegmentVert(circle, segment, x1, y1, x2, y2) return circleOnLineVert(circle, segment, x1, y1, x2, y2, 2) end
+local function lineIsUnderCircleVert(line, circle, x1, y1, x2, y2) return circleOnLineVert(circle, line, x2, y2, x1, y1) end
+local function rayIsUnderCircleVert(ray, circle, x1, y1, x2, y2) return circleOnLineVert(circle, ray, x2, y2, x1, y1, 1) end
+local function segmentIsUnderCircleVert(segment, circle, x1, y1, x2, y2) return circleOnLineVert(circle, segment, x2, y2, x1, y1, 2) end
 
 --- Checks if a point is on a line. The line is an infinite line by default, but can be configured to be a ray or a segment using the `lineEndpointCount` parameter - see `cocollision.linesIntersect` for details.
 ---@param pointX number The X position of the point
@@ -1105,7 +1121,7 @@ end
 ---@param lineEndpointCount? number How many endpoints the line has
 ---@return boolean intersects
 function cocollision.pointOnLine(pointX, pointY, lineX1, lineY1, lineX2, lineY2, lineEndpointCount)
-    return cocollision.circleOnLine(pointX, pointY, cocollision.pointIntersectionMargin, lineX1, lineY1, lineX2, lineY2, lineEndpointCount)
+    return circleOnLine(pointX, pointY, cocollision.pointIntersectionMargin, lineX1, lineY1, lineX2, lineY2, lineEndpointCount)
 end
 local pointOnLine = cocollision.pointOnLine
 
@@ -1413,7 +1429,7 @@ lookup.edge.ray = segmentCrossesRayVert
 lookup.edge.line = segmentCrossesLineVert
 lookup.edge.rectangle = segmentCrossesPolygonVert
 lookup.edge.polygon = segmentCrossesPolygonVert
-lookup.edge.circle = returnFalse -- todo
+lookup.edge.circle = segmentIsUnderCircleVert
 
 lookup.ray = {}
 lookup.ray.none = returnFalse
@@ -1423,7 +1439,7 @@ lookup.ray.ray = raysIntersectVert
 lookup.ray.line = rayCrossesLineVert
 lookup.ray.rectangle = rayCrossesPolygonVert
 lookup.ray.polygon = rayCrossesPolygonVert
-lookup.ray.circle = returnFalse -- todo
+lookup.ray.circle = rayIsUnderCircleVert
 
 lookup.line = {}
 lookup.line.none = returnFalse
@@ -1433,7 +1449,7 @@ lookup.line.ray = lineCrossesRayVert
 lookup.line.line = linesIntersectVert
 lookup.line.rectangle = lineCrossesPolygonVert
 lookup.line.polygon = lineCrossesPolygonVert
-lookup.line.circle = returnFalse -- todo
+lookup.line.circle = lineIsUnderCircleVert
 
 lookup.rectangle = {}
 lookup.rectangle.none = returnFalse
@@ -1458,9 +1474,9 @@ lookup.polygon.circle = returnFalse -- todo
 lookup.circle = {}
 lookup.circle.none = returnFalse
 lookup.circle.point = circleUnderPointVert
-lookup.circle.edge = returnFalse -- todo
-lookup.circle.ray = returnFalse -- todo
-lookup.circle.line = returnFalse -- todo
+lookup.circle.edge = circleOnSegmentVert
+lookup.circle.ray = circleOnRayVert
+lookup.circle.line = circleOnLineVert
 lookup.circle.rectangle = returnFalse -- todo
 lookup.circle.polygon = returnFalse -- todo
 lookup.circle.circle = returnFalse -- todo
