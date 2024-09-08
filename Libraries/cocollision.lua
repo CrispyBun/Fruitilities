@@ -972,6 +972,150 @@ function cocollision.polygonsIntersect(polygon1, polygon2, x1, y1, x2, y2)
 end
 local polygonsIntersect = cocollision.polygonsIntersect
 
+-- https://www.sevenson.com.au/programming/sat/
+
+---@param polygon number[]
+---@param polygonX number
+---@param polygonY number
+---@param circleX number
+---@param circleY number
+---@param circleRadius number
+---@param _reversePushVector? boolean
+---@return boolean intersected
+---@return [number, number]? pushVector
+function cocollision.polygonIntersectsCircle(polygon, polygonX, polygonY, circleX, circleY, circleRadius, _reversePushVector)
+    polygonX = polygonX or 0
+    polygonY = polygonY or 0
+
+    -- Closest vertex to the circle
+    local closestVertexDistanceSquared = math.huge
+    local closestVertexDifferenceX, closestVertexDifferenceY
+
+    local pushVectorX, pushVectorY
+    local pushVectorMinDistance = math.huge
+
+    local polygonCenterX, polygonCenterY = 0, 0
+
+    if #polygon == 0 then return false end
+
+    for vertexIndex = 1, #polygon, 2 do
+        local differenceX = polygon[vertexIndex] + polygonX - circleX
+        local differenceY = polygon[vertexIndex + 1] + polygonY - circleY
+        local distanceSquared = differenceX * differenceX + differenceY * differenceY
+        if distanceSquared < closestVertexDistanceSquared then
+            closestVertexDistanceSquared = distanceSquared
+            closestVertexDifferenceX = differenceX
+            closestVertexDifferenceY = differenceY
+        end
+
+        local edgeX1 = polygon[vertexIndex]
+        local edgeY1 = polygon[vertexIndex + 1]
+        local edgeX2 = polygon[vertexIndex + 2] or polygon[1]
+        local edgeY2 = polygon[vertexIndex + 3] or polygon[2]
+
+        polygonCenterX = polygonCenterX + polygonX + edgeX1
+        polygonCenterY = polygonCenterY + polygonY + edgeY1
+
+        local edgeX = edgeX2 - edgeX1
+        local edgeY = edgeY2 - edgeY1
+
+        local orthogonalX = -edgeY
+        local orthogonalY = edgeX
+
+        -- The orthogonal needs to be normalised here
+        local orthogonalLength = math.sqrt(orthogonalX * orthogonalX + orthogonalY * orthogonalY)
+        orthogonalX = orthogonalX / orthogonalLength
+        orthogonalY = orthogonalY / orthogonalLength
+
+        -- Bounds of the projections onto the orthogonal vector
+        local min1, max1 = math.huge, -math.huge
+        local min2, max2
+
+        for projectedVertexIndex1 = 1, #polygon, 2 do
+            local x = polygon[projectedVertexIndex1] + polygonX
+            local y = polygon[projectedVertexIndex1 + 1] + polygonY
+
+            local projection = x * orthogonalX + y * orthogonalY
+            min1 = math.min(min1, projection)
+            max1 = math.max(max1, projection)
+        end
+
+        local projectedPoint = circleX * orthogonalX + circleY * orthogonalY
+        min2 = projectedPoint - circleRadius
+        max2 = projectedPoint + circleRadius
+
+        if max1 < min2 or min1 > max2 then
+            -- Separating axis found
+            return false
+        end
+
+        local pushDistance = math.min(max2 - min1, max1 - min2)
+        if pushDistance < pushVectorMinDistance then
+            pushVectorMinDistance = pushDistance
+            pushVectorX = orthogonalX * pushDistance
+            pushVectorY = orthogonalY * pushDistance
+        end
+    end
+
+    -- Check the axis for the circle
+    local closestVertexDistance = math.sqrt(closestVertexDistanceSquared)
+    local orthogonalX = closestVertexDifferenceX / closestVertexDistance
+    local orthogonalY = closestVertexDifferenceY / closestVertexDistance
+
+    local min1, max1 = math.huge, -math.huge
+    local min2, max2
+    for projectedVertexIndex1 = 1, #polygon, 2 do
+        local x = polygon[projectedVertexIndex1] + polygonX
+        local y = polygon[projectedVertexIndex1 + 1] + polygonY
+
+        local projection = x * orthogonalX + y * orthogonalY
+        min1 = math.min(min1, projection)
+        max1 = math.max(max1, projection)
+    end
+    local projectedPoint = circleX * orthogonalX + circleY * orthogonalY
+    min2 = projectedPoint - circleRadius
+    max2 = projectedPoint + circleRadius
+
+    if max1 < min2 or min1 > max2 then
+        return false
+    end
+
+    local pushDistance = math.min(max2 - min1, max1 - min2)
+    if pushDistance < pushVectorMinDistance then
+        pushVectorMinDistance = pushDistance
+        pushVectorX = orthogonalX * pushDistance
+        pushVectorY = orthogonalY * pushDistance
+    end
+
+    -- Make sure the push vector is pointing in the right direction
+    polygonCenterX = polygonCenterX / (#polygon / 2)
+    polygonCenterY = polygonCenterY / (#polygon / 2)
+    local centerDifferenceX = circleX - polygonCenterX
+    local centerDifferenceY = circleY - polygonCenterY
+    local projection = pushVectorX * centerDifferenceX + pushVectorY * centerDifferenceY
+    if projection > 0 then
+        pushVectorX = -pushVectorX
+        pushVectorY = -pushVectorY
+    end
+    if _reversePushVector then
+        pushVectorX = -pushVectorX
+        pushVectorY = -pushVectorY
+    end
+
+    return true, {pushVectorX, pushVectorY}
+end
+local polygonIntersectsCircle = cocollision.polygonIntersectsCircle
+
+local function polygonIntersectsCircleVert(polygon, circle, x1, y1, x2, y2, _reversePushVector)
+    x1 = x1 or 0
+    y1 = y1 or 0
+    x2 = x2 or 0
+    y2 = y2 or 0
+    local radius = circle[3] - circle[1]
+    return polygonIntersectsCircle(polygon, x1, y1, circle[1] + x2, circle[2] + y2, radius, _reversePushVector)
+end
+local function circleIntersectsPolygonVert(circle, polygon, x1, y1, x2, y2) return polygonIntersectsCircleVert(polygon, circle, x2, y2, x1, y1, true) end
+
 --- Checks if a point is on top of another point.
 ---@param p1x number The X position of the first point
 ---@param p1y number The Y position of the first point
@@ -1459,7 +1603,7 @@ lookup.rectangle.ray = polygonGetsHitByRayVert
 lookup.rectangle.line = polygonGetsHitByLineVert
 lookup.rectangle.rectangle = rectanglesIntersect
 lookup.rectangle.polygon = polygonsIntersect
-lookup.rectangle.circle = returnFalse -- todo
+lookup.rectangle.circle = polygonIntersectsCircleVert
 
 lookup.polygon = {}
 lookup.polygon.none = returnFalse
@@ -1469,7 +1613,7 @@ lookup.polygon.ray = polygonGetsHitByRayVert
 lookup.polygon.line = polygonGetsHitByLineVert
 lookup.polygon.rectangle = polygonsIntersect
 lookup.polygon.polygon = polygonsIntersect
-lookup.polygon.circle = returnFalse -- todo
+lookup.polygon.circle = polygonIntersectsCircleVert
 
 lookup.circle = {}
 lookup.circle.none = returnFalse
@@ -1477,8 +1621,8 @@ lookup.circle.point = circleUnderPointVert
 lookup.circle.edge = circleOnSegmentVert
 lookup.circle.ray = circleOnRayVert
 lookup.circle.line = circleOnLineVert
-lookup.circle.rectangle = returnFalse -- todo
-lookup.circle.polygon = returnFalse -- todo
+lookup.circle.rectangle = circleIntersectsPolygonVert
+lookup.circle.polygon = circleIntersectsPolygonVert
 lookup.circle.circle = returnFalse -- todo
 
 -- Abstraction for possible usage outside LÖVE -----------------------------------------------------
