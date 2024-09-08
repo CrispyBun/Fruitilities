@@ -994,6 +994,30 @@ local function pointIsOnPointVert(point1, point2, x1, y1, x2, y2)
     return pointIsOnPoint(point1[1] + x1, point1[2] + y1, point2[1] + x2, point2[2] + y2)
 end
 
+---@param pointX number
+---@param pointY number
+---@param circleX number
+---@param circleY number
+---@param circleRadius number
+---@return boolean intersects
+function cocollision.pointInCircle(pointX, pointY, circleX, circleY, circleRadius)
+    local differenceX = pointX - circleX
+    local differenceY = pointY - circleY
+    local distance = math.sqrt(differenceX * differenceX + differenceY * differenceY)
+    return distance <= circleRadius
+end
+local pointInCircle = cocollision.pointInCircle
+
+local function pointInCircleVert(point, circle, x1, y1, x2, y2)
+    x1 = x1 or 0
+    y1 = y1 or 0
+    x2 = x2 or 0
+    y2 = y2 or 0
+    local radius = circle[3] - circle[1]
+    return pointInCircle(point[1] + x1, point[2] + y1, circle[1] + x2, circle[2] + y2, radius)
+end
+local function circleUnderPointVert(circle, point, x1, y1, x2, y2) return pointInCircleVert(point, circle, x2, y2, x1, y1) end
+
 --- Checks if a circle is on a line. The line is an infinite line by default, but can be configured to be a ray or a segment using the `lineEndpointCount` parameter - see `cocollision.linesIntersect` for details.
 ---@param circleX number The X position of the point
 ---@param circleY number The Y position of the point
@@ -1379,7 +1403,7 @@ lookup.point.ray = pointOnRayVert
 lookup.point.line = pointOnLineVert
 lookup.point.rectangle = pointInRectangleVert
 lookup.point.polygon = pointInPolygonVert
-lookup.point.circle = returnFalse -- todo
+lookup.point.circle = pointInCircleVert
 
 lookup.edge = {}
 lookup.edge.none = returnFalse
@@ -1433,7 +1457,7 @@ lookup.polygon.circle = returnFalse -- todo
 
 lookup.circle = {}
 lookup.circle.none = returnFalse
-lookup.circle.point = returnFalse -- todo
+lookup.circle.point = circleUnderPointVert
 lookup.circle.edge = returnFalse -- todo
 lookup.circle.ray = returnFalse -- todo
 lookup.circle.line = returnFalse -- todo
