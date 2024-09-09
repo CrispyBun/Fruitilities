@@ -1482,6 +1482,116 @@ local function rayCrossesLineVert(ray, line, x1, y1, x2, y2) return linesInterse
 local function lineCrossesSegmentVert(line, segment, x1, y1, x2, y2) return linesIntersectVert(line, segment, x1, y1, x2, y2, 0, 2) end
 local function lineCrossesRayVert(line, ray, x1, y1, x2, y2) return linesIntersectVert(line, ray, x1, y1, x2, y2, 0, 1) end
 
+local function pointInDonutVert(point, donut, x1, y1, x2, y2)
+    x1 = x1 or 0
+    y1 = y1 or 0
+    x2 = x2 or 0
+    y2 = y2 or 0
+    local px, py = point[1] + x1, point[2] + y1
+    local donutX, donutY = donut[1] + x2, donut[2] + y2
+    local r1 = donut[3] - donut[1]
+    local r2 = donut[5] - donut[1]
+    return pointInCircle(px, py, donutX, donutY, r1) and not pointInCircle(px, py, donutX, donutY, r2)
+end
+local function donutUnderPointVert(donut, point, x1, y1, x2, y2) return pointInDonutVert(point, donut, x2, y2, x1, y1) end
+
+local function segmentCrossesDonutVert(segment, donut, x1, y1, x2, y2)
+    x1 = x1 or 0
+    y1 = y1 or 0
+    x2 = x2 or 0
+    y2 = y2 or 0
+    local segmentX1 = segment[1] + x1
+    local segmentY1 = segment[2] + y1
+    local segmentX2 = segment[3] + x1
+    local segmentY2 = segment[4] + y1
+    local donutX = donut[1] + x2
+    local donutY = donut[2] + y2
+    local r1 = donut[3] - donut[1]
+    local r2 = donut[5] - donut[1]
+    if pointInCircle(segmentX1, segmentY1, donutX, donutY, r2) and pointInCircle(segmentX2, segmentY2, donutX, donutY, r2) then return false end
+    return circleOnLine(donutX, donutY, r1, segmentX1, segmentY1, segmentX2, segmentY2, 2)
+end
+local function donutOnSegmentVert(donut, segment, x1, y1, x2, y2) return segmentCrossesDonutVert(segment, donut, x2, y2, x1, y1) end
+
+local function polygonIntersectsDonutVert(polygon, donut, x1, y1, x2, y2)
+    x1 = x1 or 0
+    y1 = y1 or 0
+    x2 = x2 or 0
+    y2 = y2 or 0
+    local donutX = donut[1] + x2
+    local donutY = donut[2] + y2
+    local r1 = donut[3] - donut[1]
+    local r2 = donut[5] - donut[1]
+
+    if #polygon == 0 then return false end
+
+    local isWhollyContained = true
+    for vertexIndex = 1, #polygon, 2 do
+        local vertexX = polygon[vertexIndex] + x1
+        local vertexY = polygon[vertexIndex + 1] + y1
+        if not pointInCircle(vertexX, vertexY, donutX, donutY, r2) then
+            isWhollyContained = false
+            break
+        end
+    end
+    if isWhollyContained then return false end
+
+    return (polygonIntersectsCircle(polygon, x1, y1, donutX, donutY, r1))
+end
+local function donutIntersectsPolygonVert(donut, polygon, x1, y1, x2, y2)
+    return polygonIntersectsDonutVert(polygon, donut, x2, y2, x1, y1)
+end
+
+local function circleIntersectsDonutVert(circle, donut, x1, y1, x2, y2)
+    x1 = x1 or 0
+    y1 = y1 or 0
+    x2 = x2 or 0
+    y2 = y2 or 0
+
+    local circleX = circle[1] + x1
+    local circleY = circle[2] + y1
+    local circleRadius = circle[3] - circle[1]
+    local donutX = donut[1] + x2
+    local donutY = donut[2] + y2
+    local r1 = donut[3] - donut[1]
+    local r2 = donut[5] - donut[1]
+
+    local differenceX = circleX - donutX
+    local differenceY = circleY - donutY
+    local distance = math.sqrt(differenceX * differenceX + differenceY * differenceY)
+
+    if distance > r1 + circleRadius then return false end
+    if distance <= r2 - circleRadius then return false end
+    return true
+end
+local function donutIntersectsCircleVert(donut, circle, x1, y1, x2, y2) return circleIntersectsDonutVert(circle, donut, x2, y2, x1, y1) end
+
+local function donutsIntersectVert(donut1, donut2, x1, y1, x2, y2)
+    x1 = x1 or 0
+    y1 = y1 or 0
+    x2 = x2 or 0
+    y2 = y2 or 0
+
+    local donut1X = donut1[1] + x1
+    local donut1Y = donut1[2] + y1
+    local donut1Radius1 = donut1[3] - donut1[1]
+    local donut1Radius2 = donut1[5] - donut1[1]
+
+    local donut2X = donut2[1] + x2
+    local donut2Y = donut2[2] + y2
+    local donut2Radius1 = donut2[3] - donut2[1]
+    local donut2Radius2 = donut2[5] - donut2[1]
+
+    local differenceX = donut2X - donut1X
+    local differenceY = donut2Y - donut1Y
+    local distance = math.sqrt(differenceX * differenceX + differenceY * differenceY)
+
+    if distance > donut1Radius1 + donut2Radius1 then return false end
+    if distance <= donut1Radius2 - donut2Radius1 then return false end
+    if distance <= donut2Radius2 - donut1Radius1 then return false end
+    return true
+end
+
 ---@param pointX number
 ---@param pointY number
 ---@param rectangle number[]
@@ -1647,7 +1757,7 @@ lookup.point.line = pointOnLineVert
 lookup.point.rectangle = pointInRectangleVert
 lookup.point.polygon = pointInPolygonVert
 lookup.point.circle = pointInCircleVert
-lookup.point.donut = returnFalse -- todo
+lookup.point.donut = pointInDonutVert
 
 lookup.edge = {}
 lookup.edge.none = returnFalse
@@ -1658,7 +1768,7 @@ lookup.edge.line = segmentCrossesLineVert
 lookup.edge.rectangle = segmentCrossesPolygonVert
 lookup.edge.polygon = segmentCrossesPolygonVert
 lookup.edge.circle = segmentIsUnderCircleVert
-lookup.edge.donut = returnFalse -- todo
+lookup.edge.donut = segmentCrossesDonutVert
 
 lookup.ray = {}
 lookup.ray.none = returnFalse
@@ -1669,7 +1779,7 @@ lookup.ray.line = rayCrossesLineVert
 lookup.ray.rectangle = rayCrossesPolygonVert
 lookup.ray.polygon = rayCrossesPolygonVert
 lookup.ray.circle = rayIsUnderCircleVert
-lookup.ray.donut = returnFalse -- todo
+lookup.ray.donut = rayIsUnderCircleVert
 
 lookup.line = {}
 lookup.line.none = returnFalse
@@ -1680,7 +1790,7 @@ lookup.line.line = linesIntersectVert
 lookup.line.rectangle = lineCrossesPolygonVert
 lookup.line.polygon = lineCrossesPolygonVert
 lookup.line.circle = lineIsUnderCircleVert
-lookup.line.donut = returnFalse -- todo
+lookup.line.donut = lineIsUnderCircleVert
 
 lookup.rectangle = {}
 lookup.rectangle.none = returnFalse
@@ -1691,7 +1801,7 @@ lookup.rectangle.line = polygonGetsHitByLineVert
 lookup.rectangle.rectangle = rectanglesIntersect
 lookup.rectangle.polygon = polygonsIntersect
 lookup.rectangle.circle = polygonIntersectsCircleVert
-lookup.rectangle.donut = returnFalse -- todo
+lookup.rectangle.donut = polygonIntersectsDonutVert
 
 lookup.polygon = {}
 lookup.polygon.none = returnFalse
@@ -1702,7 +1812,7 @@ lookup.polygon.line = polygonGetsHitByLineVert
 lookup.polygon.rectangle = polygonsIntersect
 lookup.polygon.polygon = polygonsIntersect
 lookup.polygon.circle = polygonIntersectsCircleVert
-lookup.polygon.donut = returnFalse -- todo
+lookup.polygon.donut = polygonIntersectsDonutVert
 
 lookup.circle = {}
 lookup.circle.none = returnFalse
@@ -1713,18 +1823,18 @@ lookup.circle.line = circleOnLineVert
 lookup.circle.rectangle = circleIntersectsPolygonVert
 lookup.circle.polygon = circleIntersectsPolygonVert
 lookup.circle.circle = circlesIntersectVert
-lookup.circle.donut = returnFalse -- todo
+lookup.circle.donut = circleIntersectsDonutVert
 
 lookup.donut = {}
 lookup.donut.none = returnFalse
-lookup.donut.point = returnFalse -- todo
-lookup.donut.edge = returnFalse -- todo
-lookup.donut.ray = returnFalse -- todo
-lookup.donut.line = returnFalse -- todo
-lookup.donut.rectangle = returnFalse -- todo
-lookup.donut.polygon = returnFalse -- todo
-lookup.donut.circle = returnFalse -- todo
-lookup.donut.donut = returnFalse -- todo
+lookup.donut.point = donutUnderPointVert
+lookup.donut.edge = donutOnSegmentVert
+lookup.donut.ray = circleOnRayVert
+lookup.donut.line = circleOnLineVert
+lookup.donut.rectangle = donutIntersectsPolygonVert
+lookup.donut.polygon = donutIntersectsPolygonVert
+lookup.donut.circle = donutIntersectsCircleVert
+lookup.donut.donut = donutsIntersectVert
 
 -- Abstraction for possible usage outside LÖVE -----------------------------------------------------
 -- These are just for visual debugging, and arent't necessary for cocollision to work.
