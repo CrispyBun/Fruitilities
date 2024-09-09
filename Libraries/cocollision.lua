@@ -36,6 +36,7 @@ cocollision.boundlessShapes = {
 ---| '"rectangle"' # An axis aligned rectangle
 ---| '"polygon"' # A convex polygon
 ---| '"circle"' # A circle
+---| '"donut"' # A donut (annulus) shape, because why not
 
 ---@class Cocollision.Shape
 ---@field shapeType Cocollision.ShapeType
@@ -331,6 +332,21 @@ function cocollision.newCircleShape(x, y, radius)
 end
 
 --------------------------------------------------
+--- ### cocollision.newDonutShape(radius1, radius2)
+--- ### cocollision.newDonutShape(x, y, radius1, radius2)
+--- Creates a new annulus shape.
+---@param x number
+---@param y number
+---@param radius1 number
+---@param radius2 number
+---@return Cocollision.Shape
+---@overload fun(radius1: number, radius2: number): Cocollision.Shape
+function cocollision.newDonutShape(x, y, radius1, radius2)
+    return cocollision.newShape():setShapeToDonut(x, y, radius1, radius2)
+end
+cocollision.newAnnulusShape = cocollision.newDonutShape
+
+--------------------------------------------------
 --- ### Shape:setPosition(x, y)
 --- Sets the shape's position.
 ---@param x number
@@ -566,6 +582,41 @@ function Shape:setShapeToCircle(x, y, radius)
 end
 
 --------------------------------------------------
+--- ### Shape:setShapeToDonut(radius1, radius2)
+--- ### Shape:setShapeToDonut(x, y, radius1, radius2)
+--- Sets the shape to be an annulus.
+---@param x number
+---@param y number
+---@param radius1 number
+---@param radius2 number
+---@return Cocollision.Shape self
+---@overload fun(radius1: number, radius2: number): Cocollision.Shape
+function Shape:setShapeToDonut(x, y, radius1, radius2)
+    if not (radius1 and radius2) then
+        radius1 = x
+        radius2 = y
+        x = 0
+        y = 0
+    end
+    if not (radius1 and radius2) then error("Two radius values must be supplied", 2) end
+    if (radius2 > radius1) then error("The second radius can't be greater than the first radius", 2) end
+
+    x = x or 0
+    y = y or 0
+
+    self.shapeType = "donut"
+    self.vertices = {
+        x, y,
+        x + radius1, y,
+        x + radius2, y
+    }
+
+    self:refreshTransform()
+    return self
+end
+Shape.setShapeToAnnulus = Shape.setShapeToDonut
+
+--------------------------------------------------
 --- ### Shape:getVertexCount()
 --- Returns the amount of vertices in the shape.
 ---@return number
@@ -742,7 +793,7 @@ function Shape:getTransformedVertices()
 
         local rotation = self.rotation
         if self.shapeType == "rectangle" and not self.doRectangularRotation then rotation = 0 end
-        if self.shapeType == "circle" then rotation = 0 end
+        if self.shapeType == "circle" or self.shapeType == "donut" then rotation = 0 end
 
         cocollision.transformVertices(transformedVertices, self.translateX, self.translateY, rotation, self.scaleX, self.scaleY, self.originX, self.originY)
         if self.shapeType == "rectangle" and rotation ~= 0 then cocollision.generateBoundingBox(transformedVertices, transformedVertices) end
@@ -761,7 +812,7 @@ function Shape:getBoundingBox()
     if #bbox == 0 then
         local transformedVertices = self:getTransformedVertices()
 
-        if self.shapeType == "circle" then
+        if self.shapeType == "circle" or self.shapeType == "donut" then
             local radius = transformedVertices[3] - transformedVertices[1]
             bbox[1] = transformedVertices[1] - radius
             bbox[2] = transformedVertices[2] - radius
@@ -1585,6 +1636,7 @@ lookup.none.line = returnFalse
 lookup.none.rectangle = returnFalse
 lookup.none.polygon = returnFalse
 lookup.none.circle = returnFalse
+lookup.none.donut = returnFalse
 
 lookup.point = {}
 lookup.point.none = returnFalse
@@ -1595,6 +1647,7 @@ lookup.point.line = pointOnLineVert
 lookup.point.rectangle = pointInRectangleVert
 lookup.point.polygon = pointInPolygonVert
 lookup.point.circle = pointInCircleVert
+lookup.point.donut = returnFalse -- todo
 
 lookup.edge = {}
 lookup.edge.none = returnFalse
@@ -1605,6 +1658,7 @@ lookup.edge.line = segmentCrossesLineVert
 lookup.edge.rectangle = segmentCrossesPolygonVert
 lookup.edge.polygon = segmentCrossesPolygonVert
 lookup.edge.circle = segmentIsUnderCircleVert
+lookup.edge.donut = returnFalse -- todo
 
 lookup.ray = {}
 lookup.ray.none = returnFalse
@@ -1615,6 +1669,7 @@ lookup.ray.line = rayCrossesLineVert
 lookup.ray.rectangle = rayCrossesPolygonVert
 lookup.ray.polygon = rayCrossesPolygonVert
 lookup.ray.circle = rayIsUnderCircleVert
+lookup.ray.donut = returnFalse -- todo
 
 lookup.line = {}
 lookup.line.none = returnFalse
@@ -1625,6 +1680,7 @@ lookup.line.line = linesIntersectVert
 lookup.line.rectangle = lineCrossesPolygonVert
 lookup.line.polygon = lineCrossesPolygonVert
 lookup.line.circle = lineIsUnderCircleVert
+lookup.line.donut = returnFalse -- todo
 
 lookup.rectangle = {}
 lookup.rectangle.none = returnFalse
@@ -1635,6 +1691,7 @@ lookup.rectangle.line = polygonGetsHitByLineVert
 lookup.rectangle.rectangle = rectanglesIntersect
 lookup.rectangle.polygon = polygonsIntersect
 lookup.rectangle.circle = polygonIntersectsCircleVert
+lookup.rectangle.donut = returnFalse -- todo
 
 lookup.polygon = {}
 lookup.polygon.none = returnFalse
@@ -1645,6 +1702,7 @@ lookup.polygon.line = polygonGetsHitByLineVert
 lookup.polygon.rectangle = polygonsIntersect
 lookup.polygon.polygon = polygonsIntersect
 lookup.polygon.circle = polygonIntersectsCircleVert
+lookup.polygon.donut = returnFalse -- todo
 
 lookup.circle = {}
 lookup.circle.none = returnFalse
@@ -1655,6 +1713,18 @@ lookup.circle.line = circleOnLineVert
 lookup.circle.rectangle = circleIntersectsPolygonVert
 lookup.circle.polygon = circleIntersectsPolygonVert
 lookup.circle.circle = circlesIntersectVert
+lookup.circle.donut = returnFalse -- todo
+
+lookup.donut = {}
+lookup.donut.none = returnFalse
+lookup.donut.point = returnFalse -- todo
+lookup.donut.edge = returnFalse -- todo
+lookup.donut.ray = returnFalse -- todo
+lookup.donut.line = returnFalse -- todo
+lookup.donut.rectangle = returnFalse -- todo
+lookup.donut.polygon = returnFalse -- todo
+lookup.donut.circle = returnFalse -- todo
+lookup.donut.donut = returnFalse -- todo
 
 -- Abstraction for possible usage outside LÖVE -----------------------------------------------------
 -- These are just for visual debugging, and arent't necessary for cocollision to work.
@@ -1716,6 +1786,25 @@ cocollision.graphics.debugDrawShape = function(shape, fullColor, drawBounds)
         love.graphics.circle("fill", vertices[1], vertices[2], vertices[3] - vertices[1])
         love.graphics.setColor(colorFull)
         love.graphics.circle("line", vertices[1], vertices[2], vertices[3] - vertices[1])
+        return
+    end
+
+    if shape.shapeType == "donut" then
+        local r1 = vertices[3] - vertices[1]
+        local r2 = vertices[5] - vertices[1]
+        love.graphics.setColor(color)
+
+        love.graphics.stencil(function ()
+            love.graphics.circle("fill", vertices[1], vertices[2], r2)
+        end)
+        love.graphics.setStencilTest("equal", 0)
+        love.graphics.circle("fill", vertices[1], vertices[2], r1)
+        love.graphics.setStencilTest()
+
+        love.graphics.setColor(colorFull)
+        love.graphics.circle("line", vertices[1], vertices[2], r1)
+        love.graphics.circle("line", vertices[1], vertices[2], r2)
+        return
     end
 
     if #vertices >= 6 then
