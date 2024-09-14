@@ -56,6 +56,13 @@ cocollision.boundlessShapes = {
 local Shape = {}
 local ShapeMT = {__index = Shape}
 
+---@class Cocollision.SpatialPartition
+---@field shapes table<Cocollision.Shape, [integer, integer, integer, integer]> The shapes in the partition and the range of cells they occupy
+---@field cellSize number The size of each cell in the grid. This shouldn't be changed after creation.
+---@field cells table<string, Cocollision.Shape[]> The individual cells of the grid and the shapes contained in them
+local SpatialPartition = {}
+local SpatialPartitionMT = {__index = SpatialPartition}
+
 -- Misc functions ----------------------------------------------------------------------------------
 
 --------------------------------------------------
@@ -838,6 +845,83 @@ end
 ---@param drawBounds? boolean
 function Shape:debugDraw(fullColor, drawBounds)
     return cocollision.graphics.debugDrawShape(self, fullColor, drawBounds)
+end
+
+-- Spatial partitions ------------------------------------------------------------------------------
+
+--------------------------------------------------
+--- ### cocollision.newSpatialPartition(cellSize)
+--- Creates a new spatial partition with the specified cell size.
+---@param cellSize number
+---@return Cocollision.SpatialPartition
+function cocollision.newSpatialPartition(cellSize)
+    ---@type Cocollision.SpatialPartition
+    local partition = {
+        shapes = {},
+        cellSize = cellSize,
+        cells = {}
+    }
+
+    return setmetatable(partition, SpatialPartitionMT)
+end
+
+--------------------------------------------------
+--- ### SpatialPartition:addShape(shape)
+--- Adds a shape to the partition. If this shape ever moves or transforms in any way,
+--- make sure to call `SpatialPartition:refreshShape(shape)` to keep it in the correct place in the partition.
+---@param shape Cocollision.Shape
+function SpatialPartition:addShape(shape)
+    if self.shapes[shape] then error("Shape is already present in the partition", 2) end
+    if cocollision.boundlessShapes[shape.shapeType] then error("Boundless shapes are not yet supported in spatial partitions", 2) end
+
+    local bbox = shape:getBoundingBox()
+    local shapeX, shapeY = shape.x, shape.y
+    local x1, y1, x2, y2 = self:boundsToCellRange(shapeX + bbox[1], shapeY + bbox[2], shapeX + bbox[5], shapeY + bbox[6])
+
+    self.shapes[shape] = {x1, y1, x2, y2}
+    self:addShapeToCellRange(shape, x1, y1, x2, y2)
+end
+
+--------------------------------------------------
+--- ### SpatialPartition:boundsToCellRange(boundingBox)
+--- Converts a bounding box into a range of cells it occupies in the partition.
+---@param boundsX1 number
+---@param boundsY1 number
+---@param boundsX2 number
+---@param boundsY2 number
+---@return integer x1
+---@return integer y1
+---@return integer x2
+---@return integer y2
+function SpatialPartition:boundsToCellRange(boundsX1, boundsY1, boundsX2, boundsY2)
+    local cellSize = self.cellSize
+    local cellsX1 = math.floor(boundsX1 / cellSize)
+    local cellsY1 = math.floor(boundsY1 / cellSize)
+    local cellsX2 = math.floor(boundsX2 / cellSize)
+    local cellsY2 = math.floor(boundsY2 / cellSize)
+
+    return cellsX1, cellsY1, cellsX2, cellsY2
+end
+
+--------------------------------------------------
+--- ### SpatialPartition:addShapeToCellRange(shape, x1, y1, x2, y2)
+--- Adds a shape to the specified range of cells. For most purposes, it is better to simply call
+--- `SpatialPartition:addShape()`, which will call this method automatically, and will allow you to refresh the shape easily later.
+---@param shape Cocollision.Shape
+---@param x1 integer
+---@param y1 integer
+---@param x2 integer
+---@param y2 integer
+function SpatialPartition:addShapeToCellRange(shape, x1, y1, x2, y2)
+    for cellX = x1, x2 do
+        for cellY = y1, y2 do
+            local cellKey = cellX .. ";" .. cellY
+
+            local shapesArray = self.cells[cellKey] or {}
+            shapesArray[#shapesArray+1] = shape
+            self.cells[cellKey] = shapesArray
+        end
+    end
 end
 
 -- Collision functions -----------------------------------------------------------------------------
