@@ -941,6 +941,54 @@ function SpatialPartition:boundsToCellRange(boundsX1, boundsY1, boundsX2, bounds
 end
 
 --------------------------------------------------
+--- ### SpatialPartition:getCell(x, y)
+--- Returns the shapes in the cell at the given cell coordinates.
+---@param x integer
+---@param y integer
+---@return Cocollision.Shape[]
+function SpatialPartition:getCell(x, y)
+    local outShapes = {}
+    local cellKey = x .. ";" .. y
+    local shapesArray = self.cells[cellKey]
+    if shapesArray then
+        for shapeIndex = 1, #shapesArray do
+            outShapes[#outShapes+1] = shapesArray[shapeIndex]
+        end
+    end
+    return outShapes
+end
+
+--------------------------------------------------
+--- ### SpatialPartition:getCellRange(x1, y1, x2, y2)
+--- Returns the shapes in the given range of cells (without repeats).
+---@param x1 integer
+---@param y1 integer
+---@param x2 integer
+---@param y2 integer
+---@return Cocollision.Shape[]
+function SpatialPartition:getCellRange(x1, y1, x2, y2)
+    local outShapes = {}
+    local seenShapes = {}
+    for cellX = x1, x2 do
+        for cellY = y1, y2 do
+            local cellKey = cellX .. ";" .. cellY
+            local shapesArray = self.cells[cellKey]
+
+            if shapesArray then
+                for shapeIndex = 1, #shapesArray do
+                    local shape = shapesArray[shapeIndex]
+                    if not seenShapes[shape] then
+                        outShapes[#outShapes+1] = shape
+                        seenShapes[shape] = true
+                    end
+                end
+            end
+        end
+    end
+    return outShapes
+end
+
+--------------------------------------------------
 --- ### SpatialPartition:addShapeToCellRange(shape, x1, y1, x2, y2)
 --- Adds a shape to the specified range of cells. For most purposes, it is better to simply call
 --- `SpatialPartition:addShape()`, which will call this method automatically, and will allow you to refresh the shape easily later.
