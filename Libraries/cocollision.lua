@@ -909,9 +909,7 @@ function SpatialPartition:addShape(shape)
     if self.shapes[shape] then error("Shape is already present in the partition", 2) end
     if cocollision.boundlessShapes[shape.shapeType] then error("Boundless shapes are not supported in spatial partitions", 2) end
 
-    local bbox = shape:getBoundingBox()
-    local shapeX, shapeY = shape.x, shape.y
-    local x1, y1, x2, y2 = self:boundsToCellRange(shapeX + bbox[1], shapeY + bbox[2], shapeX + bbox[5], shapeY + bbox[6])
+    local x1, y1, x2, y2 = self:shapeToCellRange(shape)
 
     self.shapes[shape] = {x1, y1, x2, y2}
     self:addShapeToCellRange(shape, x1, y1, x2, y2)
@@ -938,9 +936,7 @@ function SpatialPartition:refreshShape(shape)
     local cellRange = self.shapes[shape]
     if not cellRange then error("The given shape is not in the partition", 2) end
 
-    local bbox = shape:getBoundingBox()
-    local shapeX, shapeY = shape.x, shape.y
-    local x1, y1, x2, y2 = self:boundsToCellRange(shapeX + bbox[1], shapeY + bbox[2], shapeX + bbox[5], shapeY + bbox[6])
+    local x1, y1, x2, y2 = self:shapeToCellRange(shape)
 
     if x1 == cellRange[1] and y1 == cellRange[2] and x2 == cellRange[3] and y2 == cellRange[4] then return end
 
