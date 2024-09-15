@@ -18,7 +18,6 @@ cocollision.pointIntersectionMargin = 0.5
 -- Shapes for which a bounding box is not calculated or checked.  
 -- There's likely no reason for you to change this table, unless you're adding your own shape types.
 cocollision.boundlessShapes = {
-    rectangle = true, -- Doesn't need bounds, it *is* the bounds
     point = true, -- Can't have a bbox check because that would make `pointIntersectionMargin` not work
     none = true,
     ray = true,
@@ -401,7 +400,7 @@ function Shape:intersectsAt(shape, x1, y1, x2, y2)
     local selfShapeType = self.shapeType
     local otherShapeType = shape.shapeType
 
-    local checkBounds = not (cocollision.boundlessShapes[selfShapeType] or cocollision.boundlessShapes[otherShapeType])
+    local checkBounds = not ((cocollision.boundlessShapes[selfShapeType] or cocollision.boundlessShapes[otherShapeType]) or (selfShapeType == "rectangle" and otherShapeType == "rectangle"))
     if checkBounds then
         local selfBounds = self:getBoundingBox()
         local otherBounds = shape:getBoundingBox()
