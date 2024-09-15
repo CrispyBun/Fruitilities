@@ -413,6 +413,42 @@ end
 Shape.collisionAt = Shape.intersectsAt
 
 --------------------------------------------------
+--- ### Shape:intersectsAnyInPartition(partition)
+--- Checks for an intersection between the shape and the shapes in the given spatial partition, returning true for the first shape it intersects with (along with any possible collision info, and the intersected shape).  
+--- You can optionally supply a filter function which must return true for a given shape to be tested.
+---@param partition Cocollision.SpatialPartition
+---@param filterFunction? fun(shape: Cocollision.Shape): boolean
+---@return boolean intersects
+---@return table? collisionInfo
+---@return Cocollision.Shape? otherShape
+function Shape:intersectsAnyInPartition(partition, filterFunction)
+    local x1, y1, x2, y2 = partition:shapeToCellRange(self)
+
+    -- not using `partition:getCellRange()` to be able to early return in the middle of the search
+
+    local seenShapes = {}
+    for cellX = x1, x2 do
+        for cellY = y1, y2 do
+            local cellKey = cellX .. ";" .. cellY
+            local cell = partition.cells[cellKey]
+            if cell then
+                for shapeIndex = 1, #cell do
+                    local otherShape = cell[shapeIndex]
+                    local canTest = (self ~= otherShape) and (not seenShapes[otherShape]) and (not filterFunction or filterFunction(otherShape))
+                    seenShapes[otherShape] = true
+                    if canTest then
+                        local intersects, info = self:intersects(otherShape)
+                        if intersects then return true, info, otherShape end -- yay for nesting :-)
+                    end
+                end
+            end
+        end
+    end
+
+    return false
+end
+
+--------------------------------------------------
 --- ### Shape:removeShape()
 --- Sets the shape type to "none" and removes all vertices.
 ---@return Cocollision.Shape self
@@ -938,6 +974,20 @@ function SpatialPartition:boundsToCellRange(boundsX1, boundsY1, boundsX2, bounds
     local cellsY2 = math.floor(boundsY2 / cellSize)
 
     return cellsX1, cellsY1, cellsX2, cellsY2
+end
+
+--------------------------------------------------
+--- ### SpatialPartition:shapeToCellRange(shape)
+--- Like `SpatialPartition:boundsToCellRange()`, but takes in a shape instead of bounds.
+---@param shape Cocollision.Shape
+---@return integer x1
+---@return integer y1
+---@return integer x2
+---@return integer y2
+function SpatialPartition:shapeToCellRange(shape)
+    local bbox = shape:getBoundingBox()
+    local shapeX, shapeY = shape.x, shape.y
+    return self:boundsToCellRange(shapeX + bbox[1], shapeY + bbox[2], shapeX + bbox[5], shapeY + bbox[6])
 end
 
 --------------------------------------------------
