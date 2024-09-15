@@ -894,6 +894,32 @@ function SpatialPartition:removeShape(shape)
 end
 
 --------------------------------------------------
+--- ### SpatialPartition:refreshShape(shape)
+--- Refreshes where the shape is in the partition (based on its position and transform).  
+--- This needs to be called every time the shape moves or transforms.
+---@param shape Cocollision.Shape
+function SpatialPartition:refreshShape(shape)
+    local cellRange = self.shapes[shape]
+    if not cellRange then error("The given shape is not in the partition", 2) end
+
+    local bbox = shape:getBoundingBox()
+    local shapeX, shapeY = shape.x, shape.y
+    local x1, y1, x2, y2 = self:boundsToCellRange(shapeX + bbox[1], shapeY + bbox[2], shapeX + bbox[5], shapeY + bbox[6])
+
+    if x1 == cellRange[1] and y1 == cellRange[2] and x2 == cellRange[3] and y2 == cellRange[4] then return end
+
+    -- Going with the easiest option - remove all and then re-add to all.  
+    -- Not sure how worth it it'd be to calculate the intersection and only remove and add to the cells that changed,
+    -- but generally for large enough cell sizes this shouldn't be an issue.
+    self:removeShapeFromCellRange(shape, cellRange[1], cellRange[2], cellRange[3], cellRange[4])
+    self:addShapeToCellRange(shape, x1, y1, x2, y2)
+    cellRange[1] = x1
+    cellRange[2] = y1
+    cellRange[3] = x2
+    cellRange[4] = y2
+end
+
+--------------------------------------------------
 --- ### SpatialPartition:boundsToCellRange(boundingBox)
 --- Converts a bounding box into a range of cells it occupies in the partition.
 ---@param boundsX1 number
