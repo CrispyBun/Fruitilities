@@ -58,7 +58,7 @@ local ShapeMT = {__index = Shape}
 ---@class Cocollision.SpatialPartition
 ---@field shapes table<Cocollision.Shape, [integer, integer, integer, integer]> The shapes in the partition and the range of cells they occupy
 ---@field cellSize number The size of each cell in the grid. This shouldn't be changed after creation.
----@field cells table<string, Cocollision.Shape[]> The individual cells of the grid and the shapes contained in them
+---@field cells table<string, Cocollision.Shape[]> The individual cells of the grid and the shapes contained in them. The keys are in the format of `"x;y"`, a string made from the cell's position. This was the easiest way to make an infinite grid and still seems to perform fast.
 local SpatialPartition = {}
 local SpatialPartitionMT = {__index = SpatialPartition}
 
@@ -871,7 +871,7 @@ end
 ---@param shape Cocollision.Shape
 function SpatialPartition:addShape(shape)
     if self.shapes[shape] then error("Shape is already present in the partition", 2) end
-    if cocollision.boundlessShapes[shape.shapeType] then error("Boundless shapes are not yet supported in spatial partitions", 2) end
+    if cocollision.boundlessShapes[shape.shapeType] then error("Boundless shapes are not supported in spatial partitions", 2) end
 
     local bbox = shape:getBoundingBox()
     local shapeX, shapeY = shape.x, shape.y
@@ -879,6 +879,18 @@ function SpatialPartition:addShape(shape)
 
     self.shapes[shape] = {x1, y1, x2, y2}
     self:addShapeToCellRange(shape, x1, y1, x2, y2)
+end
+
+--------------------------------------------------
+--- ### SpatialPartition:removeShape(shape)
+--- Removes a shape from the partition (if it's present).
+---@param shape Cocollision.Shape
+function SpatialPartition:removeShape(shape)
+    if not self.shapes[shape] then return end
+
+    local cellRange = self.shapes[shape]
+    self:removeShapeFromCellRange(shape, cellRange[1], cellRange[2], cellRange[3], cellRange[4])
+    self.shapes[shape] = nil
 end
 
 --------------------------------------------------
@@ -919,6 +931,38 @@ function SpatialPartition:addShapeToCellRange(shape, x1, y1, x2, y2)
             local shapesArray = self.cells[cellKey] or {}
             shapesArray[#shapesArray+1] = shape
             self.cells[cellKey] = shapesArray
+        end
+    end
+end
+
+--------------------------------------------------
+--- ### SpatialPartition:removeShapeFromCellRange(shape)
+--- Removes a shape from the specified range of cells (if it finds it there).
+--- If you're trying to remove a shape which was previously added using `SpatialPartition:addShape()`,
+--- you should instead remove it using `SpatialPartition:removeShape()`.
+---@param shape Cocollision.Shape
+---@param x1 integer
+---@param y1 integer
+---@param x2 integer
+---@param y2 integer
+function SpatialPartition:removeShapeFromCellRange(shape, x1, y1, x2, y2)
+    for cellX = x1, x2 do
+        for cellY = y1, y2 do
+            local cellKey = cellX .. ";" .. cellY
+
+            local shapesArray = self.cells[cellKey]
+            if shapesArray then
+                for shapeIndex = 1, #shapesArray do
+                    if shapesArray[shapeIndex] == shape then -- yay for nesting :-)
+                        shapesArray[shapeIndex], shapesArray[#shapesArray] = shapesArray[#shapesArray], shapesArray[shapeIndex]
+                        shapesArray[#shapesArray] = nil
+                        break
+                    end
+                end
+                if #shapesArray == 0 then
+                    self.cells[cellKey] = nil
+                end
+            end
         end
     end
 end
