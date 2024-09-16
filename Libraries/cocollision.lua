@@ -21,6 +21,8 @@ cocollision.boundlessShapes = {
 -- If a circle shape gets turned into a polygon using `Shape:polygonify()`, this is the amount of segments the resulting polygon will have.
 cocollision.polygonCircleSegments = 16
 
+cocollision.doPushVectorCalculation = true -- If false, collisions that normally calculate a push vector will not calculate or return it
+
 -- Definitions -------------------------------------------------------------------------------------
 
 ---@alias Cocollision.ShapeType
@@ -1235,6 +1237,8 @@ function cocollision.rectanglesIntersect(rectangle1, rectangle2, x1, y1, x2, y2)
     if upPush > 0 then return false end
     if downPush < 0 then return false end
 
+    if not cocollision.doPushVectorCalculation then return true end
+
     local pushX = -leftPush < rightPush and leftPush or rightPush
     local pushY = -upPush < downPush and upPush or downPush
     if math.abs(pushX) < math.abs(pushY) then
@@ -1328,27 +1332,30 @@ function cocollision.polygonsIntersect(polygon1, polygon2, x1, y1, x2, y2)
 
             -- Collison not ruled out yet, calculate push vector for this edge
 
-            local pushDistance = math.min(max2 - min1, max1 - min2)
+            if cocollision.doPushVectorCalculation then
+                local pushDistance = math.min(max2 - min1, max1 - min2)
 
-            local distanceNormaliser = pushDistance / (orthogonalX * orthogonalX + orthogonalY * orthogonalY)
-            local testPushVectorX = orthogonalX * distanceNormaliser
-            local testPushVectorY = orthogonalY * distanceNormaliser
+                local distanceNormaliser = pushDistance / (orthogonalX * orthogonalX + orthogonalY * orthogonalY)
+                local testPushVectorX = orthogonalX * distanceNormaliser
+                local testPushVectorY = orthogonalY * distanceNormaliser
 
-            -- Technically the wrong way to do the pushVectorIncrease (adds it to both axes) but no one's gonna know
-            testPushVectorX = testPushVectorX + (testPushVectorX > 0 and cocollision.pushVectorIncrease or testPushVectorX < 0 and -cocollision.pushVectorIncrease or 0)
-            testPushVectorY = testPushVectorY + (testPushVectorY > 0 and cocollision.pushVectorIncrease or testPushVectorY < 0 and -cocollision.pushVectorIncrease or 0)
+                -- Technically the wrong way to do the pushVectorIncrease (adds it to both axes) but no one's gonna know
+                testPushVectorX = testPushVectorX + (testPushVectorX > 0 and cocollision.pushVectorIncrease or testPushVectorX < 0 and -cocollision.pushVectorIncrease or 0)
+                testPushVectorY = testPushVectorY + (testPushVectorY > 0 and cocollision.pushVectorIncrease or testPushVectorY < 0 and -cocollision.pushVectorIncrease or 0)
 
-            pushDistance = testPushVectorX * testPushVectorX + testPushVectorY * testPushVectorY
+                pushDistance = testPushVectorX * testPushVectorX + testPushVectorY * testPushVectorY
 
-            if pushDistance < pushVectorMinDistanceSquared then
-                pushVectorMinDistanceSquared = pushDistance
-                pushVectorX = testPushVectorX
-                pushVectorY = testPushVectorY
+                if pushDistance < pushVectorMinDistanceSquared then
+                    pushVectorMinDistanceSquared = pushDistance
+                    pushVectorX = testPushVectorX
+                    pushVectorY = testPushVectorY
+                end
             end
         end
     end
 
     -- If we made it here, there was a collision
+    if not cocollision.doPushVectorCalculation then return true end
 
     -- Make sure the push vector is pointing in the right direction
     polygon1CenterX = polygon1CenterX / (#polygon1 / 2)
@@ -1482,6 +1489,8 @@ function cocollision.polygonIntersectsCircle(polygon, polygonX, polygonY, circle
         pushVectorY = orthogonalY * pushDistance
     end
 
+    if not cocollision.doPushVectorCalculation then return true end
+
     -- Make sure the push vector is pointing in the right direction
     polygonCenterX = polygonCenterX / (#polygon / 2)
     polygonCenterY = polygonCenterY / (#polygon / 2)
@@ -1524,6 +1533,7 @@ function cocollision.circlesIntersect(circle1X, circle1Y, circle1Radius, circle2
     local differenceY = circle1Y - circle2Y
     local distance = math.sqrt(differenceX * differenceX + differenceY * differenceY)
     if distance > circle1Radius + circle2Radius then return false end
+    if not cocollision.doPushVectorCalculation then return true end
 
     local pushDistance = circle1Radius + circle2Radius - distance
     local pushVectorX = differenceX / distance * pushDistance
