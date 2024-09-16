@@ -18,6 +18,9 @@ cocollision.boundlessShapes = {
     line = true,
 }
 
+-- If a circle shape gets turned into a polygon using `Shape:polygonify()`, this is the amount of segments the resulting polygon will have.
+cocollision.polygonCircleSegments = 16
+
 -- Definitions -------------------------------------------------------------------------------------
 
 ---@alias Cocollision.ShapeType
@@ -683,6 +686,50 @@ function Shape:setShapeToDonut(x, y, radius1, radius2)
     return self
 end
 Shape.setShapeToAnnulus = Shape.setShapeToDonut
+
+--------------------------------------------------
+--- ### Shape:polygonify()
+--- Converts the shape to a polygon shape (if possible). Circle shapes will convert too, but will lose some of their roundness (based on `cocollision.polygonCircleSegments`).
+---@return Cocollision.Shape self
+function Shape:polygonify()
+    local sourceShapeType = self.shapeType
+    self.shapeType = "polygon"
+
+    if sourceShapeType == "point" then return self end
+    if sourceShapeType == "edge" then return self end
+    if sourceShapeType == "rectangle" then return self end
+    if sourceShapeType == "polygon" then return self end
+
+    if sourceShapeType == "none" then
+        for vertexIndex = 1, #self.vertices do
+            self.vertices[vertexIndex] = nil
+        end
+        return self
+    end
+
+    if sourceShapeType == "circle" then
+        local segments = cocollision.polygonCircleSegments
+        local vertices = self.vertices
+        local x, y = vertices[1], vertices[2]
+        local radius = vertices[3] - vertices[1]
+
+        for vertexIndex = 1, #vertices do
+            vertices[vertexIndex] = nil
+        end
+
+        for vertexIndex = 1, segments do
+            local angle = (vertexIndex / segments) * math.pi * 2
+            local vertexX = x + math.cos(angle) * radius
+            local vertexY = y + math.sin(angle) * radius
+            vertices[#vertices + 1] = vertexX
+            vertices[#vertices + 1] = vertexY
+        end
+
+        return self
+    end
+
+    error("Shape type '" .. tostring(sourceShapeType) .. "' can't be turned into a polygon", 2)
+end
 
 --------------------------------------------------
 --- ### Shape:getVertexCount()
