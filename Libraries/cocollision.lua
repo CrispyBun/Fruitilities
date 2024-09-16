@@ -1641,7 +1641,7 @@ local function segmentIsUnderCircleVert(segment, circle, x1, y1, x2, y2) return 
 ---@param lineEndpointCount? number How many endpoints the line has
 ---@return boolean intersects
 function cocollision.pointOnLine(pointX, pointY, lineX1, lineY1, lineX2, lineY2, lineEndpointCount)
-    return circleOnLine(pointX, pointY, 0, lineX1, lineY1, lineX2, lineY2, lineEndpointCount)
+    return circleOnLine(pointX, pointY, 1e-10, lineX1, lineY1, lineX2, lineY2, lineEndpointCount) -- the 1e-10 is necessary because of float imprecision
 end
 local pointOnLine = cocollision.pointOnLine
 
