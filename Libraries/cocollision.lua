@@ -10,15 +10,9 @@ local unpack = table.unpack or unpack
 -- This is just a number added to the push vector's distance to make sure the collision is fully resolved.
 cocollision.pushVectorIncrease = 1e-10
 
--- The margin of error for point on point and point on line intersections.  
--- * If this is 0, the point must be *exactly* on the other point or line to intersect, which might not be what you want.  
--- * If this is >0, it's the distance from the true colliding location that's still considered colliding.
-cocollision.pointIntersectionMargin = 0.5
-
 -- Shapes for which a bounding box is not calculated or checked.  
 -- There's likely no reason for you to change this table, unless you're adding your own shape types.
 cocollision.boundlessShapes = {
-    point = true, -- Can't have a bbox check because that would make `pointIntersectionMargin` not work
     none = true,
     ray = true,
     line = true,
@@ -1508,10 +1502,7 @@ end
 ---@param p2y number The Y position of the second point
 ---@return boolean intersected
 function cocollision.pointIsOnPoint(p1x, p1y, p2x, p2y)
-    local differenceX = p1x - p2x
-    local differenceY = p1y - p2y
-    local distance = math.sqrt(differenceX * differenceX + differenceY * differenceY)
-    return distance <= cocollision.pointIntersectionMargin
+    return p1x == p2x and p1y == p2y
 end
 local pointIsOnPoint = cocollision.pointIsOnPoint
 
@@ -1650,7 +1641,7 @@ local function segmentIsUnderCircleVert(segment, circle, x1, y1, x2, y2) return 
 ---@param lineEndpointCount? number How many endpoints the line has
 ---@return boolean intersects
 function cocollision.pointOnLine(pointX, pointY, lineX1, lineY1, lineX2, lineY2, lineEndpointCount)
-    return circleOnLine(pointX, pointY, cocollision.pointIntersectionMargin, lineX1, lineY1, lineX2, lineY2, lineEndpointCount)
+    return circleOnLine(pointX, pointY, 0, lineX1, lineY1, lineX2, lineY2, lineEndpointCount)
 end
 local pointOnLine = cocollision.pointOnLine
 
