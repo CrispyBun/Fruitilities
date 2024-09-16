@@ -52,6 +52,7 @@ cocollision.boundlessShapes = {
 ---@field vertices number[] A flat array of the shape's vertices (x and y are alternating). You may change these directly, but `Shape:refreshTransform()` should be called afterwards to put the change into effect.
 ---@field transformedVertices number[] The shape's vertices after being transformed (set automatically). This table may be empty or incorrect if indexed directly, to ensure you get the updated vertices, use `Shape:getTransformedVertices()`.
 ---@field boundingBox number[] The transformed vertices' bounding box (set automatically). This table may be empty or incorrect if indexed directly, to ensure you get the updated bounding box, use `Shape:getBoundingBox()`. For consistency with other vertices in the library, the bounding box contains all four corners, not just two.
+---@field owner? any Doesn't do anything, but can be useful to set to an object that this shape belongs to, to be able to easily find it in collisions.
 local Shape = {}
 local ShapeMT = {__index = Shape}
 
