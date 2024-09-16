@@ -420,7 +420,7 @@ Shape.collisionAt = Shape.intersectsAt
 ---@param filterFunction? fun(shape: Cocollision.Shape): boolean
 ---@return boolean intersects
 ---@return table? collisionInfo
----@return Cocollision.Shape? otherShape
+---@return Cocollision.Shape? intersectedShape
 function Shape:intersectsAnyInPartition(partition, filterFunction)
     local x1, y1, x2, y2 = partition:shapeToCellRange(self)
 
@@ -446,6 +446,37 @@ function Shape:intersectsAnyInPartition(partition, filterFunction)
     end
 
     return false
+end
+
+--------------------------------------------------
+--- ### Shape:findAllPartitionIntersections(partition)
+--- Like `Shape:intersectsAnyInPartition()`, but tests for all intersections and returns them in an array. The `collisionInfos` array may have holes in it.
+---@param partition Cocollision.SpatialPartition
+---@param filterFunction? fun(shape: Cocollision.Shape): boolean
+---@return boolean intersectedAny
+---@return (table?)[]? collisionInfos
+---@return Cocollision.Shape[]? intersectedShapes
+function Shape:findAllPartitionIntersections(partition, filterFunction)
+    local otherShapes = partition:getShapeCellRange(self)
+    local collisionInfos = {}
+    local intersectedShapes = {}
+    local nextIntersectionIndex = 1
+
+    for otherShapeIndex = 1, #otherShapes do
+        local otherShape = otherShapes[otherShapeIndex]
+        local canTest = (self ~= otherShape) and (not filterFunction or filterFunction(otherShape))
+        if canTest then
+            local intersects, info = self:intersects(otherShape)
+            if intersects then
+                collisionInfos[nextIntersectionIndex] = info
+                intersectedShapes[nextIntersectionIndex] = otherShape
+                nextIntersectionIndex = nextIntersectionIndex + 1
+            end
+        end
+    end
+
+    if #intersectedShapes == 0 then return false end
+    return true, collisionInfos, intersectedShapes
 end
 
 --------------------------------------------------
