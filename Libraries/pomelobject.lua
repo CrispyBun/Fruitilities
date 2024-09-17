@@ -203,4 +203,6 @@ GameObject.setScale = Shape.setScale
 GameObject.setRotation = Shape.setRotation
 GameObject.setTranslate = Shape.setTranslate
 
+pomelobject.GameObject = GameObject -- The definition of the `GameObject` class exposed for possible inheritance purposes
+
 return pomelobject
