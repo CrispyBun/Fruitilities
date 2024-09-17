@@ -353,6 +353,30 @@ end
 cocollision.newAnnulusShape = cocollision.newDonutShape
 
 --------------------------------------------------
+--- ### Shape:clone()
+--- Creates a copy of the shape.
+function Shape:clone()
+    ---@type Cocollision.Shape
+    local inst = {
+        shapeType = self.shapeType,
+        x = self.x,
+        y = self.y,
+        rotation = self.rotation,
+        scaleX = self.scaleX,
+        scaleY = self.scaleY,
+        originX = self.originX,
+        originY = self.originY,
+        translateX = self.translateX,
+        translateY = self.translateY,
+        doRectangularRotation = self.doRectangularRotation,
+        vertices = {unpack(self.vertices)},
+        transformedVertices = {},
+        boundingBox = {},
+    }
+    return setmetatable(inst, ShapeMT)
+end
+
+--------------------------------------------------
 --- ### Shape:setPosition(x, y)
 --- Sets the shape's position.
 ---@param x number
