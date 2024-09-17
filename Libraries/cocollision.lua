@@ -2347,4 +2347,6 @@ if not love then
     cocollision.graphics.debugDrawShape = emptyFunction
 end
 
+cocollision.Shape = Shape -- The definition of the `Shape` class, mostly exposed for possible inheritance purposes
+
 return cocollision
