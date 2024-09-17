@@ -65,7 +65,7 @@ local AnimationMT = {__index = Animation}
 ---@field currentFrame number The current frame index within the animation
 ---@field currentIteration integer How many times the animation has looped back to the first frame
 ---@field animations table<string, Animango.Animation>
----@field events table<Animango.AnimationEventType, Animango.AnimationEvent> Any events attached to the sprite (used for any active animation)
+---@field animationEvents table<Animango.AnimationEventType, Animango.AnimationEvent> Any events attached to the sprite (used for any active animation)
 local Sprite = {}
 local SpriteMT = {__index = Sprite}
 
@@ -102,7 +102,7 @@ function animango.newSprite()
         currentFrame = 1,
         currentIteration = 1,
         animations = {},
-        events = {}
+        animationEvents = {}
     }
     return setmetatable(sprite, SpriteMT)
 end
@@ -138,7 +138,7 @@ function Sprite:instance()
         currentFrame = 1,
         currentIteration = 1,
         animations = self.animations,
-        events = self.events
+        animationEvents = self.animationEvents
     }
     return setmetatable(inst, SpriteMT)
 end
@@ -164,27 +164,27 @@ function Sprite:clone()
         currentIteration = self.currentIteration,
 
         animations = {},
-        events = {}
+        animationEvents = {}
     }
 
     for key, value in pairs(self.animations) do
         inst.animations[key] = value
     end
-    for key, value in pairs(self.events) do
-        inst.events[key] = value
+    for key, value in pairs(self.animationEvents) do
+        inst.animationEvents[key] = value
     end
 
     return setmetatable(inst, SpriteMT)
 end
 
 --------------------------------------------------
---- ### Sprite:setEvent(eventType, event)
---- Sets the given event of the sprite.
+--- ### Sprite:setAnimationEvent(eventType, event)
+--- Sets the given animation event of the sprite.
 ---@param eventType Animango.AnimationEventType
 ---@param event Animango.AnimationEvent
 ---@return Animango.Sprite self
-function Sprite:setEvent(eventType, event)
-    self.events[eventType] = event
+function Sprite:setAnimationEvent(eventType, event)
+    self.animationEvents[eventType] = event
     return self
 end
 
@@ -328,23 +328,23 @@ function Sprite:update(dt)
     self.currentFrame = nextFrame
 
     if isVeryFirstFrame then
-        if self.events.start then self:callEvent(self.events.start) end
-        if animation.events.start then self:callEvent(animation.events.start) end
+        if self.animationEvents.start then self:callAnimationEvent(self.animationEvents.start) end
+        if animation.events.start then self:callAnimationEvent(animation.events.start) end
     end
     if looped then
         self.currentIteration = self.currentIteration + 1
 
-        if self.events.loop then self:callEvent(self.events.loop) end
-        if animation.events.loop then self:callEvent(animation.events.loop) end
+        if self.animationEvents.loop then self:callAnimationEvent(self.animationEvents.loop) end
+        if animation.events.loop then self:callAnimationEvent(animation.events.loop) end
     end
     if frameChanged then
         local frame = animation.frames[math.floor(nextFrame)]
-        if frame and frame.event then self:callEvent(frame.event) end
-        if self.events.frame then self:callEvent(self.events.frame) end
-        if animation.events.frame then self:callEvent(animation.events.frame) end
+        if frame and frame.event then self:callAnimationEvent(frame.event) end
+        if self.animationEvents.frame then self:callAnimationEvent(self.animationEvents.frame) end
+        if animation.events.frame then self:callAnimationEvent(animation.events.frame) end
     end
-    if self.events.update then self:callEvent(self.events.update) end
-    if animation.events.update then self:callEvent(animation.events.update) end
+    if self.animationEvents.update then self:callAnimationEvent(self.animationEvents.update) end
+    if animation.events.update then self:callAnimationEvent(animation.events.update) end
 end
 
 --------------------------------------------------
@@ -384,10 +384,10 @@ function Sprite:draw(x, y, r, sx, sy, ox, oy, kx, ky)
 end
 
 --------------------------------------------------
---- ### Sprite:callEvent(event)
---- Calls the given event on the sprite. This is usually used internally.
+--- ### Sprite:callAnimationEvent(event)
+--- Calls the given animation event on the sprite. This is usually used internally.
 ---@param event Animango.AnimationEvent
-function Sprite:callEvent(event)
+function Sprite:callAnimationEvent(event)
     local eventType = type(event)
     if eventType == "string" then
         return self:setAnimation(event)
