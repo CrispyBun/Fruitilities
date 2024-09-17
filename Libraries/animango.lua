@@ -123,22 +123,58 @@ end
 --- Creates and returns a new instance of the sprite by generating a new sprite which references the same animations and events.
 ---@return Animango.Sprite
 function Sprite:instance()
-    local inst = animango.newSprite()
-    inst.animations = self.animations
-    inst.events = self.events
-    return inst
+    ---@type Animango.Sprite
+    local inst = {
+        x = 0,
+        y = 0,
+        scaleX = 1,
+        scaleY = 1,
+        rotation = 0,
+        shearX = 0,
+        shearY = 0,
+        playbackSpeed = 1,
+        playbackSpeedMultiplier = 1,
+        currentAnimation = "default",
+        currentFrame = 1,
+        currentIteration = 1,
+        animations = self.animations,
+        events = self.events
+    }
+    return setmetatable(inst, SpriteMT)
 end
 
 --------------------------------------------------
 --- ### Sprite:clone()
---- Similar to `Sprite:instance()`, but copies over all values (shallow copy only, the references to tables are kept).
+--- Creates a copy of the sprite.
 ---@return Animango.Sprite
 function Sprite:clone()
-    local inst = animango.newSprite()
-    for key, value in pairs(self) do
-        inst[key] = value
+    ---@type Animango.Sprite
+    local inst = {
+        x = self.x,
+        y = self.y,
+        scaleX = self.scaleX,
+        scaleY = self.scaleY,
+        rotation = self.rotation,
+        shearX = self.shearX,
+        shearY = self.shearY,
+        playbackSpeed = self.playbackSpeed,
+        playbackSpeedMultiplier = self.playbackSpeedMultiplier,
+        currentAnimation = self.currentAnimation,
+        currentFrame = self.currentFrame,
+        currentIteration = self.currentIteration,
+
+        animations = {},
+        events = {}
+    }
+
+    for key, value in pairs(self.animations) do
+        inst.animations[key] = value
     end
-    return inst
+    for key, value in pairs(self.events) do
+        inst.events[key] = value
+    end
+
+    return setmetatable(inst, SpriteMT)
 end
 
 --------------------------------------------------
