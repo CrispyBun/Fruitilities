@@ -59,6 +59,8 @@ local AnimationMT = {__index = Animation}
 ---@field rotation number The rotation of the sprite
 ---@field shearX number The shear of the sprite on the X axis
 ---@field shearY number The shear of the sprite on the Y axis
+---@field originX number The origin of the sprite on the X axis (this will be combined with the animation's origin)
+---@field originY number The origin of the sprite on the Y axis (this will be combined with the animation's origin)
 ---@field playbackSpeed number Speed multiplier for the animation
 ---@field playbackSpeedMultiplier number Essentially the same thing as playbackSpeed (it stacks with it), but gets reset upon animation change. It is used internally by events.
 ---@field currentAnimation string The current active animation
@@ -96,6 +98,8 @@ function animango.newSprite()
         rotation = 0,
         shearX = 0,
         shearY = 0,
+        originX = 0,
+        originY = 0,
         playbackSpeed = 1,
         playbackSpeedMultiplier = 1,
         currentAnimation = "default",
@@ -132,6 +136,8 @@ function Sprite:instance()
         rotation = 0,
         shearX = 0,
         shearY = 0,
+        originX = 0,
+        originY = 0,
         playbackSpeed = 1,
         playbackSpeedMultiplier = 1,
         currentAnimation = "default",
@@ -157,6 +163,8 @@ function Sprite:clone()
         rotation = self.rotation,
         shearX = self.shearX,
         shearY = self.shearY,
+        originX = self.originX,
+        originY = self.originY,
         playbackSpeed = self.playbackSpeed,
         playbackSpeedMultiplier = self.playbackSpeedMultiplier,
         currentAnimation = self.currentAnimation,
@@ -371,8 +379,8 @@ function Sprite:draw(x, y, r, sx, sy, ox, oy, kx, ky)
     local animation = self.animations[self.currentAnimation]
     if not animation then return animango.graphics.drawUnknownAnimationError(x, y) end
 
-    ox = ox or animation.originX
-    oy = oy or animation.originY
+    ox = ox or (self.originX + animation.originX)
+    oy = oy or (self.originY + animation.originY)
 
     local currentFrameIndex = self.currentFrame
     local frameCount = #animation.frames
