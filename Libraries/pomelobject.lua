@@ -129,9 +129,14 @@ end
 --- Creates a new instance of the same GameObject
 --- by generating a new object that references the same `animations` table, `animationEvents` table,
 --- and copies over all the shape-exclusive properties.
+--- 
+--- Origin also gets copied.
 ---@return Pomelobject.GameObject
 function GameObject:instance()
     local inst = pomelobject.newGameObject()
+
+    inst.originX = self.originX
+    inst.originY = self.originY
 
     inst.animations = self.animations
     inst.animationEvents = self.animationEvents
@@ -192,6 +197,7 @@ end
 -- Transform setting methods need to come from the Shape class;
 -- they are identical in both, but the Shape class also refreshes its cached transform after.
 
+GameObject.setPosition = Shape.setPosition -- This one is actually unnecessary since shapes don't need to refresh transform for position, but why not include it
 GameObject.setOrigin = Shape.setOrigin
 GameObject.setScale = Shape.setScale
 GameObject.setRotation = Shape.setRotation
