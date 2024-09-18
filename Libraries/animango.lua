@@ -61,6 +61,8 @@ local AnimationMT = {__index = Animation}
 ---@field shearY number The shear of the sprite on the Y axis
 ---@field originX number The origin of the sprite on the X axis (this will be combined with the animation's origin)
 ---@field originY number The origin of the sprite on the Y axis (this will be combined with the animation's origin)
+---@field translateX number The translation of the sprite on the X axis (will be combined with the x position)
+---@field translateY number The translation of the sprite on the Y axis (will be combined with the y position)
 ---@field playbackSpeed number Speed multiplier for the animation
 ---@field playbackSpeedMultiplier number Essentially the same thing as playbackSpeed (it stacks with it), but gets reset upon animation change. It is used internally by events.
 ---@field currentAnimation string The current active animation
@@ -100,6 +102,8 @@ function animango.newSprite()
         shearY = 0,
         originX = 0,
         originY = 0,
+        translateX = 0,
+        translateY = 0,
         playbackSpeed = 1,
         playbackSpeedMultiplier = 1,
         currentAnimation = "default",
@@ -140,6 +144,8 @@ function Sprite:instance()
         shearY = 0,
         originX = 0,
         originY = 0,
+        translateX = 0,
+        translateY = 0,
         playbackSpeed = 1,
         playbackSpeedMultiplier = 1,
         currentAnimation = "default",
@@ -167,6 +173,8 @@ function Sprite:clone()
         shearY = self.shearY,
         originX = self.originX,
         originY = self.originY,
+        translateX = self.translateX,
+        translateY = self.translateY,
         playbackSpeed = self.playbackSpeed,
         playbackSpeedMultiplier = self.playbackSpeedMultiplier,
         currentAnimation = self.currentAnimation,
@@ -388,8 +396,6 @@ end
 ---@param kx? number
 ---@param ky? number
 function Sprite:draw(x, y, r, sx, sy, ox, oy, kx, ky)
-    x = x or self.x
-    y = y or self.y
     r = r or self.rotation
     sx = sx or self.scaleX
     sy = sy or self.scaleY
@@ -399,6 +405,8 @@ function Sprite:draw(x, y, r, sx, sy, ox, oy, kx, ky)
     local animation = self.animations[self.currentAnimation]
     if not animation then return animango.graphics.drawUnknownAnimationError(x, y) end
 
+    x = x or (self.x + self.translateX)
+    y = y or (self.y + self.translateY)
     ox = ox or (self.originX + animation.originX)
     oy = oy or (self.originY + animation.originY)
 

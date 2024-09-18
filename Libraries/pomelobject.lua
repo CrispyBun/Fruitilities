@@ -69,6 +69,7 @@ local GameObjectMT = {__index = GameObject}
 
 --------------------------------------------------
 --- ### pomelobject.newGameObject()
+--- ### pomelobject.newObject()
 --- Creates a new GameObject.
 ---@return Pomelobject.GameObject
 function pomelobject.newGameObject()
@@ -82,6 +83,8 @@ function pomelobject.newGameObject()
         rotation = 0,
         originX = 0,
         originY = 0,
+        translateX = 0,
+        translateY = 0,
 
         -- Sprite values
         currentAnimation = "default",
@@ -96,8 +99,6 @@ function pomelobject.newGameObject()
 
         -- Shape values
         shapeType = "none",
-        translateX = 0, -- Translate is a shape-only property. Maybe it should be in sprites too?
-        translateY = 0,
         doRectangularRotation = false,
         vertices = {},
         transformedVertices = {},
@@ -144,11 +145,6 @@ function GameObject:instance()
     inst.shapeType = self.shapeType
     inst.doRectangularRotation = self.doRectangularRotation
     inst.vertices = {unpack(self.vertices)}
-
-    -- Since translate is a shape-only property, and shape properties should be copied,
-    -- it gets copied too. This shouldn't be the case though if sprites also implement translate at some point.
-    inst.translateX = self.translateX
-    inst.translateY = self.translateY
 
     return inst
 end
