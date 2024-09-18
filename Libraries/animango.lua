@@ -131,6 +131,7 @@ end
 --------------------------------------------------
 --- ### Sprite:instance()
 --- Creates and returns a new instance of the sprite by generating a new sprite which references the same animations and events.
+--- Also copies the origin.
 ---@return Animango.Sprite
 function Sprite:instance()
     ---@type Animango.Sprite
@@ -142,8 +143,8 @@ function Sprite:instance()
         rotation = 0,
         shearX = 0,
         shearY = 0,
-        originX = 0,
-        originY = 0,
+        originX = self.originX,
+        originY = self.originY,
         translateX = 0,
         translateY = 0,
         playbackSpeed = 1,
