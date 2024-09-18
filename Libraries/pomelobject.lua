@@ -113,6 +113,27 @@ function pomelobject.newGameObject()
 end
 pomelobject.newObject = pomelobject.newGameObject
 
+--------------------------------------------------
+--- ### GameObject:assignSprite(sprite)
+--- Makes the GameObject use the same animations and events as the given sprite (will reference the same tables).
+---@param sprite Animango.Sprite
+function GameObject:assignSprite(sprite)
+    self.originX = sprite.originX
+    self.originY = sprite.originY
+    self.animations = sprite.animations
+    self.animationEvents = sprite.animationEvents
+end
+
+--------------------------------------------------
+--- ### GameObject:assignShape(shape)
+--- Clones the shape specific properties and uses them for the GameObject.
+---@param shape Cocollision.Shape
+function GameObject:assignShape(shape)
+    self.shapeType = shape.shapeType
+    self.doRectangularRotation = shape.doRectangularRotation
+    self.vertices = {unpack(shape.vertices)}
+end
+
 -- Implementation ----------------------------------------------------------------------------------
 
 for key, method in pairs(RigReceiver) do
