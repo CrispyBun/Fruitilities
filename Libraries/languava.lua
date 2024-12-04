@@ -18,6 +18,7 @@ languava.langs = {}
 
 ---@class Languava.Language
 ---@field fields table<string, string> Each text identifier (e.g. `"game.item.sword"`) mapped to its translation (e.g. `"Sword"`)
+---@field fallbackLanguage? Languava.Language A language where translations will be looked for if this one doesn't have them
 local Language = {}
 local LanguageMT = {__index = Language}
 
@@ -56,19 +57,37 @@ end
 --------------------------------------------------
 --- Defining translations
 
+--- Makes the language derive from a specified parent language (the parent language will be used as a fallback language).
+---@param langcode string The child language (e.g. `"en_AU"`)
+---@param parentLangcode string The language to derive from (e.g. `"en_GB"`)
+function languava.deriveLanguage(langcode, parentLangcode)
+    local child = languava.getLanguage(langcode)
+    local parent = languava.getLanguage(parentLangcode)
+    child.fallbackLanguage = parent
+end
+languava.defineLanguageFallback = languava.deriveLanguage
+
 --- Adds a single translation to the specified language.
 ---@param langcode string The language code of the language (e.g. `"en_US"`)
 ---@param textID string The identifier of the translation (e.g. `"game.item.sword"`)
 ---@param translation string The translation itself (e.g. `"Sword"`)
 function languava.addTranslation(langcode, textID, translation)
-    local language = languava.langs[langcode] or languava.newLanguage()
-    languava.langs[langcode] = language
-
+    local language = languava.getLanguage(langcode)
     language.fields[textID] = translation
 end
 
 --------------------------------------------------
 --- The Language class
+
+--- Gets the actual object associated with the given langcode (or creates it, if it hasn't been yet).  
+--- There's not many uses for this besides internal library ones.
+---@param langcode string The language code of the language (e.g. `"en_US"`)
+---@return Languava.Language
+function languava.getLanguage(langcode)
+    local language = languava.langs[langcode] or languava.newLanguage()
+    languava.langs[langcode] = language
+    return language
+end
 
 --- Creates a new language object. Use this if you want to manage the language objects yourself,
 --- otherwise this is used internally and you don't have to worry about it.
@@ -86,9 +105,10 @@ end
 ---@return string
 function Language:get(prompt)
     local translation = self.fields[prompt]
-    if not translation then return prompt end
 
-    return translation
+    if translation then return translation end
+    if self.fallbackLanguage then return self.fallbackLanguage:get(prompt) end
+    return prompt
 end
 
 --------------------------------------------------
