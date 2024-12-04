@@ -109,16 +109,19 @@ end
 ------------------------------------------------------------
 --- ### csv.decode(str, headerless, sep)
 --- Returns a key-value table of the decoded columns from the CSV.  
---- * If the `headerless` argument is false, the first line of the CSV will be interpreted as a header, and the keys to the columns will be strings taken from the header.  
+--- * If the `headerless` argument is false or nil, the first line of the CSV will be interpreted as a header, and the keys to the columns will be strings taken from the header.  
 --- * If the `headerless` argument is true, the columns will be numbered, and the keys to the columns will be integers.  
 --- * Each column is an array of strings, in the same order as they appear in the CSV.
+--- 
+--- The optional `idColumn` parameter can define a column to set the keys for the values in the other columns, instead of integers being used.
 --- 
 --- The optional `sep` parameter defaults to the value of `csv.separationSymbol` and must be a single character.
 ---@param str string The input CSV
 ---@param headerless? boolean Whether the CSV has no header (columns will be numbered instead of named)
+---@param idColumn? integer If set to an index of a column in the data, all other columns won't save their values as an array, but as a hash map according to the IDs in the specified idColumn
 ---@param sep? string The separator to use
 ---@return table<string|number, string[]>
-function csv.decode(str, headerless, sep)
+function csv.decode(str, headerless, idColumn, sep)
     sep = sep or csv.separationSymbol
 
     local quotelessString, quotes, err = parseCsvEscapes(str)
@@ -150,6 +153,21 @@ function csv.decode(str, headerless, sep)
         end
 
         searchStart = newlineIndex + 1
+    end
+
+    if idColumn then
+        local idHeader = headers and headers[idColumn] or idColumn
+        local ids = decodedTable[idHeader] or {} -- The empty table fallback will basically just delete all values lol
+
+        for header, column in pairs(decodedTable) do
+            if column ~= ids then
+                for index = 1, #column do
+                    local newKey = ids[index]
+                    if newKey then column[newKey] = column[index] end
+                    column[index] = nil
+                end
+            end
+        end
     end
 
     return decodedTable
