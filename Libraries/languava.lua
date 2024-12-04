@@ -1,5 +1,5 @@
 --- The package table - Calling is equivalent to `languava.get()`.
----@overload fun(prompt: string, langcode: string?): string
+---@overload fun(query: string, langcode: string?): string
 local languava = {}
 local languavaMT = {}
 
@@ -24,27 +24,27 @@ local LanguageMT = {__index = Language}
 --------------------------------------------------
 --- Getting translations
 
---- Gets the translation of the given `prompt`. Will use `languava.currentLanguage` if `langcode` isn't provided.
+--- Gets the translation of the given `query`. Will use `languava.currentLanguage` if `langcode` isn't provided.
 --- You can also call this function using `languava()`.
----@param prompt string The identifier of the translation (e.g. `"game.items.sword"`)
+---@param query string The identifier of the translation (e.g. `"game.items.sword"`)
 ---@param langcode? string
 ---@return string
-function languava.get(prompt, langcode)
-    if not prompt then error("No text prompt provided", 2) end
+function languava.get(query, langcode)
+    if not query then error("No text query provided", 2) end
     langcode = langcode or languava.currentLanguage
 
     local language = languava.langs[langcode]
-    if not language then return prompt end
+    if not language then return query end
 
-    return language:get(prompt)
+    return language:get(query)
 end
 
 ---@param t any
----@param prompt string
+---@param query string
 ---@param langcode? string
 ---@return string
-function languavaMT.__call(t, prompt, langcode)
-    return languava.get(prompt, langcode)
+function languavaMT.__call(t, query, langcode)
+    return languava.get(query, langcode)
 end
 
 --- Sets the currently selected language.
