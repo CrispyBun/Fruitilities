@@ -6,6 +6,11 @@ local languavaMT = {}
 --- The currently selected language, used as default when getting translations
 languava.currentLanguage = "en_US"
 
+--- If this is set to a language code, all languages will fallback to that language if they don't specify a different fallback.  
+--- You can use this to, for example, display untranslated text in english instead of having just the text id be displayed.
+---@type string?
+languava.defaultFallbackLanguage = nil
+
 --- All of the defined languages
 ---@type Languava.LanguageList
 languava.langs = {}
@@ -84,8 +89,18 @@ end
 ---@param langcode string The language code of the language (e.g. `"en_US"`)
 ---@return Languava.Language
 function languava.getLanguage(langcode)
-    local language = languava.langs[langcode] or languava.newLanguage()
-    languava.langs[langcode] = language
+    local language = languava.langs[langcode]
+
+    if not language then
+        language = languava.newLanguage()
+        languava.langs[langcode] = language
+
+        local defaultFallback = languava.defaultFallbackLanguage
+        if defaultFallback and defaultFallback ~= langcode then
+            languava.deriveLanguage(langcode, defaultFallback)
+        end
+    end
+
     return language
 end
 
