@@ -107,21 +107,21 @@ end
 ------------------------------------------------------------
 
 ------------------------------------------------------------
---- ### csv.decode(str, headerless, sep)
+--- ### csv.decode(str, hasHeader, idColumn, sep)
 --- Returns a key-value table of the decoded columns from the CSV.  
---- * If the `headerless` argument is false or nil, the first line of the CSV will be interpreted as a header, and the keys to the columns will be strings taken from the header.  
---- * If the `headerless` argument is true, the columns will be numbered, and the keys to the columns will be integers.  
---- * Each column is an array of strings, in the same order as they appear in the CSV.
+--- * If the `hasHeader` argument is true, the first line of the CSV will be interpreted as a header, and the keys to the columns will be strings taken from the header.  
+--- * If the `hasHeader` argument is false or nil, the columns will be numbered, and the keys to the columns will be integers.  
+--- * Each column is an array of strings, in the same order as they appear in the CSV (unless the idColumn argument is specified).
 --- 
 --- The optional `idColumn` parameter can define a column to set the keys for the values in the other columns, instead of integers being used.
 --- 
 --- The optional `sep` parameter defaults to the value of `csv.separationSymbol` and must be a single character.
 ---@param str string The input CSV
----@param headerless? boolean Whether the CSV has no header (columns will be numbered instead of named)
+---@param hasHeader? boolean Whether the CSV has a header (columns will be named instead of numbered)
 ---@param idColumn? integer If set to an index of a column in the data, all other columns won't save their values as an array, but as a hash map according to the IDs in the specified idColumn
 ---@param sep? string The separator to use
 ---@return table<string|number, string[]>
-function csv.decode(str, headerless, idColumn, sep)
+function csv.decode(str, hasHeader, idColumn, sep)
     sep = sep or csv.separationSymbol
 
     local quotelessString, quotes, err = parseCsvEscapes(str)
@@ -137,7 +137,7 @@ function csv.decode(str, headerless, idColumn, sep)
         local line = string.sub(quotelessString, searchStart, newlineIndex-1)
         local lineValues = decodeLine(line, quotes, sep)
 
-        if not headerless and not headers then
+        if hasHeader and not headers then
             headers = lineValues
             for _, header in ipairs(headers) do
                 decodedTable[header] = {}
