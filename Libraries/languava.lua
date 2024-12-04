@@ -7,9 +7,16 @@ local languavaMT = {}
 languava.currentLanguage = "en_US"
 
 --- If this is set to a language code, all languages will fallback to that language if they don't specify a different fallback.  
---- You can use this to, for example, display untranslated text in english instead of having just the text id be displayed.
+--- You can use this to, for example, display untranslated text in english instead of having just the text ID be displayed.
 ---@type string?
 languava.defaultFallbackLanguage = nil
+
+--- If this is set to a specific text ID (e.g. `"meta.fallback"`), the value of this field in languages
+--- will be used to set the fallback language to the language code specified in the field (e.g. the "translation" for the text ID would be `"en_US"`).  
+--- 
+--- Useful if you want to be able to set the fallback language directly in the locale file.
+---@type string?
+languava.fallbackLanguageMetaField = nil
 
 --- All of the defined languages
 ---@type Languava.LanguageList
@@ -79,6 +86,10 @@ languava.defineLanguageFallback = languava.deriveLanguage
 function languava.addTranslation(langcode, textID, translation)
     local language = languava.getLanguage(langcode)
     language.fields[textID] = translation
+
+    if textID == languava.fallbackLanguageMetaField then
+        languava.deriveLanguage(langcode, translation)
+    end
 end
 
 --------------------------------------------------
