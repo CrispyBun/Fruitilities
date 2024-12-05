@@ -80,6 +80,11 @@ end
 languava.defineLanguageFallback = languava.deriveLanguage
 
 --- Adds a single translation to the specified language.
+--- 
+--- Example usage:
+--- ```lua
+--- languava.addTranslation("en_US", "game.item.sword", "Sword")
+--- ```
 ---@param langcode string The language code of the language (e.g. `"en_US"`)
 ---@param textID string The identifier of the translation (e.g. `"game.item.sword"`)
 ---@param translation string The translation itself (e.g. `"Sword"`)
@@ -89,6 +94,46 @@ function languava.addTranslation(langcode, textID, translation)
 
     if textID == languava.fallbackLanguageMetaField then
         languava.deriveLanguage(langcode, translation)
+    end
+end
+
+--- Adds a set of translations (where keys are textIDs and values are the translations) to the specified language.
+--- 
+--- Example usage:
+--- ```lua
+--- languava.addTranslations("en_US", {
+---     ["game.item.sword"] = "Sword",
+---     ["game.item.shield"] = "Shield"
+--- })
+--- ```
+---@param langcode string The language code of the language (e.g. `"en_US"`)
+---@param translations table<string, string> The identifiers of the translations mapped to their translations (e.g. `{ ["game.item.sword"] = "Sword" }`)
+function languava.addTranslations(langcode, translations)
+    for textID, translation in pairs(translations) do
+        languava.addTranslation(langcode, textID, translation)
+    end
+end
+
+--- Adds an entire table defining any amount of translations for any amount of languages.  
+--- The keys of the table are langcodes, their values are tables that map textIDs to translations.
+--- 
+--- Example usage:
+--- ```lua
+--- languava.addTranslationTable({
+---     en_US = {
+---         ["game.item.sword"] = "Sword",
+---         ["game.item.shield"] = "Shield"
+---     },
+---     de_DE = {
+---         ["game.item.sword"] = "Schwert",
+---         ["game.item.shield"] = "Schild"
+---     },
+--- })
+--- ```
+---@param table table<string, table<string, string>>
+function languava.addTranslationTable(table)
+    for langcode, translations in pairs(table) do
+        languava.addTranslations(langcode, translations)
     end
 end
 
