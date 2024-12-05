@@ -120,7 +120,7 @@ end
 ---@param hasHeader? boolean Whether the CSV has a header (columns will be named instead of numbered)
 ---@param idColumn? integer If set to an index of a column in the data, all other columns won't save their values as an array, but as a hash map according to the IDs in the specified idColumn
 ---@param sep? string The separator to use
----@return table<string|number, string[]>
+---@return table
 function csv.decode(str, hasHeader, idColumn, sep)
     sep = sep or csv.separationSymbol
 
