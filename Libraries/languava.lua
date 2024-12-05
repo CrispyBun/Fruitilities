@@ -6,6 +6,15 @@ local languavaMT = {}
 --- The currently selected language, used as default when getting translations
 languava.currentLanguage = "en_US"
 
+--- If this is set to a string (could be an empty string),
+--- whenever it's detected as the translation of some text,
+--- it's replaced by `nil` instead.
+--- 
+--- Useful if your locale file doesn't allow for "no value" to be defined for a field,
+--- such as CSV, which always has at least an empty string for each cell.
+---@type string?
+languava.missingTranslationKeyword = nil
+
 --- If this is set to a language code, all languages will fallback to that language if they don't specify a different fallback.  
 --- You can use this to, for example, display untranslated text in english instead of having just the text ID be displayed.
 ---@type string?
@@ -89,6 +98,8 @@ languava.defineLanguageFallback = languava.deriveLanguage
 ---@param textID string The identifier of the translation (e.g. `"game.item.sword"`)
 ---@param translation string The translation itself (e.g. `"Sword"`)
 function languava.addTranslation(langcode, textID, translation)
+    if translation == languava.missingTranslationKeyword then return end
+
     local language = languava.getLanguage(langcode)
     language.fields[textID] = translation
 
