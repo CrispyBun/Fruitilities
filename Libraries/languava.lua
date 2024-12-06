@@ -3,6 +3,10 @@
 local languava = {}
 local languavaMT = {}
 
+--------------------------------------------------
+-- Options
+-- (set these only once, before using the library)
+
 --- The currently selected language, used as default when getting translations
 languava.currentLanguage = "en_US"
 
@@ -34,9 +38,15 @@ languava.fallbackLanguageMetaField = nil
 --- * `languava.get("game.item.sword", "@plural")` actually searches in `<currentLanguage>@plural` (so, for example, `en_US@plural`).
 --- * A query object with the `subset` field set to `"plural"` will search in the same place as the above.
 --- 
+--- Also, when a language is detected to be a subset (its langcode contains the separator),
+--- its fallback will by default be set to the language it is a subset of.
+--- 
 --- The separator can be a full string, not just one symbol.
 ---@type string?
 languava.languageSubsetSeparator = nil
+
+--------------------------------------------------
+-- Data
 
 --- All of the defined languages
 ---@type Languava.LanguageList
@@ -189,9 +199,19 @@ function languava.getLanguage(langcode)
         language = languava.newLanguage()
         languava.langs[langcode] = language
 
+        -- Default fallback
         local defaultFallback = languava.defaultFallbackLanguage
         if defaultFallback and defaultFallback ~= langcode then
             languava.deriveLanguage(langcode, defaultFallback)
+        end
+
+        -- Fallback to base language if the language is a subset
+        local subsetSeparator = languava.languageSubsetSeparator
+        if subsetSeparator then
+            local baseLangcode = string.match(langcode, "^(.*)" .. subsetSeparator .. ".*$")
+            if baseLangcode then
+                languava.deriveLanguage(langcode, baseLangcode)
+            end
         end
     end
 
