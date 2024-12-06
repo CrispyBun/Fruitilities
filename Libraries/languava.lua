@@ -115,6 +115,7 @@ end
 ---@param translation string The translation itself (e.g. `"Sword"`)
 function languava.addTranslation(langcode, textID, translation)
     if translation == languava.missingTranslationKeyword then return end
+    textID = tostring(textID)
 
     local language = languava.getLanguage(langcode)
     language.fields[textID] = translation
