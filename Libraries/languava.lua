@@ -27,6 +27,17 @@ languava.defaultFallbackLanguage = nil
 ---@type string?
 languava.fallbackLanguageMetaField = nil
 
+--- If this is set to a string, language subsets can be defined for a language with their langcode being
+--- `<langcode>[separator]<subset>`. If the separator is `'@'`, for example, a language subset could be `en_US@plural`.
+--- 
+--- A subset can then be selected when querying for translations. For example, if the separator is the @ symbol:
+--- * `languava.get("game.item.sword", "@plural")` actually searches in `<currentLanguage>@plural` (so, for example, `en_US@plural`).
+--- * A query object with the `subset` field set to `"plural"` will search in the same place as the above.
+--- 
+--- The separator can be a full string, not just one symbol.
+---@type string?
+languava.languageSubsetSeparator = nil
+
 --- All of the defined languages
 ---@type Languava.LanguageList
 languava.langs = {}
@@ -55,9 +66,13 @@ function languava.get(query, langcode)
     if not query then error("No text query provided", 2) end
     langcode = langcode or languava.currentLanguage
 
-    local language = languava.langs[langcode]
-    if not language then return query end
+    if languava.languageSubsetSeparator then
+        if string.find(langcode, languava.languageSubsetSeparator, 1, true) == 1 then
+            langcode = languava.currentLanguage .. langcode
+        end
+    end
 
+    local language = languava.getLanguage(langcode)
     return language:get(query)
 end
 
@@ -182,15 +197,15 @@ function languava.newLanguage()
     return setmetatable(language, LanguageMT)
 end
 
---- Returns the translation of the given `prompt`.
----@param prompt string
+--- Returns the translation of the given `query`.
+---@param query string
 ---@return string
-function Language:get(prompt)
-    local translation = self.fields[prompt]
+function Language:get(query)
+    local translation = self.fields[query]
 
     if translation then return translation end
-    if self.fallbackLanguage then return self.fallbackLanguage:get(prompt) end
-    return prompt
+    if self.fallbackLanguage then return self.fallbackLanguage:get(query) end
+    return query
 end
 
 --------------------------------------------------
