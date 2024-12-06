@@ -51,6 +51,7 @@ languava.langs = {}
 ---@class Languava.Language
 ---@field fields table<string, string> Each text identifier (e.g. `"game.item.sword"`) mapped to its translation (e.g. `"Sword"`)
 ---@field fallbackLanguage? Languava.Language A language where translations will be looked for if this one doesn't have them
+---@field fallbackFunction? fun(self: Languava.Language, query: string): string? A function that will be used to get the translation of a string query if a translation for it wasn't found in this language. May return nil.
 local Language = {}
 local LanguageMT = {__index = Language}
 
@@ -92,16 +93,6 @@ end
 
 --------------------------------------------------
 --- Defining translations
-
---- Makes the language derive from a specified parent language (the parent language will be used as a fallback language).
----@param langcode string The child language (e.g. `"en_AU"`)
----@param parentLangcode string The language to derive from (e.g. `"en_GB"`)
-function languava.deriveLanguage(langcode, parentLangcode)
-    local child = languava.getLanguage(langcode)
-    local parent = languava.getLanguage(parentLangcode)
-    child.fallbackLanguage = parent
-end
-languava.defineLanguageFallback = languava.deriveLanguage
 
 --- Adds a single translation to the specified language.
 --- 
@@ -163,11 +154,32 @@ function languava.addTranslationTable(table)
     end
 end
 
+--- Makes the language derive from a specified parent language (the parent language will be used as a fallback language).
+---@param langcode string The child language (e.g. `"en_AU"`)
+---@param parentLangcode string The language to derive from (e.g. `"en_GB"`)
+function languava.deriveLanguage(langcode, parentLangcode)
+    local child = languava.getLanguage(langcode)
+    local parent = languava.getLanguage(parentLangcode)
+    child.fallbackLanguage = parent
+end
+languava.defineLanguageFallback = languava.deriveLanguage
+
+--- Sets the fallback function of the language.  
+--- 
+--- The function is called if a language doesn't find any translation for a given string query.
+--- It's passed the language object and the string query, and it can either return a string of the translation,
+--- or `nil`, in which case the fallback language will be used, if there is any.
+---@param langcode string
+---@param fallbackFn fun(language: Languava.Language, query: string): string?
+function languava.setLanguageFallbackFunction(langcode, fallbackFn)
+    local language = languava.getLanguage(langcode)
+    language.fallbackFunction = fallbackFn
+end
+
 --------------------------------------------------
 --- The Language class
 
 --- Gets the actual object associated with the given langcode (or creates it, if it hasn't been yet).  
---- There's not many uses for this besides internal library ones.
 ---@param langcode string The language code of the language (e.g. `"en_US"`)
 ---@return Languava.Language
 function languava.getLanguage(langcode)
@@ -204,6 +216,12 @@ function Language:get(query)
     local translation = self.fields[query]
 
     if translation then return translation end
+
+    if self.fallbackFunction then
+        local out = self:fallbackFunction(query)
+        if out then return out end
+    end
+
     if self.fallbackLanguage then return self.fallbackLanguage:get(query) end
     return query
 end
