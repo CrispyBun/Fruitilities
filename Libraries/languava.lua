@@ -1,5 +1,5 @@
 --- The package table - Calling is equivalent to `languava.get()`.
----@overload fun(query: string, langcode: string?): string
+---@overload fun(query: string|Languava.Query, langcode: string?): string
 local languava = {}
 local languavaMT = {}
 
@@ -36,7 +36,7 @@ languava.fallbackLanguageMetaField = nil
 --- 
 --- A subset can then be selected when querying for translations. For example, if the separator is the @ symbol:
 --- * `languava.get("game.item.sword", "@plural")` actually searches in `<currentLanguage>@plural` (so, for example, `en_US@plural`).
---- * A query object with the `subset` field set to `"plural"` will search in the same place as the above.
+--- * When querying a language class directly, `language:get(query, subset)` accepts the subset *name*, so in this case, just `"plural"`
 --- 
 --- Also, when a language is detected to be a subset (its langcode contains the separator),
 --- its fallback will by default be set to the language it is a subset of.
@@ -62,33 +62,52 @@ languava.langs = {}
 ---@field fields table<string, string> Each text identifier (e.g. `"game.item.sword"`) mapped to its translation (e.g. `"Sword"`)
 ---@field fallbackLanguage? Languava.Language A language where translations will be looked for if this one doesn't have them
 ---@field fallbackFunction? fun(self: Languava.Language, query: string): string? A function that will be used to get the translation of a string query if a translation for it wasn't found in this language. May return nil.
+---@field subsetLanguages table<string, Languava.Language> Any subsets of this language
 local Language = {}
 local LanguageMT = {__index = Language}
+
+--- Definition for the query object which can be passed into `languava.get()`. Feel free to inject your own fields into the definition.
+---@class Languava.Query
+---@field base string The textID of the main part of the query. If a query doesn't get processed programatically, simply the translation for the base (as a string) will be used.
+---@field [any] any Any other values for the query which can be used when the query is being processed.
 
 --------------------------------------------------
 --- Getting translations
 
 --- Gets the translation of the given `query`. Will use `languava.currentLanguage` if `langcode` isn't provided.
 --- You can also call this function using `languava()`.
----@param query string The identifier of the translation (e.g. `"game.item.sword"`)
----@param langcode? string
+--- 
+--- The query can either be a string of the textID itself for simple translations,
+--- or a query object - an object which must have the `base` field with a textID,
+--- and can have any other fields which your processing chain can use for the translation.
+--- This is used for advanced programatically determined translations.
+--- 
+--- A langcode can be provided, which can either select the language to get the translation from,
+--- or if it's in the format of `[languava.languageSubsetSeparator][subset name]`, to select a subset of the currently selected language.
+---@param query string|Languava.Query The identifier of the translation (e.g. `"game.item.sword"` or `{base = "game.item.sword"}`)
+---@param langcode? string Optional override or subset for the language to use instead of the currently selected one (e.g. `"en_US"` or `"@plural"` if @ is the subset separator)
 ---@return string
 function languava.get(query, langcode)
-    if not query then error("No text query provided", 2) end
+    if not query then error("No query provided", 2) end
     langcode = langcode or languava.currentLanguage
 
-    if languava.languageSubsetSeparator then
-        if string.find(langcode, languava.languageSubsetSeparator, 1, true) == 1 then
-            langcode = languava.currentLanguage .. langcode
+    ---@type string?
+    local subsetName
+    local subsetSeparator = languava.languageSubsetSeparator
+    if subsetSeparator then
+        if string.find(langcode, subsetSeparator, 1, true) == 1 then
+            -- `langcode` is a subset, not a separate language, so:
+            subsetName = string.sub(langcode, #subsetSeparator+1)
+            langcode = languava.currentLanguage
         end
     end
 
     local language = languava.getLanguage(langcode)
-    return language:get(query)
+    return language:get(query, subsetName)
 end
 
 ---@param t any
----@param query string
+---@param query string|Languava.Query
 ---@param langcode? string
 ---@return string
 function languavaMT.__call(t, query, langcode)
@@ -206,12 +225,16 @@ function languava.getLanguage(langcode)
             languava.deriveLanguage(langcode, defaultFallback)
         end
 
-        -- Fallback to base language if the language is a subset
+        -- Deal with subsets
         local subsetSeparator = languava.languageSubsetSeparator
         if subsetSeparator then
-            local baseLangcode = string.match(langcode, "^(.*)" .. subsetSeparator .. ".*$")
-            if baseLangcode then
+            local baseLangcode, subsetName = string.match(langcode, "^(.*)" .. subsetSeparator .. "(.*)$")
+            if baseLangcode and subsetName then
+                -- Set fallback to the base language
                 languava.deriveLanguage(langcode, baseLangcode)
+
+                -- Assign self as a subset of the base language
+                languava.getLanguage(baseLangcode).subsetLanguages[subsetName] = language
             end
         end
     end
@@ -225,15 +248,35 @@ end
 function languava.newLanguage()
     ---@type Languava.Language
     local language = {
-        fields = {}
+        fields = {},
+        subsetLanguages = {}
     }
     return setmetatable(language, LanguageMT)
 end
 
 --- Returns the translation of the given `query`.
+---@param query string|Languava.Query The query specifying what translation to get
+---@param subset? string Can be used to look into a subset of the language instead of the language itself
+---@return string
+function Language:get(query, subset)
+    if subset then
+        local subsetLanguage = self.subsetLanguages[subset]
+        if not subsetLanguage then return query.base end
+
+        return subsetLanguage:get(query)
+    end
+
+    if type(query) == "string" then
+        return self:getFromString(query)
+    end
+
+    return self:getFromString(query.base)
+end
+
+--- Like `language:get()`, but only supports string queries.
 ---@param query string
 ---@return string
-function Language:get(query)
+function Language:getFromString(query)
     local translation = self.fields[query]
 
     if translation then return translation end
