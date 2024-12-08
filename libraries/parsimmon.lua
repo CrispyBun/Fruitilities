@@ -104,16 +104,6 @@ local function parseNumber(str, i)
     if not num then parsimmon.throwParseError(str, i, "Invalid number") end
     return num, j-1
 end
-symbols["-"] = parseNumber
-symbols["0"] = parseNumber symbols["1"] = parseNumber
-symbols["2"] = parseNumber symbols["3"] = parseNumber
-symbols["4"] = parseNumber symbols["5"] = parseNumber
-symbols["6"] = parseNumber symbols["7"] = parseNumber
-symbols["8"] = parseNumber symbols["9"] = parseNumber
-
--- todo: these won't just be a sign of numbers in the future
-symbols["n"] = parseNumber symbols["N"] = parseNumber
-symbols["i"] = parseNumber symbols["I"] = parseNumber
 
 local function parseString(str, i)
     local out = {}
@@ -140,6 +130,18 @@ local function parseString(str, i)
         end
     end
 end
+
+symbols["-"] = parseNumber
+symbols["0"] = parseNumber symbols["1"] = parseNumber
+symbols["2"] = parseNumber symbols["3"] = parseNumber
+symbols["4"] = parseNumber symbols["5"] = parseNumber
+symbols["6"] = parseNumber symbols["7"] = parseNumber
+symbols["8"] = parseNumber symbols["9"] = parseNumber
+
+-- todo: these won't just be a sign of numbers in the future
+symbols["n"] = parseNumber symbols["N"] = parseNumber
+symbols["i"] = parseNumber symbols["I"] = parseNumber
+
 symbols['"'] = parseString
 
 --- Parses a single value in the string starting at index `i`.  
