@@ -56,6 +56,14 @@ charMaps.terminating = {
     ["]"] = true,
 }
 
+charMaps.escapedMeanings = {
+    ["n"] = "\n",
+    ["r"] = "\r",
+    ["t"] = "\t",
+    ["\\"] = "\\",
+    ['"'] = '"',
+}
+
 local symbols = {}
 
 -- Parsing utility ---------------------------------------------------------------------------------
@@ -106,6 +114,33 @@ symbols["8"] = parseNumber symbols["9"] = parseNumber
 -- todo: these won't just be a sign of numbers in the future
 symbols["n"] = parseNumber symbols["N"] = parseNumber
 symbols["i"] = parseNumber symbols["I"] = parseNumber
+
+local function parseString(str, i)
+    local out = {}
+    while true do
+        i = i + 1
+        local char = str:sub(i, i)
+
+        if char == "\\" then
+            -- Currently unsupported, but support for escaped unicode (`\u0000`) would be nice
+            local escapedChar = str:sub(i+1, i+1)
+            local realChar = parsimmon.charMaps.escapedMeanings[escapedChar]
+            if not realChar then parsimmon.throwParseError(str, i, "Invalid escape character") end
+            out[#out+1] = realChar
+            i = i + 1
+
+        elseif char == "" then
+            parsimmon.throwParseError(str, i, "Unterminated string")
+
+        elseif char == '"' then
+            return table.concat(out), i
+
+        else
+            out[#out+1] = char
+        end
+    end
+end
+symbols['"'] = parseString
 
 --- Parses a single value in the string starting at index `i`.  
 --- This is used internally by other parsers, to parse a full string, use `parsimmon.parse()`.
