@@ -131,6 +131,26 @@ local function parseString(str, i)
     end
 end
 
+local function parseArray(str, i)
+    local out = {}
+
+    i = parsimmon.findNotChar(str, i+1, charMaps.whitespace)
+    if str:sub(i, i) == "]" then return out, i end
+
+    while true do
+        local value
+        value, i = parsimmon.parseValue(str, i)
+        out[#out+1] = value
+
+        i = parsimmon.findNotChar(str, i+1, charMaps.whitespace)
+        local char = str:sub(i, i)
+        if char == "]" then return out, i end
+        if char ~= "," then parsimmon.throwParseError(str, i, "Expected comma or closing bracket") end
+
+        i = parsimmon.findNotChar(str, i+1, charMaps.whitespace)
+    end
+end
+
 symbols["-"] = parseNumber
 symbols["0"] = parseNumber symbols["1"] = parseNumber
 symbols["2"] = parseNumber symbols["3"] = parseNumber
@@ -143,6 +163,7 @@ symbols["n"] = parseNumber symbols["N"] = parseNumber
 symbols["i"] = parseNumber symbols["I"] = parseNumber
 
 symbols['"'] = parseString
+symbols["["] = parseArray
 
 --- Parses a single value in the string starting at index `i`.  
 --- This is used internally by other parsers, to parse a full string, use `parsimmon.parse()`.
