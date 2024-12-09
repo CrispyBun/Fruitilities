@@ -188,6 +188,7 @@ function parsimmon.parsers.customTypeOrLiteral(str, i)
     -- todo: custom literals
 
     parsimmon.throwParseError(str, i, "Unknown literal")
+    error("Impossible to get here") -- Soothe annotations
 end
 
 ---@param fn function
