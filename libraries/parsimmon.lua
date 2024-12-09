@@ -1,5 +1,5 @@
 ------------------------------------------------------------
--- A custom JSON-like format parsing library
+-- A custom JSON-like format (called ARSON) parsing library
 -- written by yours truly, CrispyBun.
 -- crispybun@pm.me
 -- https://github.com/CrispyBun/Fruitilities
@@ -31,6 +31,8 @@ SOFTWARE.
 
 --- Inspired by some of the ways https://github.com/rxi/json.lua does its parsing
 
+--- ARSON - Arbitrary Structure Object Notation  
+--- Backwards compatible with JSON, allows for arbitrary custom types.
 local parsimmon = {}
 
 -- Character lookup tables -------------------------------------------------------------------------
@@ -54,6 +56,8 @@ charMaps.terminating = {
     [":"] = true,
     ["}"] = true,
     ["]"] = true,
+    ["{"] = true,
+    ["["] = true
 }
 
 charMaps.escapedMeanings = {
@@ -151,22 +155,47 @@ local function parseArray(str, i)
     end
 end
 
-symbols["-"] = parseNumber
-symbols["0"] = parseNumber symbols["1"] = parseNumber
-symbols["2"] = parseNumber symbols["3"] = parseNumber
-symbols["4"] = parseNumber symbols["5"] = parseNumber
-symbols["6"] = parseNumber symbols["7"] = parseNumber
-symbols["8"] = parseNumber symbols["9"] = parseNumber
+local function parseLiteralOrCustomType(str, i)
+    local j = parsimmon.findChar(str, i, parsimmon.charMaps.terminating)
+    local terminator = str:sub(j, j)
+    local text = str:sub(i, j-1)
 
--- todo: these won't just be a sign of numbers in the future
-symbols["n"] = parseNumber symbols["N"] = parseNumber
-symbols["i"] = parseNumber symbols["I"] = parseNumber
+    if terminator == "{" then
+        -- todo: not a literal, this is a custom type
+        error("NYI")
+    end
 
-symbols['"'] = parseString
-symbols["["] = parseArray
+    if text == "true" then return true, j-1 end
+    if text == "false" then return false, j-1 end
+    if text == "null" then return nil, j-1 end
 
---- Parses a single value in the string starting at index `i`.  
---- This is used internally by other parsers, to parse a full string, use `parsimmon.parse()`.
+    -- Numbers are also considered literals
+    -- (this should only really ever happen for nans and infs though)
+    local num = tonumber(text)
+    if num then return num, j-1 end
+
+    -- todo: custom literals
+
+    parsimmon.throwParseError(str, i, "Unknown literal")
+end
+
+---@param fn function
+---@param chars string
+local function registerSymbols(fn, chars)
+    for charIndex = 1, #chars do
+        local char = chars:sub(charIndex, charIndex)
+        if symbols[char] then error(char .. " is already registered") end
+        symbols[char] = fn
+    end
+end
+
+registerSymbols(parseNumber, "-+0123456789")
+registerSymbols(parseLiteralOrCustomType, "AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz")
+registerSymbols(parseString, '"')
+registerSymbols(parseArray, "[")
+
+--- Parses a single value in the string starting exactly at index `i`.  
+--- This is used internally by the parsing functions. To parse a full string, use `parsimmon.parse()`.
 ---@param str string The string to parse from
 ---@param i integer The index to parse from
 ---@return any value The parsed value
