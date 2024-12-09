@@ -130,7 +130,8 @@ function parsimmon.parsers.string(str, i)
             -- Currently unsupported, but support for escaped unicode (`\u0000`) would be nice
             local escapedChar = str:sub(i+1, i+1)
             local realChar = parsimmon.charMaps.escapedMeanings[escapedChar]
-            if not realChar then parsimmon.throwParseError(str, i, "Invalid escape character") end
+            if not realChar then realChar = escapedChar end -- If there's no special meaning, it's just kept as is
+
             out[#out+1] = realChar
             i = i + 1
 
