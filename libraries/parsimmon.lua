@@ -107,10 +107,10 @@ end
 --- 
 --- The functions expect a string of the full data that's being parsed (`str`),
 --- the index at which their value starts (`i`),
---- and may optionally receive a third argument, `context`, which might mean something different for each parser.
+--- and may optionally receive a third argument, `context`, which might mean something different for each parser (but is always a table).
 --- 
 --- They must return the parsed value and the index at which it ends (`j`).
----@type table<string, fun(str: string, i: integer, context?: any): any, integer>
+---@type table<string, fun(str: string, i: integer, context?: table): any, integer>
 parsimmon.parsers = {}
 
 function parsimmon.parsers.number(str, i)
@@ -146,7 +146,10 @@ function parsimmon.parsers.string(str, i)
     end
 end
 
-function parsimmon.parsers.array(str, i)
+--- Assumes `i` starts at its opening character.  
+--- Goes on until the closing character, which can be specified in the context in `context.closingChar`.
+function parsimmon.parsers.array(str, i, context)
+    local closingChar = context and context.closingChar or "]"
     local out = {}
 
     i = parsimmon.findNotChar(str, i+1, charMaps.whitespace)
@@ -159,8 +162,8 @@ function parsimmon.parsers.array(str, i)
 
         i = parsimmon.findNotChar(str, i+1, charMaps.whitespace)
         local char = str:sub(i, i)
-        if char == "]" then return out, i end
-        if char ~= "," then parsimmon.throwParseError(str, i, "Expected comma or closing bracket") end
+        if char == closingChar then return out, i end
+        if char ~= "," then parsimmon.throwParseError(str, i, "Expected comma or closing character") end
 
         i = parsimmon.findNotChar(str, i+1, charMaps.whitespace)
     end
@@ -206,13 +209,16 @@ registerSymbols(parsimmon.parsers.customTypeOrLiteral, "AaBbCcDdEeFfGgHhIiJjKkLl
 registerSymbols(parsimmon.parsers.string, '"')
 registerSymbols(parsimmon.parsers.array, "[")
 
--- The holy grail  
--- (Any time your custom parser allows for nested values, such as the values in an array, this should be used to parse those)
-function parsimmon.parsers.any(str, i)
+--- The holy grail  
+--- 
+--- Any time your custom parser allows for nested values, such as the values in an array, this should be used to parse those.
+---
+--- The `context` table passed into this parser will simply be forwarded to the actually used parser.
+function parsimmon.parsers.any(str, i, context)
     local char = str:sub(i, i)
     local parseFn = symbols[char]
     if not parseFn then parsimmon.throwParseError(str, i, "Unexpected character") end
-    return parseFn(str, i)
+    return parseFn(str, i, context)
 end
 
 ----------------------------------------------------------------------------------------------------
