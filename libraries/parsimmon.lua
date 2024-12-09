@@ -100,16 +100,27 @@ function parsimmon.throwParseError(str, i, message)
 end
 
 -- Parsing functions -------------------------------------------------------------------------------
--- (these assume the given `i` value starts directly at the beginning of the value to be parsed)
 
-local function parseNumber(str, i)
+--- The parsing functions used by the library,
+--- exposed so they can be used by custom parsers
+--- (the one you'll want to use for basically any nested values is `parsimmon.parsers.any`).
+--- 
+--- The functions expect a string of the full data that's being parsed (`str`),
+--- the index at which their value starts (`i`),
+--- and may optionally receive a third argument, `context`, which might mean something different for each parser.
+--- 
+--- They must return the parsed value and the index at which it ends (`j`).
+---@type table<string, fun(str: string, i: integer, context?: any): any, integer>
+parsimmon.parsers = {}
+
+function parsimmon.parsers.number(str, i)
     local j = parsimmon.findChar(str, i, charMaps.terminating)
     local num = tonumber(str:sub(i, j-1))
     if not num then parsimmon.throwParseError(str, i, "Invalid number") end
     return num, j-1
 end
 
-local function parseString(str, i)
+function parsimmon.parsers.string(str, i)
     local out = {}
     while true do
         i = i + 1
@@ -135,7 +146,7 @@ local function parseString(str, i)
     end
 end
 
-local function parseArray(str, i)
+function parsimmon.parsers.array(str, i)
     local out = {}
 
     i = parsimmon.findNotChar(str, i+1, charMaps.whitespace)
@@ -143,7 +154,7 @@ local function parseArray(str, i)
 
     while true do
         local value
-        value, i = parsimmon.parseValue(str, i)
+        value, i = parsimmon.parsers.any(str, i)
         out[#out+1] = value
 
         i = parsimmon.findNotChar(str, i+1, charMaps.whitespace)
@@ -155,7 +166,7 @@ local function parseArray(str, i)
     end
 end
 
-local function parseLiteralOrCustomType(str, i)
+function parsimmon.parsers.customTypeOrLiteral(str, i)
     local j = parsimmon.findChar(str, i, parsimmon.charMaps.terminating)
     local terminator = str:sub(j, j)
     local text = str:sub(i, j-1)
@@ -189,18 +200,14 @@ local function registerSymbols(fn, chars)
     end
 end
 
-registerSymbols(parseNumber, "-+0123456789")
-registerSymbols(parseLiteralOrCustomType, "AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz")
-registerSymbols(parseString, '"')
-registerSymbols(parseArray, "[")
+registerSymbols(parsimmon.parsers.number, "-+0123456789")
+registerSymbols(parsimmon.parsers.customTypeOrLiteral, "AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz")
+registerSymbols(parsimmon.parsers.string, '"')
+registerSymbols(parsimmon.parsers.array, "[")
 
---- Parses a single value in the string starting exactly at index `i`.  
---- This is used internally by the parsing functions. To parse a full string, use `parsimmon.parse()`.
----@param str string The string to parse from
----@param i integer The index to parse from
----@return any value The parsed value
----@return integer j The index of the last character in the parsed value
-function parsimmon.parseValue(str, i)
+-- The holy grail  
+-- (Any time your custom parser allows for nested values, such as the values in an array, this should be used to parse those)
+function parsimmon.parsers.any(str, i)
     local char = str:sub(i, i)
     local parseFn = symbols[char]
     if not parseFn then parsimmon.throwParseError(str, i, "Unexpected character") end
@@ -209,9 +216,12 @@ end
 
 ----------------------------------------------------------------------------------------------------
 
+--- Parses the given ARSON string into data.
+---@param str string
+---@return any
 function parsimmon.parse(str)
     local i = parsimmon.findNotChar(str, 1, charMaps.whitespace)
-    local value, j = parsimmon.parseValue(str, i)
+    local value, j = parsimmon.parsers.any(str, i)
 
     j = parsimmon.findNotChar(str, j+1, charMaps.whitespace)
     if j <= #str then parsimmon.throwParseError(str, j, "Unexpected character") end
