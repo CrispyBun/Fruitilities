@@ -154,7 +154,7 @@ function parsimmon.parsers.array(str, i, context)
     local out = {}
 
     i = parsimmon.findNotChar(str, i+1, charMaps.whitespace)
-    if str:sub(i, i) == "]" then return out, i end
+    if str:sub(i, i) == closingChar then return out, i end
 
     while true do
         local value
