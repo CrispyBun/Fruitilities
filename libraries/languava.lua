@@ -116,7 +116,7 @@ end
 
 --- Sets the currently selected language.
 ---@param langcode string
-function languava.setLanguage(langcode)
+function languava.setCurrentLanguage(langcode)
     languava.currentLanguage = langcode
 end
 
