@@ -108,7 +108,7 @@ function parsimmon.throwParseError(str, i, message)
             column = column + 1
         end
     end
-    error("Parse error at line " .. line .. " column " .. column .. ": " .. message)
+    error("Parse error near '" .. str:sub(i,i) .. "' at line " .. line .. " column " .. column .. ": " .. message)
 end
 
 -- Parsing functions -------------------------------------------------------------------------------
@@ -141,7 +141,7 @@ function parsimmon.parsers.string(str, i)
         if char == "\\" then
             -- Currently unsupported, but support for escaped unicode (`\u0000`) would be nice
             local escapedChar = str:sub(i+1, i+1)
-            local realChar = parsimmon.charMaps.escapedMeanings[escapedChar]
+            local realChar = charMaps.escapedMeanings[escapedChar]
             if not realChar then realChar = escapedChar end -- If there's no special meaning, it's just kept as is
 
             out[#out+1] = realChar
@@ -182,8 +182,59 @@ function parsimmon.parsers.array(str, i, context)
     end
 end
 
+--- Assumes `i` starts at its opening character.  
+--- Goes on until the closing character, which can be specified in the context in `context.closingChar`.  
+--- The delimiter character between keys and values can be configured in `context.delimiterChar`
+function parsimmon.parsers.object(str, i, context)
+    local closingChar = context and context.closingChar or "}"
+    local delimiterChar = context and context.delimiterChar or ":"
+    local out = {}
+
+    i = parsimmon.findNotChar(str, i+1, charMaps.whitespace)
+    if str:sub(i, i) == closingChar then return out, i end
+
+    while true do
+        local key
+        local keyChar = str:sub(i, i)
+
+        -- String key
+        if keyChar == '"' then
+            key, i = parsimmon.parsers.string(str, i)
+
+        -- Literal key
+        elseif keyChar == "[" then
+            i = parsimmon.findNotChar(str, i+1, charMaps.whitespace)
+            key, i = parsimmon.parsers.any(str, i)
+
+            i = parsimmon.findNotChar(str, i+1, charMaps.whitespace)
+            if str:sub(i, i) ~= "]" then parsimmon.throwParseError(str, i, "Expected closing bracket for object key: " .. tostring(key)) end
+            if key == nil then parsimmon.throwParseError(str, i, "Object key cannot be null") end
+            if key ~= key and type(key) == "number" then parsimmon.throwParseError(str, i, "Object key cannot be NaN") end
+
+        -- Invalid key
+        else
+            parsimmon.throwParseError(str, i, "Expected object key")
+        end
+
+        i = parsimmon.findNotChar(str, i+1, charMaps.whitespace)
+        if str:sub(i, i) ~= delimiterChar then parsimmon.throwParseError(str, i, "Expected delimiter character (" .. tostring(delimiterChar) .. ")") end
+
+        i = parsimmon.findNotChar(str, i+1, charMaps.whitespace)
+        local value
+        value, i = parsimmon.parsers.any(str, i)
+        out[key] = value
+
+        i = parsimmon.findNotChar(str, i+1, charMaps.whitespace)
+        local char = str:sub(i, i)
+        if char == closingChar then return out, i end
+        if char ~= "," then parsimmon.throwParseError(str, i, "Expected comma or closing character") end
+
+        i = parsimmon.findNotChar(str, i+1, charMaps.whitespace)
+    end
+end
+
 function parsimmon.parsers.customTypeOrLiteral(str, i)
-    local j = parsimmon.findChar(str, i, parsimmon.charMaps.terminating)
+    local j = parsimmon.findChar(str, i, charMaps.terminating)
     local terminator = str:sub(j, j)
     local text = str:sub(i, j-1)
 
@@ -203,7 +254,7 @@ function parsimmon.parsers.customTypeOrLiteral(str, i)
 
     -- todo: custom literals
 
-    parsimmon.throwParseError(str, i, "Unknown literal")
+    parsimmon.throwParseError(str, i, "Unknown literal (" .. tostring(text) .. ")")
     error("Impossible to get here") -- Soothe annotations
 end
 
@@ -221,6 +272,7 @@ registerSymbols(parsimmon.parsers.number, "-+0123456789")
 registerSymbols(parsimmon.parsers.customTypeOrLiteral, "AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz")
 registerSymbols(parsimmon.parsers.string, '"')
 registerSymbols(parsimmon.parsers.array, "[")
+registerSymbols(parsimmon.parsers.object, "{")
 
 --- The holy grail  
 --- 
