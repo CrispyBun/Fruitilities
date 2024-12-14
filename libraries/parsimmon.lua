@@ -94,9 +94,21 @@ function parsimmon.findNotChar(str, i, map)
     end
 end
 
+---@param str string
+---@param i integer
+---@param message string
 function parsimmon.throwParseError(str, i, message)
-    -- todo: proper line and column info
-    error("Error while parsing (" .. tostring(message) .. ")")
+    local line = 1
+    local column = 1
+    for charIndex = 1, i do
+        if str:sub(charIndex, charIndex) == "\n" then
+            line = line + 1
+            column = 1
+        else
+            column = column + 1
+        end
+    end
+    error("Parse error at line " .. line .. " column " .. column .. ": " .. message)
 end
 
 -- Parsing functions -------------------------------------------------------------------------------
