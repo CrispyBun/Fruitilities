@@ -259,35 +259,40 @@ end
 ---@param subset? string Can be used to look into a subset of the language instead of the language itself
 ---@return string
 function Language:get(query, subset)
+    if type(query) == "table" and not query.base then
+        error("Object query is missing 'base' field", 2)
+    end
+
+    -- Querying a subset
     if subset then
         local subsetLanguage = self.subsetLanguages[subset]
-        if not subsetLanguage then return query.base end
+        if not subsetLanguage then return query.base end -- Subset not found
 
         return subsetLanguage:get(query)
     end
 
-    if type(query) == "string" then
-        return self:getFromString(query)
-    end
+    -- todo: programatically processed queries
 
-    return self:getFromString(query.base)
-end
+    local stringQuery = type(query) == "string" and query or query.base
 
---- Like `language:get()`, but only supports string queries.
----@param query string
----@return string
-function Language:getFromString(query)
-    local translation = self.fields[query]
-
+    local translation = self:getRaw(stringQuery)
     if translation then return translation end
 
     if self.fallbackFunction then
-        local out = self:fallbackFunction(query)
+        local out = self:fallbackFunction(stringQuery)
         if out then return out end
     end
 
-    if self.fallbackLanguage then return self.fallbackLanguage:get(query) end
-    return query
+    if self.fallbackLanguage then self.fallbackLanguage:get(query) end
+    return stringQuery
+end
+
+--- Simply gets the text translation of a pure string query if it has one, or `nil` if it doesn't.  
+--- Doesn't care about fallback languages, fallback functions, or anyting else fancy.
+---@param query string
+---@return string?
+function Language:getRaw(query)
+    return self.fields[query]
 end
 
 --------------------------------------------------
