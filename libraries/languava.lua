@@ -62,6 +62,7 @@ languava.langs = {}
 ---@field fields table<string, string> Each text identifier (e.g. `"game.item.sword"`) mapped to its translation (e.g. `"Sword"`)
 ---@field fallbackLanguage? Languava.Language A language where translations will be looked for if this one doesn't have them
 ---@field fallbackFunction? fun(self: Languava.Language, query: string): string? A function that will be used to get the translation of a string query if a translation for it wasn't found in this language. May return nil.
+---@field processingChain (fun(self: Languava.Language, query: Languava.Query): string?)[] Chain of functions that can process object queries. Is executed in order and the first one to return a string is used as the translation.
 ---@field subsetLanguages table<string, Languava.Language> Any subsets of this language
 local Language = {}
 local LanguageMT = {__index = Language}
@@ -116,7 +117,7 @@ end
 
 --- Sets the currently selected language.
 ---@param langcode string
-function languava.setLanguage(langcode)
+function languava.setCurrentLanguage(langcode)
     languava.currentLanguage = langcode
 end
 
@@ -200,10 +201,24 @@ languava.defineLanguageFallback = languava.deriveLanguage
 --- It's passed the language object and the string query, and it can either return a string of the translation,
 --- or `nil`, in which case the fallback language will be used, if there is any.
 ---@param langcode string
----@param fallbackFn fun(language: Languava.Language, query: string): string?
+---@param fallbackFn fun(self: Languava.Language, query: string): string?
 function languava.setLanguageFallbackFunction(langcode, fallbackFn)
     local language = languava.getLanguage(langcode)
     language.fallbackFunction = fallbackFn
+end
+
+--- Adds a query processing function to the language's processing chain.  
+--- 
+--- The processing chain is executed in order for any object query (`Languava.Query` object),
+--- and the first function in the chain to return a string is used for the translation.
+--- If no function in the chain returns a string, the query will be processed as a regular string query (based on its `base` field).  
+--- 
+--- This is used for advanced, dynamically generated translations for more complex queries.
+---@param langcode string
+---@param processingFn fun(self: Languava.Language, query: Languava.Query): string?
+function languava.addLanguageQueryProcessor(langcode, processingFn)
+    local language = languava.getLanguage(langcode)
+    language.processingChain[#language.processingChain+1] = processingFn
 end
 
 --------------------------------------------------
@@ -249,7 +264,8 @@ function languava.newLanguage()
     -- new Languava.Language
     local language = {
         fields = {},
-        subsetLanguages = {}
+        subsetLanguages = {},
+        processingChain = {}
     }
     return setmetatable(language, LanguageMT)
 end
@@ -271,7 +287,17 @@ function Language:get(query, subset)
         return subsetLanguage:get(query)
     end
 
-    -- todo: programatically processed queries
+    -- Object queries
+    if type(query) == "table" then
+        local chain = self.processingChain
+        for processorIndex = 1, #chain do
+            local processingFn = chain[processorIndex]
+            local out = processingFn(self, query)
+            if out then return out end
+        end
+    end
+
+    -- Regular string query processing and fallbacks:
 
     local stringQuery = type(query) == "string" and query or query.base
 
@@ -283,7 +309,7 @@ function Language:get(query, subset)
         if out then return out end
     end
 
-    if self.fallbackLanguage then self.fallbackLanguage:get(query) end
+    if self.fallbackLanguage then return self.fallbackLanguage:get(query) end
     return stringQuery
 end
 
