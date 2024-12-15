@@ -278,11 +278,12 @@ function Language:get(query, subset)
     if type(query) == "table" and not query.base then
         error("Object query is missing 'base' field", 2)
     end
+    local stringQuery = type(query) == "string" and query or query.base
 
     -- Querying a subset
     if subset then
         local subsetLanguage = self.subsetLanguages[subset]
-        if not subsetLanguage then return query.base end -- Subset not found
+        if not subsetLanguage then return stringQuery end -- Subset not found
 
         return subsetLanguage:get(query)
     end
@@ -298,8 +299,6 @@ function Language:get(query, subset)
     end
 
     -- Regular string query processing and fallbacks:
-
-    local stringQuery = type(query) == "string" and query or query.base
 
     local translation = self:getRaw(stringQuery)
     if translation then return translation end
