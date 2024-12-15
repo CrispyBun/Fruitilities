@@ -112,7 +112,7 @@ end
 ---@return Camberry.Camera
 function camberry.newCamera(width, height)
     if not width or not height then error("Must supply a width and height to the camera", 2) end
-    ---@type Camberry.Camera
+    -- new Camberry.Camera
     local camera = {
         targets = {},
         smoothness = 0.05,
@@ -739,7 +739,7 @@ end
 ---@param y? number
 ---@return Camberry.SimpleTarget
 function camberry.newSimpleTarget(x, y)
-    ---@type Camberry.SimpleTarget
+    -- new Camberry.SimpleTarget
     local target = {
         x = x or 0,
         y = y or 0,
@@ -786,7 +786,7 @@ end
 --- But, if you insert any values into an instance of a RigReceiver, those values can be interpolated (given that they're number values).
 ---@return Camberry.RigReceiver
 function camberry.newRigReceiver()
-    ---@type Camberry.RigReceiver
+    -- new Camberry.RigReceiver
     local receiver = {
         attachedRigs = {},
         waitForAllRigs = false,
@@ -945,7 +945,7 @@ function camberry.newRig(duration, easing, sourceValues, targetValues)
         easing = camberry.tweens[easing]
     end
 
-    ---@type Camberry.Rig
+    -- new Camberry.Rig
     local rig = {
         progress = 0,
         duration = duration or 1,

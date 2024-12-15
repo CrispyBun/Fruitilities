@@ -91,7 +91,7 @@ local SpriteMT = {__index = Sprite}
 --- Creates a new blank animango sprite.
 ---@return Animango.Sprite
 function animango.newSprite()
-    ---@type Animango.Sprite
+    -- new Animango.Sprite
     local sprite = {
         x = 0,
         y = 0,
@@ -134,7 +134,7 @@ end
 --- Also copies the origin.
 ---@return Animango.Sprite
 function Sprite:instance()
-    ---@type Animango.Sprite
+    -- new Animango.Sprite
     local inst = {
         x = 0,
         y = 0,
@@ -163,7 +163,7 @@ end
 --- Creates a copy of the sprite.
 ---@return Animango.Sprite
 function Sprite:clone()
-    ---@type Animango.Sprite
+    -- new Animango.Sprite
     local inst = {
         x = self.x,
         y = self.y,
@@ -458,7 +458,7 @@ end
 ---@param frames? Animango.Frame[] The frames in this animation
 ---@return Animango.Animation
 function animango.newAnimation(fps, originX, originY, frames)
-    ---@type Animango.Animation
+    -- new Animango.Animation
     local animation = {
         frames = frames or {},
         fps = fps or 1,

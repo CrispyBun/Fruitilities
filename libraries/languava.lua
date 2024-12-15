@@ -246,7 +246,7 @@ end
 --- otherwise this is used internally and you don't have to worry about it.
 ---@return Languava.Language
 function languava.newLanguage()
-    ---@type Languava.Language
+    -- new Languava.Language
     local language = {
         fields = {},
         subsetLanguages = {}

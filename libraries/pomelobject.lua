@@ -73,7 +73,7 @@ local GameObjectMT = {__index = GameObject}
 --- Creates a new GameObject.
 ---@return Pomelobject.GameObject
 function pomelobject.newGameObject()
-    ---@type Pomelobject.GameObject
+    -- new Pomelobject.GameObject
     local object = {
         -- Shared values
         x = 0,
