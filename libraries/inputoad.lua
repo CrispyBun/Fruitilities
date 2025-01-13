@@ -44,16 +44,26 @@ inputoad.callbacks = {}
 ---@type table<string, Inputoad.ActionState>
 inputoad.actionStates = {}
 
+--- A table stating if an input is currently consumed and shouldn't be used
+---@type table<string, boolean>
+inputoad.consumedInputs = {}
+
 -- Types -------------------------------------------------------------------------------------------
 
 ---@alias Inputoad.CallbackType
 ---| '"pressed"' # Input was just pressed
 ---| '"released"' # Input was just released
 
----@alias Inputoad.InputCallbackFn fun(action: string)
+--- The callback function to respond to input events
+---@alias Inputoad.InputCallbackFn fun(action: string): Inputoad.InputCallbackReturn?
+
+--- If the input callback function returns one of these strings, the corresponding event will be triggered
+---@alias Inputoad.InputCallbackReturn
+---| '"consume"' # Consumes the input, preventing any other callbacks from being triggered for this input (even for other actions)
 
 ---@class Inputoad.ActionState
 ---@field numPresses integer How many distinct inputs are currently pressing this action
+---@field lastInput string? The last raw input that triggered this action
 
 -- Sending inputs ----------------------------------------------------------------------------------
 
@@ -62,7 +72,7 @@ inputoad.actionStates = {}
 --- Triggers the press action on the given input (this should be called right when the user presses the input).
 ---@param input string
 function inputoad.triggerPressed(input)
-    inputoad.triggerCallbacksForInput(input, "pressed")
+    inputoad.handleTriggeredInput(input, "pressed")
 end
 
 --------------------------------------------------
@@ -70,7 +80,7 @@ end
 --- Triggers the release action on the given input (this should be called right when the user releases the input).
 ---@param input string
 function inputoad.triggerReleased(input)
-    inputoad.triggerCallbacksForInput(input, "released")
+    inputoad.handleTriggeredInput(input, "released")
 end
 
 --------------------------------------------------
@@ -115,7 +125,7 @@ end
 function inputoad.isActionDown(action)
     local state = inputoad.getActionState(action)
 
-    -- TODO: bail if action was consumed
+    if inputoad.consumedInputs[state.lastInput] then return false end
     return state.numPresses > 0
 end
 inputoad.isActionHeld = inputoad.isActionDown
@@ -137,17 +147,30 @@ function inputoad.getCallbacks(action, callbackType)
 end
 
 --------------------------------------------------
---- ### inputoad.triggerCallbacksForInput(input, callbackType)
---- Triggers the given callbacks. Used internally.
+--- ### inputoad.handleTriggeredInput(input, callbackType)
+--- Handles the input being pressed/released (based on callbackType). Used internally.
 ---@param input string
 ---@param callbackType Inputoad.CallbackType
-function inputoad.triggerCallbacksForInput(input, callbackType)
+function inputoad.handleTriggeredInput(input, callbackType)
+    inputoad.consumedInputs[input] = false -- Reset input consumption on each trigger
+
     local actions = inputoad.actions[input]
     if not actions then return end
 
+    local isConsumed = false
+
     for actionIndex = 1, #actions do
         local action = actions[actionIndex]
-        inputoad.triggerCallbacksForAction(action, callbackType)
+        inputoad.handleActionStateForCallbackType(action, input, callbackType)
+
+        if not isConsumed then
+            local trigger = inputoad.triggerCallbacksForAction(action, callbackType)
+
+            if trigger == "consume" then
+                inputoad.consumedInputs[input] = true
+                isConsumed = true
+            end
+        end
     end
 end
 
@@ -157,8 +180,6 @@ end
 ---@param action string
 ---@param callbackType Inputoad.CallbackType
 function inputoad.triggerCallbacksForAction(action, callbackType)
-    inputoad.handleActionStateForCallbackType(action, callbackType)
-
     local callbackTable = inputoad.callbacks[action]
     if not callbackTable then return end
 
@@ -167,7 +188,8 @@ function inputoad.triggerCallbacksForAction(action, callbackType)
 
     for callbackIndex = 1, #callbacks do
         local callback = callbacks[callbackIndex]
-        callback(action) -- TODO: input consuming
+        local trigger = callback(action)
+        if trigger == "consume" then return trigger end
     end
 end
 
@@ -190,12 +212,14 @@ end
 
 ---Used internally.
 ---@param action string
+---@param input string
 ---@param callbackType Inputoad.CallbackType
-function inputoad.handleActionStateForCallbackType(action, callbackType)
+function inputoad.handleActionStateForCallbackType(action, input, callbackType)
     local state = inputoad.getActionState(action)
 
     if callbackType == "pressed" then
         state.numPresses = state.numPresses + 1
+        state.lastInput = input
     elseif callbackType == "released" then
         state.numPresses = state.numPresses - 1
     end
@@ -233,18 +257,23 @@ function inputoad.getInputs(action)
 end
 
 --------------------------------------------------
---- ### inputoad.mapInput(input, action)
---- Maps an input to the given action. Will not map the same input to the same action twice.   
+--- ### inputoad.mapInput(input, action, addToFront?)
+--- Maps an input to the given action. Will not map the same input to the same action twice.  
+--- The action can be added to the front of the chain instead of back by setting `addToFront` to true.
 --- ```lua
 --- inputoad.mapInput("W", "jump")
 --- ```
 ---@param input string
 ---@param action string
-function inputoad.mapInput(input, action)
-    if inputoad.inputIsMappedToAction(input, action) then return end
+---@param addToFront? boolean
+function inputoad.mapInput(input, action, addToFront)
+    if inputoad.inputIsMappedToAction(input, action) then
+        inputoad.unmapInput(input, action)
+    end
 
     local actions = inputoad.getActions(input)
-    actions[#actions+1] = action
+    local index = addToFront and 1 or (#actions+1)
+    return table.insert(actions, index, action)
 end
 
 --------------------------------------------------
