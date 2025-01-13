@@ -36,6 +36,121 @@ local inputoad = {}
 ---@type table<string, string[]>
 inputoad.actions = {}
 
+--- A table mapping each action into a table of callbacks
+---@type table<string, table<Inputoad.CallbackType, Inputoad.InputCallbackFn[]>>
+inputoad.callbacks = {}
+
+-- Types -------------------------------------------------------------------------------------------
+
+---@alias Inputoad.CallbackType
+---| '"pressed"' # Input was just pressed
+---| '"released"' # Input was just released
+
+---@alias Inputoad.InputCallbackFn fun()
+
+-- Sending inputs ----------------------------------------------------------------------------------
+
+--------------------------------------------------
+--- ### inputoad.triggerPressed(input)
+--- Triggers the press action on the given input (this should be called right when the user presses the input).
+---@param input string
+function inputoad.triggerPressed(input)
+    inputoad.triggerCallbacksForInput(input, "pressed")
+end
+
+--------------------------------------------------
+--- ### inputoad.triggerReleased(input)
+--- Triggers the release action on the given input (this should be called right when the user releases the input).
+---@param input string
+function inputoad.triggerReleased(input)
+    inputoad.triggerCallbacksForInput(input, "released")
+end
+
+--------------------------------------------------
+--- ### inputoad.triggerPulse(input)
+--- Triggers both the press and release action on the given input.
+--- This should be used for inputs where you don't have access to the info
+--- whether the user is releasing the input, only when it was pressed.
+---@param input string
+function inputoad.triggerPulse(input)
+    inputoad.triggerPressed(input)
+    inputoad.triggerReleased(input)
+end
+
+-- Input callbacks ---------------------------------------------------------------------------------
+
+--------------------------------------------------
+--- ### inputoad.addCallback(action, callbackType, callbackFn, addToFront?)
+--- Adds a callback to the given action and callback type.  
+--- Can also be added to the front of the chain instead of back by setting `addToFront` to true.  
+--- ```lua
+--- inputoad.addCallback("jump", "pressed", function()
+---     player.yVelocity = -10
+--- end)
+--- 
+--- ```
+---@param action string
+---@param callbackType Inputoad.CallbackType
+---@param callbackFn Inputoad.InputCallbackFn
+---@param addToFront? boolean
+function inputoad.addCallback(action, callbackType, callbackFn, addToFront)
+    local callbacks = inputoad.getCallbacks(action, callbackType)
+
+    local index = addToFront and 1 or (#callbacks+1)
+    return table.insert(callbacks, index, callbackFn)
+end
+
+--------------------------------------------------
+--- ### inputoad.getCallbacks(action, callbackType)
+--- Gets the array of callback functions for the given action and callback type.
+---@param action string
+---@param callbackType Inputoad.CallbackType
+---@return Inputoad.InputCallbackFn[]
+function inputoad.getCallbacks(action, callbackType)
+    local callbackTable = inputoad.callbacks[action] or {}
+    inputoad.callbacks[action] = callbackTable
+
+    local callbacks = callbackTable[callbackType] or {}
+    callbackTable[callbackType] = callbacks
+
+    return callbacks
+end
+
+--------------------------------------------------
+--- ### inputoad.triggerCallbacksForInput(input, callbackType)
+--- Triggers the given callbacks. Used internally.
+---@param input string
+---@param callbackType Inputoad.CallbackType
+function inputoad.triggerCallbacksForInput(input, callbackType)
+    local actions = inputoad.actions[input]
+    if not actions then return end
+
+    for actionIndex = 1, #actions do
+        local action = actions[actionIndex]
+        inputoad.triggerCallbacksForAction(action, callbackType)
+    end
+end
+
+--------------------------------------------------
+--- ### inputoad.triggerCallbacksForAction(action, callbackType)
+--- Triggers the given callbacks. Used internally.
+---@param action string
+---@param callbackType Inputoad.CallbackType
+function inputoad.triggerCallbacksForAction(action, callbackType)
+    local callbackTable = inputoad.callbacks[action]
+    if not callbackTable then return end
+
+    local callbacks = callbackTable[callbackType]
+    if not callbacks then return end
+
+    for callbackIndex = 1, #callbacks do
+        local callback = callbacks[callbackIndex]
+        callback() -- TODO: parameters, input consuming
+    end
+end
+
+-- Mapping inputs ----------------------------------------------------------------------------------
+
 --------------------------------------------------
 --- ### inputoad.getActions(input)
 --- Gets all the bound actions for a given input.
