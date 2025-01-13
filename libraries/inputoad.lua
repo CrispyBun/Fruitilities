@@ -48,8 +48,26 @@ function inputoad.getActions(input)
 end
 
 --------------------------------------------------
+--- ### inputoad.getInputs(action)
+--- Gets all the bound inputs to the given action.
+---@param action string
+---@return string[]
+function inputoad.getInputs(action)
+    local foundInputs = {}
+    for input, actions in pairs(inputoad.actions) do
+        for _, mappedAction in ipairs(actions) do
+            if mappedAction == action then
+                foundInputs[#foundInputs+1] = input
+                break
+            end
+        end
+    end
+    return foundInputs
+end
+
+--------------------------------------------------
 --- ### inputoad.mapInput(input, action)
---- Maps an input to the given action.  
+--- Maps an input to the given action. Will not map the same input to the same action twice.   
 --- ```lua
 --- inputoad.mapInput("W", "jump")
 --- ```
