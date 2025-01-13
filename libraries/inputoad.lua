@@ -40,6 +40,10 @@ inputoad.actions = {}
 ---@type table<string, table<Inputoad.CallbackType, Inputoad.InputCallbackFn[]>>
 inputoad.callbacks = {}
 
+--- A table containing info about each action's state
+---@type table<string, Inputoad.ActionState>
+inputoad.actionStates = {}
+
 -- Types -------------------------------------------------------------------------------------------
 
 ---@alias Inputoad.CallbackType
@@ -47,6 +51,9 @@ inputoad.callbacks = {}
 ---| '"released"' # Input was just released
 
 ---@alias Inputoad.InputCallbackFn fun()
+
+---@class Inputoad.ActionState
+---@field numPresses integer How many distinct inputs are currently pressing this action
 
 -- Sending inputs ----------------------------------------------------------------------------------
 
@@ -77,7 +84,7 @@ function inputoad.triggerPulse(input)
     inputoad.triggerReleased(input)
 end
 
--- Input callbacks ---------------------------------------------------------------------------------
+-- Reading actions ---------------------------------------------------------------------------------
 
 --------------------------------------------------
 --- ### inputoad.addCallback(action, callbackType, callbackFn, addToFront?)
@@ -99,6 +106,19 @@ function inputoad.addCallback(action, callbackType, callbackFn, addToFront)
     local index = addToFront and 1 or (#callbacks+1)
     return table.insert(callbacks, index, callbackFn)
 end
+
+--------------------------------------------------
+--- ### inputoad.isActionDown(action)
+--- Returns a boolean stating if the specified action is currently held.
+---@param action string
+---@return boolean
+function inputoad.isActionDown(action)
+    local state = inputoad.getActionState(action)
+
+    -- TODO: bail if action was consumed
+    return state.numPresses > 0
+end
+inputoad.isActionHeld = inputoad.isActionDown
 
 --------------------------------------------------
 --- ### inputoad.getCallbacks(action, callbackType)
@@ -127,6 +147,7 @@ function inputoad.triggerCallbacksForInput(input, callbackType)
 
     for actionIndex = 1, #actions do
         local action = actions[actionIndex]
+        inputoad.handleActionStateForCallbackType(action, callbackType)
         inputoad.triggerCallbacksForAction(action, callbackType)
     end
 end
@@ -146,6 +167,36 @@ function inputoad.triggerCallbacksForAction(action, callbackType)
     for callbackIndex = 1, #callbacks do
         local callback = callbacks[callbackIndex]
         callback() -- TODO: parameters, input consuming
+    end
+end
+
+--------------------------------------------------
+--- ### inputoad.getActionState(action)
+--- Returns the table describing the current state of the action.
+---@param action string
+---@return Inputoad.ActionState
+function inputoad.getActionState(action)
+    local state = inputoad.actionStates[action]
+    if state then return state end
+
+    state = {
+        numPresses = 0
+    }
+    inputoad.actionStates[action] = state
+
+    return state
+end
+
+---Used internally.
+---@param action string
+---@param callbackType Inputoad.CallbackType
+function inputoad.handleActionStateForCallbackType(action, callbackType)
+    local state = inputoad.getActionState(action)
+
+    if callbackType == "pressed" then
+        state.numPresses = state.numPresses + 1
+    elseif callbackType == "released" then
+        state.numPresses = state.numPresses - 1
     end
 end
 
