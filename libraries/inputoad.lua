@@ -50,7 +50,7 @@ inputoad.actionStates = {}
 ---| '"pressed"' # Input was just pressed
 ---| '"released"' # Input was just released
 
----@alias Inputoad.InputCallbackFn fun()
+---@alias Inputoad.InputCallbackFn fun(action: string)
 
 ---@class Inputoad.ActionState
 ---@field numPresses integer How many distinct inputs are currently pressing this action
@@ -147,7 +147,6 @@ function inputoad.triggerCallbacksForInput(input, callbackType)
 
     for actionIndex = 1, #actions do
         local action = actions[actionIndex]
-        inputoad.handleActionStateForCallbackType(action, callbackType)
         inputoad.triggerCallbacksForAction(action, callbackType)
     end
 end
@@ -158,6 +157,8 @@ end
 ---@param action string
 ---@param callbackType Inputoad.CallbackType
 function inputoad.triggerCallbacksForAction(action, callbackType)
+    inputoad.handleActionStateForCallbackType(action, callbackType)
+
     local callbackTable = inputoad.callbacks[action]
     if not callbackTable then return end
 
@@ -166,7 +167,7 @@ function inputoad.triggerCallbacksForAction(action, callbackType)
 
     for callbackIndex = 1, #callbacks do
         local callback = callbacks[callbackIndex]
-        callback() -- TODO: parameters, input consuming
+        callback(action) -- TODO: input consuming
     end
 end
 
