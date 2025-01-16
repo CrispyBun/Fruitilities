@@ -152,7 +152,9 @@ end
 ---@param input string
 ---@param callbackType Inputoad.CallbackType
 function inputoad.handleTriggeredInput(input, callbackType)
-    inputoad.consumedInputs[input] = false -- Reset input consumption on each trigger
+    if callbackType == "pressed" then
+        inputoad.consumedInputs[input] = false -- Reset input consumption on each trigger
+    end
 
     local actions = inputoad.actions[input]
     if not actions then return end
