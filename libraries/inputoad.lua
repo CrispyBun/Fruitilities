@@ -176,10 +176,6 @@ end
 ---@param ignoreModifiers? boolean
 ---@return boolean actionFound
 function inputoad.handleTriggeredInput(input, callbackType, ignoreModifiers)
-    if callbackType == "pressed" then
-        inputoad.unconsumeInput(input) -- Reset input consumption on each trigger
-    end
-
     inputoad.handleInputStateForCallbackType(input, callbackType)
     local inputState = inputoad.getRawInputState(input)
 
@@ -309,12 +305,6 @@ function inputoad.consumeInput(input)
     inputoad.getRawInputState(input).isConsumed = true
 end
 
---- Used internally. Opposite of `inputoad.consumeInput`.
----@param input string
-function inputoad.unconsumeInput(input)
-    inputoad.getRawInputState(input).isConsumed = false
-end
-
 ---Used internally.
 ---@param action string
 ---@param input string
@@ -338,6 +328,7 @@ function inputoad.handleInputStateForCallbackType(input, callbackType)
 
     if callbackType == "pressed" then
         state.isDown = true
+        state.isConsumed = false
 
         local modifiersPressed = state.modifiersPressed
         local modifiers = inputoad.modifiers
