@@ -40,13 +40,23 @@ inputoad.actions = {}
 ---@type table<string, table<Inputoad.CallbackType, Inputoad.InputCallbackFn[]>>
 inputoad.callbacks = {}
 
+--- A list of inputs that are also considered modifiers for other inputs (such as "ctrl")
+---@type string[]
+inputoad.modifiers = {}
+
 --- A table containing info about each action's state
----@type table<string, Inputoad.ActionState>
+---@type table<string, Inputoad.ActionState?>
 inputoad.actionStates = {}
 
---- A table stating if an input is currently consumed and shouldn't be used
----@type table<string, boolean>
-inputoad.consumedInputs = {}
+--- A table containing info about each raw input's state
+---@type table<string, Inputoad.InputState?>
+inputoad.rawInputStates = {}
+
+--- String that separates modifiers from the raw inputs or other modifiers (creating inputs such as "ctrl%c" or "ctrl%shift%c").  
+--- Must be set once before using the library (unless the default is used),
+--- and must not be a string that may appear as part of a raw input.
+---@type string
+inputoad.modifierSeparationString = "%"
 
 -- Types -------------------------------------------------------------------------------------------
 
@@ -64,6 +74,11 @@ inputoad.consumedInputs = {}
 ---@class Inputoad.ActionState
 ---@field numPresses integer How many distinct inputs are currently pressing this action
 ---@field lastInput string? The last raw input that triggered this action
+
+---@class Inputoad.InputState
+---@field isDown boolean Whether or not this input is currently pressed
+---@field isConsumed boolean Whether or not this input is currently consumed and shouldn't be triggering actions anymore
+---@field modifiersPressed table<string, boolean> The modifiers that were held down when this input was pressed
 
 -- Sending inputs ----------------------------------------------------------------------------------
 
@@ -100,6 +115,10 @@ end
 --- ### inputoad.addCallback(action, callbackType, callbackFn, addToFront?)
 --- Adds a callback to the given action and callback type.  
 --- Can also be added to the front of the chain instead of back by setting `addToFront` to true.  
+--- 
+--- Note that under some conditions (namely consuming inputs or modified inputs triggering),
+--- it is possible that a `"pressed"` callback is called but not the subsequent `"released"`, or vice versa.
+--- If you need to know whether or not a specific action is held down, you should use `inputoad.isActionDown()` instead of callbacks.
 --- ```lua
 --- inputoad.addCallback("jump", "pressed", function()
 ---     player.yVelocity = -10
@@ -125,7 +144,10 @@ end
 function inputoad.isActionDown(action)
     local state = inputoad.getActionState(action)
 
-    if inputoad.consumedInputs[state.lastInput] then return false end
+    if state.lastInput and inputoad.getRawInputState(state.lastInput).isConsumed then
+        return false
+    end
+
     return state.numPresses > 0
 end
 inputoad.isActionHeld = inputoad.isActionDown
@@ -151,29 +173,45 @@ end
 --- Handles the input being pressed/released (based on callbackType). Used internally.
 ---@param input string
 ---@param callbackType Inputoad.CallbackType
-function inputoad.handleTriggeredInput(input, callbackType)
+---@param ignoreModifiers? boolean
+---@return boolean actionFound
+function inputoad.handleTriggeredInput(input, callbackType, ignoreModifiers)
     if callbackType == "pressed" then
-        inputoad.consumedInputs[input] = false -- Reset input consumption on each trigger
+        inputoad.unconsumeInput(input) -- Reset input consumption on each trigger
+    end
+
+    inputoad.handleInputStateForCallbackType(input, callbackType)
+    local inputState = inputoad.getRawInputState(input)
+
+    if not ignoreModifiers and inputoad.wasRawInputPressedWithModifiers(input) then
+        local modifiedInput = inputoad.getModifiedInputString(input, inputState.modifiersPressed, true)
+        local success = inputoad.handleTriggeredInput(modifiedInput, callbackType, true)
+        if success then
+            -- Successful modified input consumes the unmodified input
+            -- since they are two distinct inputs that shouldn't clash
+            -- (`ctrl+c` means `c` isn't triggered anymore)
+            inputoad.consumeInput(input)
+        end
     end
 
     local actions = inputoad.actions[input]
-    if not actions then return end
-
-    local isConsumed = false
+    if not actions then return false end
+    if #actions == 0 then return false end
 
     for actionIndex = 1, #actions do
         local action = actions[actionIndex]
         inputoad.handleActionStateForCallbackType(action, input, callbackType)
 
-        if not isConsumed then
-            local trigger = inputoad.triggerCallbacksForAction(action, callbackType)
+        if not inputoad.isInputConsumed(input) then
+            local callbackFound, trigger = inputoad.triggerCallbacksForAction(action, callbackType)
 
             if trigger == "consume" then
-                inputoad.consumedInputs[input] = true
-                isConsumed = true
+                inputoad.consumeInput(input)
             end
         end
     end
+
+    return true
 end
 
 --------------------------------------------------
@@ -181,18 +219,23 @@ end
 --- Triggers the given callbacks. Used internally.
 ---@param action string
 ---@param callbackType Inputoad.CallbackType
+---@return boolean callbackFound
+---@return string? callbackReturn
 function inputoad.triggerCallbacksForAction(action, callbackType)
     local callbackTable = inputoad.callbacks[action]
-    if not callbackTable then return end
+    if not callbackTable then return false end
 
     local callbacks = callbackTable[callbackType]
-    if not callbacks then return end
+    if not callbacks then return false end
+    if #callbacks == 0 then return false end
 
     for callbackIndex = 1, #callbacks do
         local callback = callbacks[callbackIndex]
         local trigger = callback(action)
-        if trigger == "consume" then return trigger end
+        if trigger == "consume" then return true, trigger end
     end
+
+    return true
 end
 
 --------------------------------------------------
@@ -212,6 +255,66 @@ function inputoad.getActionState(action)
     return state
 end
 
+--------------------------------------------------
+--- ### inputoad.getRawInputState(input)
+--- Returns the table describing the current state of the raw input.
+function inputoad.getRawInputState(input)
+    local state = inputoad.rawInputStates[input]
+    if state then return state end
+
+    state = {
+        isDown = false,
+        isConsumed = false,
+        modifiersPressed = {}
+    }
+    inputoad.rawInputStates[input] = state
+
+    return state
+end
+
+--- Returns a boolean of whether the raw input is currently held.  
+--- This is used internally, and shouldn't really be used for getting info about user input. Instead,
+--- `inputoad.isActionDown()` should be used.
+---@param input string
+---@return boolean
+function inputoad.isRawInputDown(input)
+    return inputoad.getRawInputState(input).isDown
+end
+
+--- Returns a boolean of whether any registered modifier was held down when the input was last pressed.
+---@param input string
+---@return boolean
+function inputoad.wasRawInputPressedWithModifiers(input)
+    local state = inputoad.getRawInputState(input)
+    local modifiersPressed = state.modifiersPressed
+
+    local modifiers = inputoad.modifiers
+    for modifierIndex = 1, #modifiers do
+        local modifier = modifiers[modifierIndex]
+        if modifiersPressed[modifier] then return true end
+    end
+    return false
+end
+
+--- Returns a boolean of whether the given input is currently consumed (won't trigger any more actions until the next time it's pressed)
+---@param input string
+---@return boolean
+function inputoad.isInputConsumed(input)
+    return inputoad.getRawInputState(input).isConsumed
+end
+
+--- Used internally. Marks the given input as consumed for its current press.
+---@param input string
+function inputoad.consumeInput(input)
+    inputoad.getRawInputState(input).isConsumed = true
+end
+
+--- Used internally. Opposite of `inputoad.consumeInput`.
+---@param input string
+function inputoad.unconsumeInput(input)
+    inputoad.getRawInputState(input).isConsumed = false
+end
+
 ---Used internally.
 ---@param action string
 ---@param input string
@@ -224,6 +327,33 @@ function inputoad.handleActionStateForCallbackType(action, input, callbackType)
         state.lastInput = input
     elseif callbackType == "released" then
         state.numPresses = state.numPresses - 1
+    end
+end
+
+---Used internally.
+---@param input string
+---@param callbackType Inputoad.CallbackType
+function inputoad.handleInputStateForCallbackType(input, callbackType)
+    local state = inputoad.getRawInputState(input)
+
+    if callbackType == "pressed" then
+        state.isDown = true
+
+        local modifiersPressed = state.modifiersPressed
+        local modifiers = inputoad.modifiers
+
+        for modifierIndex = 1, #modifiers do
+            local modifier = modifiers[modifierIndex]
+
+            if inputoad.isRawInputDown(modifier) then
+                modifiersPressed[modifier] = true
+            else
+                modifiersPressed[modifier] = false
+            end
+        end
+
+    elseif callbackType == "released" then
+        state.isDown = false
     end
 end
 
@@ -291,6 +421,52 @@ function inputoad.unmapInput(input, action)
             table.remove(actions, actionIndex)
         end
     end
+end
+
+--------------------------------------------------
+--- ### inputoad.registerModifier(input)
+--- Registers an input as a potential modifier (e.g. "ctrl").  
+--- All modifiers must be registered at the start of the program.
+---@param input string
+function inputoad.registerModifier(input)
+    local modifiers = inputoad.modifiers
+    for modifierIndex = 1, #modifiers do
+        if modifiers[modifierIndex] == input then
+            error("Modifier '" .. tostring(input) .. "' is already registered", 2)
+        end
+    end
+    modifiers[#modifiers+1] = input
+end
+
+local function arrayHasItem(array, item) for _, value in ipairs(array) do if item == value then return true end end return false end
+--------------------------------------------------
+--- ### inputoad.getModifiedInputString(input, modifiers)
+--- Returns a new input string for an input that has modifiers applied (uses `inputoad.modifierSeparationString`).  
+--- When mapping an input with a modifier, this function should be used instead of constructing the strings manually, as it makes sure the order of the modifiers is consistent.
+--- ```lua
+--- local input = inputoad.getModifiedInputString("c", { ctrl = true }) --> "ctrl%c"
+--- inputoad.mapInput(input, "copy")
+--- ```
+---@param input string
+---@param modifiers table<string, boolean>
+function inputoad.getModifiedInputString(input, modifiers, _ignoreModifierExistsCheck)
+    local registeredModifiers = inputoad.modifiers
+
+    if not _ignoreModifierExistsCheck then
+        for key, value in pairs(modifiers) do
+            if value and not arrayHasItem(registeredModifiers, key) then
+                error("Unknown modifier (must be registered first): " .. tostring(key), 2)
+            end
+        end
+    end
+
+    for modifierIndex = 1, #registeredModifiers do
+        local modifier = registeredModifiers[modifierIndex]
+        if modifiers[modifier] then
+            input = modifier .. inputoad.modifierSeparationString .. input
+        end
+    end
+    return input
 end
 
 --------------------------------------------------
