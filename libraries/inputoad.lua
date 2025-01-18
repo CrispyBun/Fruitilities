@@ -70,6 +70,7 @@ inputoad.modifierSeparationString = "%"
 --- If the input callback function returns one of these strings, the corresponding event will be triggered
 ---@alias Inputoad.InputCallbackReturn
 ---| '"consume"' # Consumes the input, preventing any other callbacks from being triggered for this input (even for other actions)
+---| '"ignore"' # Tells the library that this callback had no meaning in the current context (e.g. trying to "select all" when not editing anything), or simply that it should be ignored in the context of blocking other inputs. This can be useful if the input could otherwise block another input from triggering, if this input has a modifier.
 
 ---@class Inputoad.ActionState
 ---@field numPresses integer How many distinct inputs are currently pressing this action
@@ -174,7 +175,7 @@ end
 ---@param input string
 ---@param callbackType Inputoad.CallbackType
 ---@param ignoreModifiers? boolean
----@return boolean actionFound
+---@return boolean actionCalled
 function inputoad.handleTriggeredInput(input, callbackType, ignoreModifiers)
     inputoad.handleInputStateForCallbackType(input, callbackType)
     local inputState = inputoad.getRawInputState(input)
@@ -194,20 +195,25 @@ function inputoad.handleTriggeredInput(input, callbackType, ignoreModifiers)
     if not actions then return false end
     if #actions == 0 then return false end
 
+    local allTriggersAreIgnore = true
+
     for actionIndex = 1, #actions do
         local action = actions[actionIndex]
         inputoad.handleActionStateForCallbackType(action, input, callbackType)
 
         if not inputoad.isInputConsumed(input) then
-            local callbackFound, trigger = inputoad.triggerCallbacksForAction(action, callbackType)
+            local _, trigger = inputoad.triggerCallbacksForAction(action, callbackType)
 
+            if trigger ~= "ignore" then
+                allTriggersAreIgnore = false
+            end
             if trigger == "consume" then
                 inputoad.consumeInput(input)
             end
         end
     end
 
-    return true
+    return not allTriggersAreIgnore
 end
 
 --------------------------------------------------
@@ -216,7 +222,7 @@ end
 ---@param action string
 ---@param callbackType Inputoad.CallbackType
 ---@return boolean callbackFound
----@return string? callbackReturn
+---@return Inputoad.InputCallbackReturn? callbackReturn
 function inputoad.triggerCallbacksForAction(action, callbackType)
     local callbackTable = inputoad.callbacks[action]
     if not callbackTable then return false end
@@ -225,12 +231,16 @@ function inputoad.triggerCallbacksForAction(action, callbackType)
     if not callbacks then return false end
     if #callbacks == 0 then return false end
 
+    local allTriggersAreIgnore = true
+
     for callbackIndex = 1, #callbacks do
         local callback = callbacks[callbackIndex]
         local trigger = callback(action)
         if trigger == "consume" then return true, trigger end
+        if trigger ~= "ignore" then allTriggersAreIgnore = false end
     end
 
+    if allTriggersAreIgnore then return true, "ignore" end
     return true
 end
 
