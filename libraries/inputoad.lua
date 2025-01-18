@@ -443,9 +443,10 @@ local function arrayHasItem(array, item) for _, value in ipairs(array) do if ite
 --------------------------------------------------
 --- ### inputoad.getModifiedInputString(input, modifiers)
 --- Returns a new input string for an input that has modifiers applied (uses `inputoad.modifierSeparationString`).  
---- When mapping an input with a modifier, this function should be used instead of constructing the strings manually, as it makes sure the order of the modifiers is consistent.
+--- When mapping an input with a modifier, this function should be used to generate the input string.  
+--- The order of the modifiers in the string depends on the order in which they were registered in.
 --- ```lua
---- local input = inputoad.getModifiedInputString("c", { ctrl = true }) --> "ctrl%c"
+--- local input = inputoad.getModifiedInputString("c", { ctrl = true }) --> "ctrl%c" (or similar)
 --- inputoad.mapInput(input, "copy")
 --- ```
 ---@param input string
@@ -468,6 +469,30 @@ function inputoad.getModifiedInputString(input, modifiers, _ignoreModifierExists
         end
     end
     return input
+end
+
+--------------------------------------------------
+--- ### inputoad.splitModifiedInputString(input)
+--- Splits a string previously generated with `inputoad.getModifiedInputString()`
+--- and returns the raw input key along with a table of modifiers that were applied to it.
+---@param modifiedInput string
+---@return string rawInputKey
+---@return string[] modifiers
+function inputoad.splitModifiedInputString(modifiedInput)
+    local separator = inputoad.modifierSeparationString
+    local parts = {}
+
+    local searchIndex = 1
+    while true do
+        local startIndex, endIndex = string.find(modifiedInput, separator, searchIndex, true)
+        if not (startIndex and endIndex) then break end
+
+        parts[#parts+1] = string.sub(modifiedInput, searchIndex, startIndex-1)
+        searchIndex = endIndex + 1
+    end
+    local rawInput = string.sub(modifiedInput, searchIndex)
+
+    return rawInput, parts
 end
 
 --------------------------------------------------
