@@ -538,6 +538,36 @@ function inputoad.clearMappings()
 end
 
 --------------------------------------------------
+--- ### inputoad.copyMappings()
+--- Returns a copy of the mappings table.
+---@return table<string, string[]>
+function inputoad.copyMappings()
+    local copy = {}
+    for input, actions in pairs(inputoad.mappings) do
+        copy[input] = {}
+
+        for actionIndex = 1, #actions do
+            copy[input][actionIndex] = actions[actionIndex]
+        end
+    end
+    return copy
+end
+
+--------------------------------------------------
+--- ### inputoad.pasteMappings(mappings)
+--- Assigns all the mappings to the ones in the provided table.  
+--- Can paste back mappings previously copied using `inputoad.copyMappings()`.
+---@param mappings table<string, string[]>
+function inputoad.pasteMappings(mappings)
+    inputoad.clearMappings()
+    for input, actions in pairs(mappings) do
+        for actionIndex = 1, #actions do
+            inputoad.mapInput(input, actions[actionIndex])
+        end
+    end
+end
+
+--------------------------------------------------
 --- ### inputoad.inputIsMappedToAction(input, action)
 --- Checks if a specific input is mapped to the given action.
 ---@param input string
