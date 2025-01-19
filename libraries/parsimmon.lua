@@ -35,6 +35,63 @@ SOFTWARE.
 --- Compatible with JSON, allows for arbitrary custom types.
 local parsimmon = {}
 
+-- Custom types ------------------------------------------------------------------------------------
+
+---@type table<string, Parsimmon.CustomType>
+parsimmon.customTypes = {}
+
+--- Parser of a single value. For inspiration on how to write these, look into the parsers in `parsimmon.parsers`.
+---@alias Parsimmon.ValueParser fun(str: string, i: integer, context?: table): any, integer
+
+--- A custom type and the functions that specify how it's parsed.  
+--- The parsed area must always be enclosed between `{` and `}` symbols.
+--- 
+--- The parser function receives the full input string, the position at which this value starts (will be pointing to the `{` symbol),
+--- and potentially the context table, given by some previous parser.  
+--- It must output the parsed value and the position at which it ends (the position of the ending `}` character).
+---@class Parsimmon.CustomType
+---@field parser Parsimmon.ValueParser The parser for this type, a function in the same format as the functions in `parsimmon.parsers`.
+local CustomType = {}
+local CustomTypeMT = {__index = CustomType}
+
+--- Defines a new custom type.  
+--- If the parser and decoder values are not supplied, the default used for them will be ones used for regular objects.
+---@param name string The name of the type
+---@param parser? Parsimmon.ValueParser The parser for the type
+---@return Parsimmon.CustomType type The newly created type definition
+function parsimmon.defineCustomType(name, parser)
+    parser = parser or parsimmon.parsers.object
+
+    local type = {
+        parser = parser
+    }
+    setmetatable(type, CustomTypeMT)
+
+    parsimmon.customTypes[name] = type
+    return type
+end
+
+--- Sets the type's parser
+---@param parser Parsimmon.ValueParser The parser for the type
+---@return Parsimmon.CustomType self
+function CustomType:setParser(parser)
+    self.parser = parser
+    return self
+end
+
+-- -- Example advanced custom parser:
+-- -- Number{123}
+-- parsimmon.defineCustomType("Number", function (str, i, context)
+--     local j = str:find("}", i, true)
+--     if not j then parsimmon.throwParseError(str, i, "Missing closing bracket for Number type") end
+-- 
+--     local text = string.sub(str, i+1, j-1)
+--     local num = tonumber(text)
+--     if not num then parsimmon.throwParseError(str, i, "Couldn't parse number: " .. tostring(text)) end
+-- 
+--     return num, j --[[@as integer]]
+-- end)
+
 -- Character lookup tables -------------------------------------------------------------------------
 
 local charMaps = {}
@@ -122,7 +179,7 @@ end
 --- and may optionally receive a third argument, `context`, which might mean something different for each parser (but is always a table).
 --- 
 --- They must return the parsed value and the index at which it ends (`j`).
----@type table<string, fun(str: string, i: integer, context?: table): any, integer>
+---@type table<string, Parsimmon.ValueParser>
 parsimmon.parsers = {}
 
 function parsimmon.parsers.number(str, i)
@@ -213,7 +270,7 @@ function parsimmon.parsers.object(str, i, context)
 
         -- Invalid key
         else
-            parsimmon.throwParseError(str, i, "Expected object key")
+            parsimmon.throwParseError(str, i, "Expected quote or opening bracket")
         end
 
         i = parsimmon.findNotChar(str, i+1, charMaps.whitespace)
@@ -233,14 +290,18 @@ function parsimmon.parsers.object(str, i, context)
     end
 end
 
-function parsimmon.parsers.customTypeOrLiteral(str, i)
+function parsimmon.parsers.customTypeOrLiteral(str, i, context)
     local j = parsimmon.findChar(str, i, charMaps.terminating)
     local terminator = str:sub(j, j)
     local text = str:sub(i, j-1)
 
     if terminator == "{" then
-        -- todo: not a literal, this is a custom type
-        error("NYI")
+        -- Not a literal, this is a custom type
+        local typeDefinition = parsimmon.customTypes[text]
+        if not typeDefinition then
+            parsimmon.throwParseError(str, i, "Unknown type (" .. tostring(text) .. ")")
+        end
+        return typeDefinition.parser(str, j, context)
     end
 
     if text == "true" then return true, j-1 end
