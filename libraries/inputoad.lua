@@ -77,7 +77,7 @@ inputoad.modifierSeparationString = "%"
 ---@field lastInput string? The last raw input that triggered this action
 
 ---@class Inputoad.InputState
----@field isDown boolean Whether or not this input is currently pressed
+---@field numPresses integer How many distinct buttons are currently pressing this input
 ---@field isConsumed boolean Whether or not this input is currently consumed and shouldn't be triggering actions anymore
 ---@field modifiersPressed table<string, boolean> The modifiers that were held down when this input was pressed
 
@@ -156,7 +156,7 @@ end
 function inputoad.isActionDown(action)
     local state = inputoad.getActionState(action)
 
-    if state.lastInput and inputoad.getRawInputState(state.lastInput).isConsumed then
+    if state.lastInput and inputoad.isInputConsumed(state.lastInput) then
         return false
     end
 
@@ -280,7 +280,7 @@ function inputoad.getRawInputState(input)
     if state then return state end
 
     state = {
-        isDown = false,
+        numPresses = 0,
         isConsumed = false,
         modifiersPressed = {}
     }
@@ -295,7 +295,7 @@ end
 ---@param input string
 ---@return boolean
 function inputoad.isRawInputDown(input)
-    return inputoad.getRawInputState(input).isDown
+    return inputoad.getRawInputState(input).numPresses > 0
 end
 
 --- Returns a boolean of whether any registered modifier was held down when the input was last pressed.
@@ -349,7 +349,7 @@ function inputoad.handleInputStateForCallbackType(input, callbackType)
     local state = inputoad.getRawInputState(input)
 
     if callbackType == "pressed" then
-        state.isDown = true
+        state.numPresses = state.numPresses + 1
         state.isConsumed = false
 
         local modifiersPressed = state.modifiersPressed
@@ -366,7 +366,8 @@ function inputoad.handleInputStateForCallbackType(input, callbackType)
         end
 
     elseif callbackType == "released" then
-        state.isDown = false
+        state.numPresses = state.numPresses - 1
+        state.numPresses = math.max(state.numPresses, 0)
     end
 end
 
