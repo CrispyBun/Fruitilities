@@ -34,7 +34,7 @@ local inputoad = {}
 
 --- A table mapping real inputs to the named actions
 ---@type table<string, string[]>
-inputoad.actions = {}
+inputoad.mappings = {}
 
 --- A table mapping each action into a table of callbacks
 ---@type table<string, table<Inputoad.CallbackType, Inputoad.InputCallbackFn[]>>
@@ -202,7 +202,7 @@ function inputoad.handleTriggeredInput(input, callbackType, ignoreModifiers)
         end
     end
 
-    local actions = inputoad.actions[input]
+    local actions = inputoad.mappings[input]
     if not actions then return false end
     if #actions == 0 then return false end
 
@@ -378,8 +378,8 @@ end
 ---@param input string
 ---@return string[]
 function inputoad.getActions(input)
-    local actions = inputoad.actions[input] or {}
-    inputoad.actions[input] = actions
+    local actions = inputoad.mappings[input] or {}
+    inputoad.mappings[input] = actions
     return actions
 end
 
@@ -390,7 +390,7 @@ end
 ---@return string[]
 function inputoad.getInputs(action)
     local foundInputs = {}
-    for input, actions in pairs(inputoad.actions) do
+    for input, actions in pairs(inputoad.mappings) do
         for _, mappedAction in ipairs(actions) do
             if mappedAction == action then
                 foundInputs[#foundInputs+1] = input
@@ -512,7 +512,7 @@ end
 --- Clears all mapped inputs from the given action.
 ---@param action string
 function inputoad.clearAction(action)
-    for input in pairs(inputoad.actions) do
+    for input in pairs(inputoad.mappings) do
         inputoad.unmapInput(input, action)
     end
 end
@@ -529,10 +529,10 @@ function inputoad.clearInput(input)
 end
 
 --------------------------------------------------
---- ### inputoad.clearAll()
+--- ### inputoad.clearMappings()
 --- Clears all inputs and actions to nil.
-function inputoad.clearAll()
-    for input in pairs(inputoad.actions) do
+function inputoad.clearMappings()
+    for input in pairs(inputoad.mappings) do
         inputoad.clearInput(input)
     end
 end
