@@ -75,6 +75,7 @@ inputoad.modifierSeparationString = "%"
 ---@class Inputoad.ActionState
 ---@field numPresses integer How many distinct inputs are currently pressing this action
 ---@field lastInput string? The last raw input that triggered this action
+---@field isEnabled boolean Whether or not this action can trigger
 
 ---@class Inputoad.InputState
 ---@field numPresses integer How many distinct buttons are currently pressing this input
@@ -121,14 +122,14 @@ function inputoad.resetState()
     inputoad.rawInputStates = {}
 end
 
--- Reading actions ---------------------------------------------------------------------------------
+-- Managing actions --------------------------------------------------------------------------------
 
 --------------------------------------------------
 --- ### inputoad.addCallback(action, callbackType, callbackFn, addToFront?)
 --- Adds a callback to the given action and callback type.  
 --- Can also be added to the front of the chain instead of back by setting `addToFront` to true.  
 --- 
---- Note that under some conditions (namely consuming inputs or modified inputs triggering),
+--- Note that under some conditions (consuming inputs, modified inputs triggering, disabling actions),
 --- it is possible that a `"pressed"` callback is called but not the subsequent `"released"`, or vice versa.
 --- If you need to know whether or not a specific action is held down, you should use `inputoad.isActionDown()` instead of callbacks.
 --- ```lua
@@ -156,6 +157,10 @@ end
 function inputoad.isActionDown(action)
     local state = inputoad.getActionState(action)
 
+    if not state.isEnabled then
+        return false
+    end
+
     if state.lastInput and inputoad.isInputConsumed(state.lastInput) then
         return false
     end
@@ -178,6 +183,31 @@ function inputoad.getCallbacks(action, callbackType)
     callbackTable[callbackType] = callbacks
 
     return callbacks
+end
+
+--------------------------------------------------
+--- ### inputoad.setActionEnabled(action, enabled)
+--- Sets if the action is enabled or disabled (disabled actions won't trigger).
+---@param action string
+---@param enabled boolean
+function inputoad.setActionEnabled(action, enabled)
+    inputoad.getActionState(action).isEnabled = enabled
+end
+
+--------------------------------------------------
+--- ### inputoad.enableAction(action)
+--- Enables the given action if it was previously disabled.
+---@param action string
+function inputoad.enableAction(action)
+    return inputoad.setActionEnabled(action, true)
+end
+
+--------------------------------------------------
+--- ### inputoad.disableAction(action)
+--- Disables the action, making it not trigger until it's enabled again.
+---@param action string
+function inputoad.disableAction(action)
+    return inputoad.setActionEnabled(action, false)
 end
 
 --------------------------------------------------
@@ -206,17 +236,18 @@ function inputoad.handleTriggeredInput(input, callbackType, ignoreModifiers)
     if not actions then return false end
     if #actions == 0 then return false end
 
-    local allTriggersAreIgnore = true
+    local allEventsWereIgnored = true
 
     for actionIndex = 1, #actions do
         local action = actions[actionIndex]
         inputoad.handleActionStateForCallbackType(action, input, callbackType)
+        local actionState = inputoad.getActionState(action)
 
-        if not inputoad.isInputConsumed(input) then
+        if actionState.isEnabled and not inputoad.isInputConsumed(input) then
             local _, trigger = inputoad.triggerCallbacksForAction(action, callbackType)
 
             if trigger ~= "ignore" then
-                allTriggersAreIgnore = false
+                allEventsWereIgnored = false
             end
             if trigger == "consume" then
                 inputoad.consumeInput(input)
@@ -224,7 +255,7 @@ function inputoad.handleTriggeredInput(input, callbackType, ignoreModifiers)
         end
     end
 
-    return not allTriggersAreIgnore
+    return not allEventsWereIgnored
 end
 
 --------------------------------------------------
@@ -265,7 +296,8 @@ function inputoad.getActionState(action)
     if state then return state end
 
     state = {
-        numPresses = 0
+        numPresses = 0,
+        isEnabled = true
     }
     inputoad.actionStates[action] = state
 
