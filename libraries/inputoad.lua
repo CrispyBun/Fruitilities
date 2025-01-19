@@ -210,199 +210,6 @@ function inputoad.disableAction(action)
     return inputoad.setActionEnabled(action, false)
 end
 
---------------------------------------------------
---- ### inputoad.handleTriggeredInput(input, callbackType)
---- Handles the input being pressed/released (based on callbackType). Used internally.
----@param input string
----@param callbackType Inputoad.CallbackType
----@param ignoreModifiers? boolean
----@return boolean actionCalled
-function inputoad.handleTriggeredInput(input, callbackType, ignoreModifiers)
-    inputoad.handleInputStateForCallbackType(input, callbackType)
-    local inputState = inputoad.getRawInputState(input)
-
-    if not ignoreModifiers and inputoad.wasRawInputPressedWithModifiers(input) then
-        local modifiedInput = inputoad.getModifiedInputString(input, inputState.modifiersPressed, true)
-        local success = inputoad.handleTriggeredInput(modifiedInput, callbackType, true)
-        if success then
-            -- Successful modified input consumes the unmodified input
-            -- since they are two distinct inputs that shouldn't clash
-            -- (`ctrl+c` means `c` isn't triggered anymore)
-            inputoad.consumeInput(input)
-        end
-    end
-
-    local actions = inputoad.mappings[input]
-    if not actions then return false end
-    if #actions == 0 then return false end
-
-    local allEventsWereIgnored = true
-
-    for actionIndex = 1, #actions do
-        local action = actions[actionIndex]
-        inputoad.handleActionStateForCallbackType(action, input, callbackType)
-        local actionState = inputoad.getActionState(action)
-
-        if actionState.isEnabled and not inputoad.isInputConsumed(input) then
-            local _, trigger = inputoad.triggerCallbacksForAction(action, callbackType)
-
-            if trigger ~= "ignore" then
-                allEventsWereIgnored = false
-            end
-            if trigger == "consume" then
-                inputoad.consumeInput(input)
-            end
-        end
-    end
-
-    return not allEventsWereIgnored
-end
-
---------------------------------------------------
---- ### inputoad.triggerCallbacksForAction(action, callbackType)
---- Triggers the given callbacks. Used internally.
----@param action string
----@param callbackType Inputoad.CallbackType
----@return boolean callbackFound
----@return Inputoad.InputCallbackReturn? callbackReturn
-function inputoad.triggerCallbacksForAction(action, callbackType)
-    local callbackTable = inputoad.callbacks[action]
-    if not callbackTable then return false end
-
-    local callbacks = callbackTable[callbackType]
-    if not callbacks then return false end
-    if #callbacks == 0 then return false end
-
-    local allTriggersAreIgnore = true
-
-    for callbackIndex = 1, #callbacks do
-        local callback = callbacks[callbackIndex]
-        local trigger = callback(action)
-        if trigger == "consume" then return true, trigger end
-        if trigger ~= "ignore" then allTriggersAreIgnore = false end
-    end
-
-    if allTriggersAreIgnore then return true, "ignore" end
-    return true
-end
-
---------------------------------------------------
---- ### inputoad.getActionState(action)
---- Returns the table describing the current state of the action.
----@param action string
----@return Inputoad.ActionState
-function inputoad.getActionState(action)
-    local state = inputoad.actionStates[action]
-    if state then return state end
-
-    state = {
-        numPresses = 0,
-        isEnabled = true
-    }
-    inputoad.actionStates[action] = state
-
-    return state
-end
-
---------------------------------------------------
---- ### inputoad.getRawInputState(input)
---- Returns the table describing the current state of the raw input.
-function inputoad.getRawInputState(input)
-    local state = inputoad.rawInputStates[input]
-    if state then return state end
-
-    state = {
-        numPresses = 0,
-        isConsumed = false,
-        modifiersPressed = {}
-    }
-    inputoad.rawInputStates[input] = state
-
-    return state
-end
-
---- Returns a boolean of whether the raw input is currently held.  
---- This is used internally, and shouldn't really be used for getting info about user input. Instead,
---- `inputoad.isActionDown()` should be used.
----@param input string
----@return boolean
-function inputoad.isRawInputDown(input)
-    return inputoad.getRawInputState(input).numPresses > 0
-end
-
---- Returns a boolean of whether any registered modifier was held down when the input was last pressed.
----@param input string
----@return boolean
-function inputoad.wasRawInputPressedWithModifiers(input)
-    local state = inputoad.getRawInputState(input)
-    local modifiersPressed = state.modifiersPressed
-
-    local modifiers = inputoad.modifiers
-    for modifierIndex = 1, #modifiers do
-        local modifier = modifiers[modifierIndex]
-        if modifiersPressed[modifier] then return true end
-    end
-    return false
-end
-
---- Returns a boolean of whether the given input is currently consumed (won't trigger any more actions until the next time it's pressed)
----@param input string
----@return boolean
-function inputoad.isInputConsumed(input)
-    return inputoad.getRawInputState(input).isConsumed
-end
-
---- Used internally. Marks the given input as consumed for its current press.
----@param input string
-function inputoad.consumeInput(input)
-    inputoad.getRawInputState(input).isConsumed = true
-end
-
----Used internally.
----@param action string
----@param input string
----@param callbackType Inputoad.CallbackType
-function inputoad.handleActionStateForCallbackType(action, input, callbackType)
-    local state = inputoad.getActionState(action)
-
-    if callbackType == "pressed" then
-        state.numPresses = state.numPresses + 1
-        state.lastInput = input
-    elseif callbackType == "released" then
-        state.numPresses = state.numPresses - 1
-        state.numPresses = math.max(state.numPresses, 0)
-    end
-end
-
----Used internally.
----@param input string
----@param callbackType Inputoad.CallbackType
-function inputoad.handleInputStateForCallbackType(input, callbackType)
-    local state = inputoad.getRawInputState(input)
-
-    if callbackType == "pressed" then
-        state.numPresses = state.numPresses + 1
-        state.isConsumed = false
-
-        local modifiersPressed = state.modifiersPressed
-        local modifiers = inputoad.modifiers
-
-        for modifierIndex = 1, #modifiers do
-            local modifier = modifiers[modifierIndex]
-
-            if inputoad.isRawInputDown(modifier) then
-                modifiersPressed[modifier] = true
-            else
-                modifiersPressed[modifier] = false
-            end
-        end
-
-    elseif callbackType == "released" then
-        state.numPresses = state.numPresses - 1
-        state.numPresses = math.max(state.numPresses, 0)
-    end
-end
-
 -- Mapping inputs ----------------------------------------------------------------------------------
 
 --------------------------------------------------
@@ -628,6 +435,203 @@ function inputoad.inputIsMappedToAction(input, action)
         if actions[actionIndex] == action then return true end
     end
     return false
+end
+
+-- Implementation ----------------------------------------------------------------------------------
+
+--------------------------------------------------
+--- ### inputoad.handleTriggeredInput(input, callbackType)
+--- Handles the input being pressed/released (based on callbackType). Used internally.  
+--- You shouldn't call this yourself, instead, use `inputoad.triggerPressed()` and `inputoad.triggerReleased()`.
+---@param input string
+---@param callbackType Inputoad.CallbackType
+---@param ignoreModifiers? boolean
+---@return boolean actionCalled
+function inputoad.handleTriggeredInput(input, callbackType, ignoreModifiers)
+    inputoad.handleInputStateForCallbackType(input, callbackType)
+    local inputState = inputoad.getRawInputState(input)
+
+    if not ignoreModifiers and inputoad.wasRawInputPressedWithModifiers(input) then
+        local modifiedInput = inputoad.getModifiedInputString(input, inputState.modifiersPressed, true)
+        local success = inputoad.handleTriggeredInput(modifiedInput, callbackType, true)
+        if success then
+            -- Successful modified input consumes the unmodified input
+            -- since they are two distinct inputs that shouldn't clash
+            -- (`ctrl+c` means `c` isn't triggered anymore)
+            inputoad.consumeInput(input)
+        end
+    end
+
+    local actions = inputoad.mappings[input]
+    if not actions then return false end
+    if #actions == 0 then return false end
+
+    local allEventsWereIgnored = true
+
+    for actionIndex = 1, #actions do
+        local action = actions[actionIndex]
+        inputoad.handleActionStateForCallbackType(action, input, callbackType)
+        local actionState = inputoad.getActionState(action)
+
+        if actionState.isEnabled and not inputoad.isInputConsumed(input) then
+            local _, trigger = inputoad.triggerCallbacksForAction(action, callbackType)
+
+            if trigger ~= "ignore" then
+                allEventsWereIgnored = false
+            end
+            if trigger == "consume" then
+                inputoad.consumeInput(input)
+            end
+        end
+    end
+
+    return not allEventsWereIgnored
+end
+
+--------------------------------------------------
+--- ### inputoad.triggerCallbacksForAction(action, callbackType)
+--- Triggers the given callbacks. Used internally.  
+---@param action string
+---@param callbackType Inputoad.CallbackType
+---@return boolean callbackFound
+---@return Inputoad.InputCallbackReturn? callbackReturn
+function inputoad.triggerCallbacksForAction(action, callbackType)
+    local callbackTable = inputoad.callbacks[action]
+    if not callbackTable then return false end
+
+    local callbacks = callbackTable[callbackType]
+    if not callbacks then return false end
+    if #callbacks == 0 then return false end
+
+    local allTriggersAreIgnore = true
+
+    for callbackIndex = 1, #callbacks do
+        local callback = callbacks[callbackIndex]
+        local trigger = callback(action)
+        if trigger == "consume" then return true, trigger end
+        if trigger ~= "ignore" then allTriggersAreIgnore = false end
+    end
+
+    if allTriggersAreIgnore then return true, "ignore" end
+    return true
+end
+
+--------------------------------------------------
+--- ### inputoad.getActionState(action)
+--- Returns the table describing the current state of the action.
+---@param action string
+---@return Inputoad.ActionState
+function inputoad.getActionState(action)
+    local state = inputoad.actionStates[action]
+    if state then return state end
+
+    state = {
+        numPresses = 0,
+        isEnabled = true
+    }
+    inputoad.actionStates[action] = state
+
+    return state
+end
+
+--------------------------------------------------
+--- ### inputoad.getRawInputState(input)
+--- Returns the table describing the current state of the raw input.
+function inputoad.getRawInputState(input)
+    local state = inputoad.rawInputStates[input]
+    if state then return state end
+
+    state = {
+        numPresses = 0,
+        isConsumed = false,
+        modifiersPressed = {}
+    }
+    inputoad.rawInputStates[input] = state
+
+    return state
+end
+
+--- Returns a boolean of whether the raw input is currently held.  
+--- This is used internally, and shouldn't really be used for getting info about user input. Instead,
+--- `inputoad.isActionDown()` should be used.
+---@param input string
+---@return boolean
+function inputoad.isRawInputDown(input)
+    return inputoad.getRawInputState(input).numPresses > 0
+end
+
+--- Returns a boolean of whether any registered modifier was held down when the input was last pressed.
+---@param input string
+---@return boolean
+function inputoad.wasRawInputPressedWithModifiers(input)
+    local state = inputoad.getRawInputState(input)
+    local modifiersPressed = state.modifiersPressed
+
+    local modifiers = inputoad.modifiers
+    for modifierIndex = 1, #modifiers do
+        local modifier = modifiers[modifierIndex]
+        if modifiersPressed[modifier] then return true end
+    end
+    return false
+end
+
+--- Returns a boolean of whether the given input is currently consumed (won't trigger any more actions until the next time it's pressed)
+---@param input string
+---@return boolean
+function inputoad.isInputConsumed(input)
+    return inputoad.getRawInputState(input).isConsumed
+end
+
+--- Marks the given input as consumed for its current press.  
+--- This is used internally by actions that return the `"consume"` trigger.
+---@param input string
+function inputoad.consumeInput(input)
+    inputoad.getRawInputState(input).isConsumed = true
+end
+
+---Used internally.
+---@param action string
+---@param input string
+---@param callbackType Inputoad.CallbackType
+function inputoad.handleActionStateForCallbackType(action, input, callbackType)
+    local state = inputoad.getActionState(action)
+
+    if callbackType == "pressed" then
+        state.numPresses = state.numPresses + 1
+        state.lastInput = input
+    elseif callbackType == "released" then
+        state.numPresses = state.numPresses - 1
+        state.numPresses = math.max(state.numPresses, 0)
+    end
+end
+
+---Used internally.
+---@param input string
+---@param callbackType Inputoad.CallbackType
+function inputoad.handleInputStateForCallbackType(input, callbackType)
+    local state = inputoad.getRawInputState(input)
+
+    if callbackType == "pressed" then
+        state.numPresses = state.numPresses + 1
+        state.isConsumed = false
+
+        local modifiersPressed = state.modifiersPressed
+        local modifiers = inputoad.modifiers
+
+        for modifierIndex = 1, #modifiers do
+            local modifier = modifiers[modifierIndex]
+
+            if inputoad.isRawInputDown(modifier) then
+                modifiersPressed[modifier] = true
+            else
+                modifiersPressed[modifier] = false
+            end
+        end
+
+    elseif callbackType == "released" then
+        state.numPresses = state.numPresses - 1
+        state.numPresses = math.max(state.numPresses, 0)
+    end
 end
 
 return inputoad
