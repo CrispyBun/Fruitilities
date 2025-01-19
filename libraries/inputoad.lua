@@ -58,6 +58,14 @@ inputoad.rawInputStates = {}
 ---@type string
 inputoad.modifierSeparationString = "%"
 
+inputoad.isListening = false ---@type boolean
+inputoad.recordedInput = nil ---@type string?
+
+--- Can be assigned to a custom callback.  
+--- Triggers when an input is recorded (after calling `inputoad.recordNextInput()`)
+---@type fun(input: string)
+inputoad.onInputRecorded = nil
+
 -- Types -------------------------------------------------------------------------------------------
 
 ---@alias Inputoad.CallbackType
@@ -120,6 +128,24 @@ end
 function inputoad.resetState()
     inputoad.actionStates = {}
     inputoad.rawInputStates = {}
+end
+
+--------------------------------------------------
+--- ### inputoad.recordNextInput()
+--- Starts listening to inputs until one is sent (specifically, it is listening to the next input *released*).  
+--- The recorded input can then be retrieved using `inputoad.getRecordedInput()` or the `inputoad.onInputRecorded` callback.  
+--- This is also able to record modified inputs (such as `"ctrl%c"`) if the modifiers are registered.
+function inputoad.recordNextInput()
+    inputoad.isListening = true
+    inputoad.recordedInput = nil
+end
+
+--------------------------------------------------
+--- ### inputoad.getRecordedInput()
+--- Returns the last recorded input, or `nil` if there is none or the recording hasn't stopped yet.
+---@return string?
+function inputoad.getRecordedInput()
+    return inputoad.recordedInput
 end
 
 -- Managing actions --------------------------------------------------------------------------------
@@ -296,6 +322,9 @@ end
 --- ### inputoad.registerModifier(input)
 --- Registers an input as a potential modifier (e.g. "ctrl").  
 --- All modifiers must be registered at the start of the program.
+--- 
+--- TIP: If you want, for example, `"lctrl"` and `"rctrl"` to be separate inputs, but also `"ctrl"` registered as a modifier,
+--- send both inputs, with `"ctrl"` being sent *after* `"lctrl"`/`"rctrl"`, ensuring the control key itself isn't modified by `"ctrl"`.
 ---@param input string
 function inputoad.registerModifier(input)
     local modifiers = inputoad.modifiers
@@ -462,6 +491,16 @@ function inputoad.handleTriggeredInput(input, callbackType, ignoreModifiers)
         end
     end
 
+    if inputoad.isListening then
+        if callbackType == "pressed" then return true end
+        if callbackType == "released" then
+            inputoad.recordedInput = input
+            if inputoad.onInputRecorded then inputoad.onInputRecorded(input) end
+            inputoad.isListening = false
+            return true
+        end
+    end
+
     local actions = inputoad.mappings[input]
     if not actions then return false end
     if #actions == 0 then return false end
@@ -621,7 +660,7 @@ function inputoad.handleInputStateForCallbackType(input, callbackType)
         for modifierIndex = 1, #modifiers do
             local modifier = modifiers[modifierIndex]
 
-            if inputoad.isRawInputDown(modifier) then
+            if inputoad.isRawInputDown(modifier) and modifier ~= input then
                 modifiersPressed[modifier] = true
             else
                 modifiersPressed[modifier] = false
