@@ -281,7 +281,7 @@ function parsimmon.parsers.object(str, i, context)
 
         -- Invalid key
         else
-            parsimmon.throwParseError(str, i, "Expected quote or opening bracket")
+            parsimmon.throwParseError(str, i, "Expected quote or opening square bracket")
         end
 
         i = parsimmon.findNotChar(str, i+1, charMaps.whitespace)
