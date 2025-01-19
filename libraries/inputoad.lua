@@ -437,6 +437,22 @@ function inputoad.unmapInput(input, action)
 end
 
 --------------------------------------------------
+--- ### inputoad.pushActionToFront(action)
+--- Pushes the action to the front of the list of actions
+--- for any input where this action is found.
+--- 
+--- Can be useful for making sure actions that can consume the input,
+--- such as UI interaction, always get called first.
+---@param action string
+function inputoad.pushActionToFront(action)
+    for input in pairs(inputoad.mappings) do
+        if inputoad.inputIsMappedToAction(input, action) then
+            inputoad.mapInput(input, action, true)
+        end
+    end
+end
+
+--------------------------------------------------
 --- ### inputoad.registerModifier(input)
 --- Registers an input as a potential modifier (e.g. "ctrl").  
 --- All modifiers must be registered at the start of the program.
