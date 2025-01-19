@@ -32,7 +32,7 @@ SOFTWARE.
 --- Inspired by some of the ways https://github.com/rxi/json.lua does its parsing
 
 --- ARSON - Arbitrary Structure Object Notation  
---- Backwards compatible with JSON, allows for arbitrary custom types.
+--- Compatible with JSON, allows for arbitrary custom types.
 local parsimmon = {}
 
 -- Character lookup tables -------------------------------------------------------------------------
