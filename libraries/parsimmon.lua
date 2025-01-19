@@ -40,6 +40,9 @@ local parsimmon = {}
 ---@type table<string, Parsimmon.CustomType>
 parsimmon.customTypes = {}
 
+---@type table<string, any>
+parsimmon.customLiterals = {}
+
 --- Parser of a single value. For inspiration on how to write these, look into the parsers in `parsimmon.parsers`.
 ---@alias Parsimmon.ValueParser fun(str: string, i: integer, context?: table): any, integer
 
@@ -54,7 +57,7 @@ parsimmon.customTypes = {}
 local CustomType = {}
 local CustomTypeMT = {__index = CustomType}
 
---- Defines a new custom type.  
+--- Defines a new custom type. The name must be composed of letters only.  
 --- If the parser and decoder values are not supplied, the default used for them will be ones used for regular objects.
 ---@param name string The name of the type
 ---@param parser? Parsimmon.ValueParser The parser for the type
@@ -69,6 +72,14 @@ function parsimmon.defineCustomType(name, parser)
 
     parsimmon.customTypes[name] = type
     return type
+end
+
+--- Defines a custom literal. The name must be composed of letters only.  
+--- If the literal with the name `name` is found, `value` will be returned for it.
+---@param name string
+---@param value any
+function parsimmon.defineCustomLiteral(name, value)
+    parsimmon.customLiterals[name] = value
 end
 
 --- Sets the type's parser
@@ -313,7 +324,8 @@ function parsimmon.parsers.customTypeOrLiteral(str, i, context)
     local num = tonumber(text)
     if num then return num, j-1 end
 
-    -- todo: custom literals
+    -- Custom literals are last, meaning they can't overwrite default literals like `true` and `false`.
+    if parsimmon.customLiterals[text] then return parsimmon.customLiterals[text], j-1 end
 
     parsimmon.throwParseError(str, i, "Unknown literal (" .. tostring(text) .. ")")
     error("Impossible to get here") -- Soothe annotations
