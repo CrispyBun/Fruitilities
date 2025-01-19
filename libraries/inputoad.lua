@@ -110,6 +110,17 @@ function inputoad.triggerPulse(input)
     inputoad.triggerReleased(input)
 end
 
+--------------------------------------------------
+--- ### inputoad.resetState()
+--- Resets the state of all inputs and actions, making them forget if they're currently pressed or not.  
+--- 
+--- This is useful to call after the inputs have been re-mapped to different actions,
+--- since if that happens while some buttons are held down, it can mess up the state.
+function inputoad.resetState()
+    inputoad.actionStates = {}
+    inputoad.rawInputStates = {}
+end
+
 -- Reading actions ---------------------------------------------------------------------------------
 
 --------------------------------------------------
@@ -327,6 +338,7 @@ function inputoad.handleActionStateForCallbackType(action, input, callbackType)
         state.lastInput = input
     elseif callbackType == "released" then
         state.numPresses = state.numPresses - 1
+        state.numPresses = math.max(state.numPresses, 0)
     end
 end
 
