@@ -83,6 +83,8 @@ inputoad.onInputRecorded = nil
 ---@class Inputoad.ActionState
 ---@field numPresses integer How many distinct inputs are currently pressing this action
 ---@field lastInput string? The last raw input that triggered this action
+---@field lastPressed number? The last time the input was pressed (only updated if the library's time is updated)
+---@field lastReleased number? The last time the input was released (only updated if the library's time is updated)
 ---@field isEnabled boolean Whether or not this action can trigger
 
 ---@class Inputoad.InputState
@@ -118,6 +120,21 @@ function inputoad.triggerPulse(input)
     inputoad.triggerPressed(input)
     inputoad.triggerReleased(input)
 end
+
+--------------------------------------------------
+--- ### inputoad.updateTime(time)
+--- Updates the library's internal time variable to the given number value.  
+--- This functionality is totally optional, but required for the input buffering utilities of the library to work, if used.
+--- 
+--- The time number can be any sort of number that measures time,
+--- such as a number of seconds since an arbitrary point in time, or the number of fixed ticks elapsed since game start.
+--- You have to use the same measurement when setting the input buffer time thresholds in other functions.
+---@param time number
+function inputoad.updateTime(time)
+    inputoad.time = time
+end
+---@type number
+inputoad.time = 0
 
 --------------------------------------------------
 --- ### inputoad.resetState()
@@ -177,10 +194,52 @@ end
 
 --------------------------------------------------
 --- ### inputoad.isActionDown(action)
---- Returns a boolean stating if the specified action is currently held.
+--- Returns a boolean stating if the specified action is currently held.  
+--- 
+--- If `inputoad.updateTime()` is updated regularly, the second argument `bufferTime` can be set to the amount of time
+--- the input will still be considered pressed after the user let the input go (the action will be a bit "sticky").
 ---@param action string
+---@param bufferTime? number
 ---@return boolean
-function inputoad.isActionDown(action)
+function inputoad.isActionDown(action, bufferTime)
+    local state = inputoad.getActionState(action)
+
+    if not inputoad.isActionActive(action) then
+        return false
+    end
+
+    if bufferTime and state.lastReleased and (inputoad.time - state.lastReleased) <= bufferTime then
+        return true
+    end
+
+    return state.numPresses > 0
+end
+inputoad.isActionHeld = inputoad.isActionDown
+
+--------------------------------------------------
+--- ### inputoad.wasActionPressed(action, bufferTime)
+--- Checks if the action was pressed (not held) in the last given time period.
+--- Only works if `inputoad.updateTime()` is updated regularly.
+---@param action string
+---@param bufferTime number
+---@return boolean
+function inputoad.wasActionPressed(action, bufferTime)
+    local state = inputoad.getActionState(action)
+
+    if not inputoad.isActionActive(action) then
+        return false
+    end
+
+    if not state.lastPressed then return false end
+    return (inputoad.time - state.lastPressed) <= bufferTime
+end
+
+--------------------------------------------------
+--- ### inputoad.isActionActive(action)
+--- Returns a boolean stating if the action is active or, for whatever reason (namely it can be consumed or disabled), isn't.
+---@param action any
+---@return boolean
+function inputoad.isActionActive(action)
     local state = inputoad.getActionState(action)
 
     if not state.isEnabled then
@@ -191,9 +250,8 @@ function inputoad.isActionDown(action)
         return false
     end
 
-    return state.numPresses > 0
+    return true
 end
-inputoad.isActionHeld = inputoad.isActionDown
 
 --------------------------------------------------
 --- ### inputoad.getCallbacks(action, callbackType)
@@ -638,9 +696,11 @@ function inputoad.handleActionStateForCallbackType(action, input, callbackType)
     if callbackType == "pressed" then
         state.numPresses = state.numPresses + 1
         state.lastInput = input
+        state.lastPressed = inputoad.time
     elseif callbackType == "released" then
         state.numPresses = state.numPresses - 1
         state.numPresses = math.max(state.numPresses, 0)
+        state.lastReleased = inputoad.time
     end
 end
 
