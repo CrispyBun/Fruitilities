@@ -35,6 +35,20 @@ SOFTWARE.
 --- Compatible with JSON, allows for arbitrary custom types.
 local parsimmon = {}
 
+--- This is probably the messiest library of Fruitilities
+
+--- Can be set to a boolean to affect if tables, when being encoded as objects, will sort their keys in the output.
+---@type boolean
+parsimmon.sortEncodedObjects = true
+
+--- If true, tables, when being encoded as objects, will be made multiline to be more readable.
+parsimmon.splitEncodedObjectLines = true
+
+--- Normally, all tables are parsed as objects, which can result in more verbose outputs
+--- when parsing arrays. You can implement this function to detect arrays and separate them from objects.
+---@type (fun(value: any): boolean)?
+parsimmon.isArray = nil
+
 -- Custom types ------------------------------------------------------------------------------------
 
 ---@type table<string, Parsimmon.CustomType>
@@ -45,6 +59,13 @@ parsimmon.customLiterals = {}
 
 --- Parser of a single value. For inspiration on how to write these, look into the parsers in `parsimmon.parsers`.
 ---@alias Parsimmon.ValueParser fun(str: string, i: integer, context?: table): any, integer
+
+--- Encoder of a single value.
+---@alias Parsimmon.ValueEncoder fun(value: any, context?: table): string
+
+--- A type checker for either a type or literal (based on context).
+--- Gets any value, and if it's able to find out its type, returns the string identifying that type.
+---@alias Parsimmon.TypeChecker fun(value: any): string?
 
 --- A custom type and the functions that specify how it's parsed.  
 --- The parsed area must always be enclosed between `{` and `}` symbols.
@@ -58,7 +79,10 @@ local CustomType = {}
 local CustomTypeMT = {__index = CustomType}
 
 --- Defines a new custom type. The name must be composed of letters only.  
---- If the parser and decoder values are not supplied, the default used for them will be ones used for regular objects.
+--- If the parser and decoder values are not supplied, the default used for them will be ones used for regular objects.  
+--- 
+--- For custom types to also be encoded correctly, a type checker must be defined for them using `parsimmon.addTypeChecker()`.
+--- Otherwise, even though they can be decoded, they won't ever be encoded.
 ---@param name string The name of the type
 ---@param parser? Parsimmon.ValueParser The parser for the type
 ---@return Parsimmon.CustomType type The newly created type definition
@@ -75,7 +99,10 @@ function parsimmon.defineCustomType(name, parser)
 end
 
 --- Defines a custom literal. The name must be composed of letters only.  
---- If the literal with the name `name` is found, `value` will be returned for it.
+--- If the literal with the name `name` is found, `value` will be returned for it.  
+--- 
+--- For custom literals to also be encoded correctly, a type checker must be defined for them using `parsimmon.addLiteralChecker()`.
+--- Otherwise, even though they can be decoded, they won't ever be encoded.
 ---@param name string
 ---@param value any
 function parsimmon.defineCustomLiteral(name, value)
@@ -102,6 +129,196 @@ end
 -- 
 --     return num, j --[[@as integer]]
 -- end)
+
+-- Detecting types for encoding --------------------------------------------------------------------
+
+---@type Parsimmon.TypeChecker[]
+parsimmon.customLiteralCheckers = {}
+
+---@type Parsimmon.TypeChecker[]
+parsimmon.customTypeCheckers = {}
+
+---@type Parsimmon.TypeChecker[]
+parsimmon.defaultTypeAndLiteralCheckers = {}
+
+-- Default types and literals:
+
+parsimmon.defaultTypeAndLiteralCheckers[1] = function (value)
+    local valueType = type(value)
+    if valueType ~= "table" then return valueType end
+    return nil
+end
+parsimmon.defaultTypeAndLiteralCheckers[2] = function (value)
+    if parsimmon.isArray and parsimmon.isArray(value) then return "array" end
+    return nil
+end
+parsimmon.defaultTypeAndLiteralCheckers[3] = function (value)
+    local valueType = type(value)
+    if valueType ~= "table" then return nil end
+    return "object"
+end
+
+-- Custom types and literals:
+
+--- Adds a new type checker for literals into the chain (always executed in order).
+--- 
+--- This is a function that receives any value that's about to be encoded,
+--- and if it detects it to be some custom literal, returns the registered name of that literal.
+--- 
+--- ```lua
+--- parsimmon.addLiteralChecker(function (value)
+---     local mt = getmetatable(value)
+---     if not mt then return nil end
+---     if mt.__name = "MyCustomLiteral" then return "MyCustomLiteral" end
+---     return nil
+--- end)
+--- ```
+---@param typeChecker Parsimmon.TypeChecker
+function parsimmon.addLiteralChecker(typeChecker)
+    parsimmon.customLiteralCheckers[#parsimmon.customLiteralCheckers+1] = typeChecker
+end
+
+--- Adds a new type checker for custom types into the chain (always executed in order).
+--- 
+--- This is a function that receives any value that's about to be encoded,
+--- and if it detects it to be some custom type, returns the registered name of that type.
+--- 
+--- ```lua
+--- parsimmon.addTypeChecker(function (value)
+---     local mt = getmetatable(value)
+---     if not mt then return end
+---     if mt.__index == myCustomType then return "MyCustomType" end
+---     return nil
+--- end)
+--- ```
+---@param typeChecker Parsimmon.TypeChecker
+function parsimmon.addTypeChecker(typeChecker)
+    parsimmon.customTypeCheckers[#parsimmon.customTypeCheckers+1] = typeChecker
+end
+
+-- Encoding ----------------------------------------------------------------------------------------
+
+local typeOrder = {
+    ["number"] = 1,
+    ["string"] = 2,
+    ["boolean"] = 3,
+    ["table"] = 4,
+    ["function"] = 5,
+    ["thread"] = 6,
+    ["userdata"] = 7,
+    ["nil"] = 8
+}
+local function compareAnything(a, b)
+    local keyTypeA = type(a)
+    local keyTypeB = type(b)
+    if keyTypeA ~= keyTypeB then
+        return typeOrder[keyTypeA] < typeOrder[keyTypeB]
+    end
+
+    if keyTypeA == "number" or keyTypeA == "string" then
+        return a < b
+    end
+
+    if keyTypeA == "table" then
+        return #a < #b
+    end
+
+    return false
+end
+
+---@type table<string, Parsimmon.ValueEncoder>
+parsimmon.encoders = {}
+
+parsimmon.encoders.any = function (value, context)
+    local customLiteralChecks = parsimmon.customLiteralCheckers
+    local customTypeChecks = parsimmon.customTypeCheckers
+    local defaultTypeAndLiteralCheckers = parsimmon.defaultTypeAndLiteralCheckers
+
+    for funIndex = 1, #customLiteralChecks do
+        local out = customLiteralChecks[funIndex](value)
+        if out then return out end
+    end
+
+    for funIndex = 1, #customTypeChecks do
+        local out = customTypeChecks[funIndex](value)
+        if out then error("NYI") end -- todo
+    end
+
+    for funIndex = 1, #defaultTypeAndLiteralCheckers do
+        local out = defaultTypeAndLiteralCheckers[funIndex](value)
+        if out then
+            local encoder = parsimmon.encoders[out]
+            if not encoder then error("Trying to encode type '" .. tostring(out) .. "' (no encoder defined for this type)") end
+            return encoder(value, context)
+        end
+    end
+
+    error("Couldn't determine type of value: " .. tostring(value))
+end
+
+parsimmon.encoders["nil"] = function () return "null" end
+parsimmon.encoders.number = function (value)
+    return tostring(value)
+end
+parsimmon.encoders.string = function (value)
+    return '"' .. value .. '"'
+end
+parsimmon.encoders.boolean = function (value)
+    return value and "true" or "false"
+end
+parsimmon.encoders.array = function (array)
+    local out = {}
+    for index = 1, #array do
+        out[#out+1] = parsimmon.encoders.any(array[index])
+    end
+    return "[" .. table.concat(out, ",") .. "]"
+end
+parsimmon.encoders.object = function (object, context)
+    local keys = {}
+    for key in pairs(object) do
+        keys[#keys+1] = key
+    end
+    local splitEncodedObjectLines = parsimmon.splitEncodedObjectLines
+
+    if parsimmon.sortEncodedObjects then
+        table.sort(keys, compareAnything)
+    end
+
+    local out = {"{"}
+
+    local passedContext
+    local objectDepth = 1
+    if context and context.objectDepth then objectDepth = context.objectDepth end
+
+    for keyIndex = 1, #keys do
+        if splitEncodedObjectLines then
+            passedContext = passedContext or {objectDepth = objectDepth + 1}
+
+            out[#out+1] = "\n"
+            out[#out+1] = string.rep("    ", objectDepth)
+        end
+
+        local key = keys[keyIndex]
+        local keyType = type(key)
+        local encodedKey
+
+        if keyType == "string" then encodedKey = '"' .. key .. '"'
+        else encodedKey = '[' .. parsimmon.encoders.any(key, passedContext) .. ']' end
+
+        out[#out+1] = encodedKey
+        out[#out+1] = ": "
+        out[#out+1] = parsimmon.encoders.any(object[key], passedContext)
+        if keyIndex < #keys then out[#out+1] = ',' end
+    end
+
+    if splitEncodedObjectLines and #keys > 0 then
+        out[#out+1] = "\n"
+        if context and context.objectDepth then out[#out+1] = string.rep("    ", context.objectDepth-1) end
+    end
+    out[#out+1] = "}"
+
+    return table.concat(out)
+end
 
 -- Character lookup tables -------------------------------------------------------------------------
 
@@ -371,6 +588,13 @@ function parsimmon.parse(str)
     j = parsimmon.findNotChar(str, j+1, charMaps.whitespace)
     if j <= #str then parsimmon.throwParseError(str, j, "Unexpected character") end
     return value
+end
+
+--- Encodes the given value into an ARSON string.
+---@param value any
+---@return string
+function parsimmon.encode(value)
+    return parsimmon.encoders.any(value)
 end
 
 return parsimmon
