@@ -60,12 +60,17 @@ parsimmon.customLiterals = {}
 --- Parser of a single value. For inspiration on how to write these, look into the parsers in `parsimmon.parsers`.
 ---@alias Parsimmon.ValueParser fun(str: string, i: integer, context?: table): any, integer
 
---- Encoder of a single value. When writing custom ones, make sure the encoder of the custom type encodes into exacly the format the parser expects.
+--- Encoder of a single value. Custom type encoders MUST wrap the encoded value in squiggly brackets! ('{' and '}')
 ---@alias Parsimmon.ValueEncoder fun(value: any, context?: table): string
 
 --- A type checker for either a type or literal (based on context).
 --- Gets any value, and if it's able to find out its type, returns the string identifying that type.
 ---@alias Parsimmon.TypeChecker fun(value: any): string?
+
+--- Initializer for custom types.
+--- Either a function that receives any value of that custom type that was just parsed,
+--- or a table which will be assigned as a metatable to any parsed values of this type.
+---@alias Parsimmon.ValueInitializer fun(value: any, context?: table)|table
 
 --- A custom type and the functions that specify how it's parsed.  
 --- The parsed area must always be enclosed between `{` and `}` symbols.
@@ -76,6 +81,7 @@ parsimmon.customLiterals = {}
 ---@class Parsimmon.CustomType
 ---@field parser Parsimmon.ValueParser The parser for this type, a function in the same format as the functions in `parsimmon.parsers`.
 ---@field encoder Parsimmon.ValueEncoder The encoder for this type, a function in the same format as the functions in `parsimmon.encoders`.
+---@field initializer? Parsimmon.ValueInitializer The initializer for parsed values of this type
 local CustomType = {}
 local CustomTypeMT = {__index = CustomType}
 
@@ -87,7 +93,21 @@ local CustomTypeMT = {__index = CustomType}
 ---
 --- ---
 --- 
---- Example advanced custom type:
+--- Example simple custom type:
+--- ```lua
+--- parsimmon.defineCustomType("GameObject", GameObjectMetatable)
+--- 
+--- parsimmon.addTypeChecker(function (value)
+---     local mt = getmetatable(value)
+---     if not mt then return nil end
+---     -- Type checkers can also be generalized, but this one just checks one type:
+---     if mt == GameObjectMetatable then return "GameObject" end
+--- end)
+--- ```
+--- 
+--- ---
+--- 
+--- Example advanced custom type (with custom parsing):
 --- ```lua
 --- -- A custom type that overrides numbers
 --- local numberType = parsimmon.defineCustomType("Number")
@@ -105,7 +125,7 @@ local CustomTypeMT = {__index = CustomType}
 --- 
 --- numberType:setEncoder(function (value, context)
 ---     if type(value) ~= "number" then error("Expected number") end
----     return tostring(value)
+---     return '{' .. tostring(value) .. '}'
 --- end)
 --- 
 --- parsimmon.addTypeChecker(function (value)
@@ -124,16 +144,16 @@ local CustomTypeMT = {__index = CustomType}
 --- -- }
 --- ```
 ---@param name string The name of the type
----@param parser? Parsimmon.ValueParser The parser for the type
----@param encoder? Parsimmon.ValueEncoder The encoder for this type
+---@param initializer? Parsimmon.ValueInitializer The init function or metatable for the type
 ---@return Parsimmon.CustomType type The newly created type definition
-function parsimmon.defineCustomType(name, parser, encoder)
-    parser = parser or parsimmon.parsers.object
-    encoder = encoder or parsimmon.encoders.object
+function parsimmon.defineCustomType(name, initializer)
+    local parser = parsimmon.parsers.object
+    local encoder = parsimmon.encoders.object
 
     local type = {
         parser = parser,
-        encoder = encoder
+        encoder = encoder,
+        initializer = initializer
     }
     setmetatable(type, CustomTypeMT)
 
@@ -152,7 +172,17 @@ function parsimmon.defineCustomLiteral(name, value)
     parsimmon.customLiterals[name] = value
 end
 
---- Sets the type's parser
+--- Sets an initializer for parsed values of the custom type.
+--- Either a function that receives the values as they're parsed,
+--- or simply a table which will be assigned as the values' metatable.
+---@param initializer Parsimmon.ValueInitializer
+---@return Parsimmon.CustomType self
+function CustomType:setInit(initializer)
+    self.initializer = initializer
+    return self
+end
+
+--- Sets the type's parser. If you set this, make sure you also set the encoder.
 ---@param parser Parsimmon.ValueParser The parser for the type
 ---@return Parsimmon.CustomType self
 function CustomType:setParser(parser)
@@ -160,7 +190,9 @@ function CustomType:setParser(parser)
     return self
 end
 
---- Sets the type's encoder
+--- Sets the type's encoder. If you set this, make sure you also set the parser.
+--- 
+--- The encoder MUST wrap the encoded value in squiggly brackets.
 ---@param encoder Parsimmon.ValueEncoder The encoder for this type
 ---@return Parsimmon.CustomType self
 function CustomType:setEncoder(encoder)
@@ -224,7 +256,7 @@ end
 --- ```lua
 --- parsimmon.addTypeChecker(function (value)
 ---     local mt = getmetatable(value)
----     if not mt then return end
+---     if not mt then return nil end
 ---     if mt.__index == myCustomType then return "MyCustomType" end
 ---     return nil
 --- end)
@@ -286,7 +318,7 @@ parsimmon.encoders.any = function (value, context)
             end
 
             local encoded = typeDefinition.encoder(value, context)
-            return out .. '{' .. encoded .. '}'
+            return out .. encoded
         end
     end
 
@@ -575,7 +607,15 @@ function parsimmon.parsers.customTypeOrLiteral(str, i, context)
         if not typeDefinition then
             parsimmon.throwParseError(str, i, "Unknown type (" .. tostring(text) .. ")")
         end
-        return typeDefinition.parser(str, j, context)
+
+        local parsed, nextIndex = typeDefinition.parser(str, j, context)
+        local init = typeDefinition.initializer
+        if init then
+            if type(init) == "table" then setmetatable(parsed, init)
+            else init(parsed, context) end
+        end
+
+        return parsed, nextIndex
     end
 
     if text == "true" then return true, j-1 end
