@@ -60,7 +60,7 @@ parsimmon.customLiterals = {}
 --- Parser of a single value. For inspiration on how to write these, look into the parsers in `parsimmon.parsers`.
 ---@alias Parsimmon.ValueParser fun(str: string, i: integer, context?: table): any, integer
 
---- Encoder of a single value.
+--- Encoder of a single value. When writing custom ones, make sure the encoder of the custom type encodes into exacly the format the parser expects.
 ---@alias Parsimmon.ValueEncoder fun(value: any, context?: table): string
 
 --- A type checker for either a type or literal (based on context).
@@ -75,6 +75,7 @@ parsimmon.customLiterals = {}
 --- It must output the parsed value and the position at which it ends (the position of the ending `}` character).
 ---@class Parsimmon.CustomType
 ---@field parser Parsimmon.ValueParser The parser for this type, a function in the same format as the functions in `parsimmon.parsers`.
+---@field encoder Parsimmon.ValueEncoder The encoder for this type, a function in the same format as the functions in `parsimmon.encoders`.
 local CustomType = {}
 local CustomTypeMT = {__index = CustomType}
 
@@ -83,14 +84,56 @@ local CustomTypeMT = {__index = CustomType}
 --- 
 --- For custom types to also be encoded correctly, a type checker must be defined for them using `parsimmon.addTypeChecker()`.
 --- Otherwise, even though they can be decoded, they won't ever be encoded.
+---
+--- ---
+--- 
+--- Example advanced custom type:
+--- ```lua
+--- -- A custom type that overrides numbers
+--- local numberType = parsimmon.defineCustomType("Number")
+--- 
+--- numberType:setParser(function (str, i, context)
+---     local j = str:find("}", i, true)
+---     if not j then parsimmon.throwParseError(str, i, "Missing closing bracket for Number type") end
+--- 
+---     local text = string.sub(str, i+1, j-1)
+---     local num = tonumber(text)
+---     if not num then parsimmon.throwParseError(str, i, "Couldn't parse number: " .. tostring(text)) end
+--- 
+---     return num, j --[[@as integer]]
+--- end)
+--- 
+--- numberType:setEncoder(function (value, context)
+---     if type(value) ~= "number" then error("Expected number") end
+---     return tostring(value)
+--- end)
+--- 
+--- parsimmon.addTypeChecker(function (value)
+---     if type(value) == "number" then return "Number" end
+---     return nil
+--- end)
+--- 
+--- local obj = {
+---     one = 1,
+---     two = 2
+--- }
+--- print(parsimmon.encode(obj))
+--- -- {
+--- --     "one": Number{1},
+--- --     "two": Number{2}
+--- -- }
+--- ```
 ---@param name string The name of the type
 ---@param parser? Parsimmon.ValueParser The parser for the type
+---@param encoder? Parsimmon.ValueEncoder The encoder for this type
 ---@return Parsimmon.CustomType type The newly created type definition
-function parsimmon.defineCustomType(name, parser)
+function parsimmon.defineCustomType(name, parser, encoder)
     parser = parser or parsimmon.parsers.object
+    encoder = encoder or parsimmon.encoders.object
 
     local type = {
-        parser = parser
+        parser = parser,
+        encoder = encoder
     }
     setmetatable(type, CustomTypeMT)
 
@@ -117,18 +160,13 @@ function CustomType:setParser(parser)
     return self
 end
 
--- -- Example advanced custom parser:
--- -- Number{123}
--- parsimmon.defineCustomType("Number", function (str, i, context)
---     local j = str:find("}", i, true)
---     if not j then parsimmon.throwParseError(str, i, "Missing closing bracket for Number type") end
--- 
---     local text = string.sub(str, i+1, j-1)
---     local num = tonumber(text)
---     if not num then parsimmon.throwParseError(str, i, "Couldn't parse number: " .. tostring(text)) end
--- 
---     return num, j --[[@as integer]]
--- end)
+--- Sets the type's encoder
+---@param encoder Parsimmon.ValueEncoder The encoder for this type
+---@return Parsimmon.CustomType self
+function CustomType:setEncoder(encoder)
+    self.encoder = encoder
+    return self
+end
 
 -- Detecting types for encoding --------------------------------------------------------------------
 
@@ -241,7 +279,15 @@ parsimmon.encoders.any = function (value, context)
 
     for funIndex = 1, #customTypeChecks do
         local out = customTypeChecks[funIndex](value)
-        if out then error("NYI") end -- todo
+        if out then
+            local typeDefinition = parsimmon.customTypes[out]
+            if not typeDefinition then
+                error("Trying to encode unregistered custom type '" .. tostring(out) .. "'")
+            end
+
+            local encoded = typeDefinition.encoder(value, context)
+            return out .. '{' .. encoded .. '}'
+        end
     end
 
     for funIndex = 1, #defaultTypeAndLiteralCheckers do
