@@ -222,6 +222,16 @@ function Camera:removeTarget(target)
 end
 
 --------------------------------------------------
+--- ### Camera:setTargets(...)
+--- ### Camera:setTarget(target)
+--- Directly sets the camera's targets (and overwrites any existing ones, unlike `camera:addTarget()`).
+---@param ... table
+function Camera:setTargets(...)
+    self.targets = {...}
+end
+Camera.setTarget = Camera.setTargets
+
+--------------------------------------------------
 --- ### Camera:attach()
 --- ### Camera:action()
 --- Attaches the camera for upcoming draw operations. Make sure the call `Camera:detach()` after those are done.
