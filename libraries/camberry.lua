@@ -53,6 +53,7 @@ local camberry = {}
 ---@field parallaxStrengthX number Multiplier for the parallax effect in the X direction. Default is 1.
 ---@field parallaxStrengthY number Multiplier for the parallax effect in the Y direction. Default is 0.
 ---@field rotationalParallax? number If set, enables parallax on rotation for a trippy effect. Works like parallax strength.
+---@field invertPositionRelativeToTargets boolean If set to true, the camera will render its position to the opposite one in relation to its targets - if the camera is to the left of the targets, it will render to the right of them, etc.
 ---@field x number The camera's x position. You shouldn't modify this yourself if you use targets.
 ---@field y number The camera's y position. You shouldn't modify this yourself if you use targets.
 ---@field width number The camera's width.
@@ -132,6 +133,7 @@ function camberry.newCamera(width, height)
         parallaxDepth = 1,
         parallaxStrengthX = 1,
         parallaxStrengthY = 0,
+        invertPositionRelativeToTargets = false,
         x = 0,
         y = 0,
         width = width,
@@ -530,6 +532,12 @@ function Camera:getBoundsForRendering()
     if self.pixelPerfectMovement then
         x = math.floor(x * zoom + 0.5) / zoom
         y = math.floor(y * zoom + 0.5) / zoom
+    end
+
+    if self.invertPositionRelativeToTargets then
+        local targetX, targetY = self:getTargetPosition()
+        x = 2 * targetX - x
+        y = 2 * targetY - y
     end
 
     local width = self.width / zoom
