@@ -1125,23 +1125,37 @@ local function generateDirectionalValue(left, top, right, bottom)
     return {left, top, right, bottom}
 end
 
-local function deepCopy(t, _seenTables)
-    _seenTables = _seenTables or {}
-    if type(t) == "table" then
+---@generic T
+---@param v T The value to copy
+---@param _seenTables? table
+---@return T
+local function deepCopy(v, _seenTables)
+    if type(v) == "table" then
+        _seenTables = _seenTables or {}
+
+        if _seenTables[v] then
+            return _seenTables[v]
+        end
+
+        local mt = getmetatable(v)
+        if mt and mt.__uniquereference then return v end
+
         local copiedTable = {}
+        _seenTables[v] = copiedTable
 
-        if _seenTables[t] then
-            return _seenTables[t]
-        else
-            _seenTables[t] = copiedTable
+        for key, value in pairs(v) do
+            local copiedKey = deepCopy(key, _seenTables)
+            local copiedValue = deepCopy(value, _seenTables)
+            copiedTable[copiedKey] = copiedValue
         end
 
-        for key, value in pairs(t) do
-            copiedTable[key] = deepCopy(value, _seenTables)
+        if mt then
+            setmetatable(copiedTable, mt)
         end
+
         return copiedTable
     end
-    return t
+    return v
 end
 
 local function shallowCopy(t)
