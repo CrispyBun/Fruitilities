@@ -43,6 +43,7 @@ local camberry = {}
 ---@field snapToFirstTarget boolean Whether or not the camera should snap to always show the first target.
 ---@field zoomToAllTargets boolean Whether or not the camera should zoom out to always show all targets.
 ---@field safeBoundsOffset [number, number] The distance from the camera's edge (in each axis) that targets must stay in if `snapToFirstTarget` or `zoomToAllTargets` are enabled. Positive values shrink the area, negative values grow it.
+---@field safeBoundsAreDeadzone boolean If true, the `safeBoundsOffset` will be a rectangle starting from the center of the camera, rather than it starting and shrinking from the edges of the camera. Default is false.
 ---@field scaleSafeBoundsWithZoom boolean If true, the safe bounds area will scale with the camera's zoom. This may make auto-zooming to show targets inaccurate. Default is false.
 ---@field updateTargetRigs boolean If true, the camera will scan its targets and, if they have an `updateRigs` method, calls it.
 ---@field minAutoZoom number The minimum zoom the camera can automatically zoom to when zooming to show targets. This stacks with the currently set zoom value. Default is 0 (unlimited).
@@ -125,6 +126,7 @@ function camberry.newCamera(width, height)
         snapToFirstTarget = true,
         zoomToAllTargets = true,
         safeBoundsOffset = {0, 0},
+        safeBoundsAreDeadzone = false,
         scaleSafeBoundsWithZoom = false,
         updateTargetRigs = false,
         minAutoZoom = 0,
@@ -528,6 +530,8 @@ function Camera:getSafeBounds(ignoreInternalZoom)
     local safeBoundsOffset = self.safeBoundsOffset
     if not safeBoundsOffset then return self:getBounds(ignoreInternalZoom) end
 
+    local x, y, width, height = self:getBounds(ignoreInternalZoom)
+
     local offsetX, offsetY = safeBoundsOffset[1], safeBoundsOffset[2]
     if self.scaleSafeBoundsWithZoom then
         local zoom = self:getZoom(ignoreInternalZoom)
@@ -535,7 +539,12 @@ function Camera:getSafeBounds(ignoreInternalZoom)
         offsetY = offsetY / zoom
     end
 
-    local x, y, width, height = self:getBounds(ignoreInternalZoom)
+    if self.safeBoundsAreDeadzone then
+        local halfWidth = width / 2
+        local halfHeight = height / 2
+        return x + halfWidth - offsetX, y + halfHeight - offsetY, offsetX * 2, offsetY * 2
+    end
+
     return x + offsetX, y + offsetY, width - offsetX * 2, height - offsetY * 2
 end
 
