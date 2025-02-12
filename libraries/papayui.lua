@@ -765,18 +765,8 @@ function UI:updateCursor(x, y)
     -- Turn off touch dragging here just in case ui:actionRelease() isn't used for whatever reason
     self.touchDraggedMember = nil
 
-    local foundSelection = false
-    for memberIndex = 1, #self.members do
-        local member = self.members[memberIndex]
-        local memberX, memberY, memberWidth, memberHeight = member:getCroppedBounds()
-        if x > memberX and y > memberY and x < memberX + memberWidth and y < memberY + memberHeight then
-            if member:isSelectable("cursor") then
-                self:select(member)
-                foundSelection = true
-            end
-        end
-    end
-    if not foundSelection then self:select() end
+    local newSelection = self:findSelectableMemberAtCoordinate(x, y, "cursor")
+    self:select(newSelection) -- Either selects the new member, or deselects the current one if `newSelection` is nil
 end
 
 --------------------------------------------------
@@ -1037,6 +1027,7 @@ end
 ---@param x number
 ---@param y number
 ---@param selectionMode? "button"|"cursor"
+---@return Papayui.LiveMember?
 function UI:findSelectableMemberAtCoordinate(x, y, selectionMode)
     local members = self.members
     for memberIndex = #members, 1, -1 do
