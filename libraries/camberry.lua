@@ -7,7 +7,7 @@
 --[[
 MIT License
 
-Copyright (c) 2024 Ava "CrispyBun" Špráchalů
+Copyright (c) 2024-2025 Ava "CrispyBun" Špráchalů
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -43,6 +43,7 @@ local camberry = {}
 ---@field snapToFirstTarget boolean Whether or not the camera should snap to always show the first target.
 ---@field zoomToAllTargets boolean Whether or not the camera should zoom out to always show all targets.
 ---@field safeBoundsOffset [number, number] The distance from the camera's edge (in each axis) that targets must stay in if `snapToFirstTarget` or `zoomToAllTargets` are enabled. Positive values shrink the area, negative values grow it.
+---@field scaleSafeBoundsWithZoom boolean If true, the safe bounds area will scale with the camera's zoom. This may make auto-zooming to show targets inaccurate. Default is false.
 ---@field updateTargetRigs boolean If true, the camera will scan its targets and, if they have an `updateRigs` method, calls it.
 ---@field minAutoZoom number The minimum zoom the camera can automatically zoom to when zooming to show targets. This stacks with the currently set zoom value. Default is 0 (unlimited).
 ---@field pixelPerfectMovement boolean Whether or not the camera's position should snap to integer coordinates when rendering.
@@ -124,6 +125,7 @@ function camberry.newCamera(width, height)
         snapToFirstTarget = true,
         zoomToAllTargets = true,
         safeBoundsOffset = {0, 0},
+        scaleSafeBoundsWithZoom = false,
         updateTargetRigs = false,
         minAutoZoom = 0,
         dontRenderZoom = false,
@@ -472,8 +474,10 @@ end
 --------------------------------------------------
 --- ### Camera:getZoom()
 --- Returns the camera's current zoom, including zoom from internal operations.
+---@param ignoreInternalZoom? boolean
 ---@return number
-function Camera:getZoom()
+function Camera:getZoom(ignoreInternalZoom)
+    if ignoreInternalZoom then return self.zoom end
     return self.zoom * self._zoom
 end
 
@@ -503,8 +507,7 @@ end
 ---@return number width
 ---@return number height
 function Camera:getBounds(ignoreInternalZoom)
-    local zoom = self.zoom
-    if not ignoreInternalZoom then zoom = zoom * self._zoom end
+    local zoom = self:getZoom(ignoreInternalZoom)
 
     local width = self.width / zoom
     local height = self.height / zoom
@@ -525,8 +528,15 @@ function Camera:getSafeBounds(ignoreInternalZoom)
     local safeBoundsOffset = self.safeBoundsOffset
     if not safeBoundsOffset then return self:getBounds(ignoreInternalZoom) end
 
+    local offsetX, offsetY = safeBoundsOffset[1], safeBoundsOffset[2]
+    if self.scaleSafeBoundsWithZoom then
+        local zoom = self:getZoom(ignoreInternalZoom)
+        offsetX = offsetX / zoom
+        offsetY = offsetY / zoom
+    end
+
     local x, y, width, height = self:getBounds(ignoreInternalZoom)
-    return x + safeBoundsOffset[1], y + safeBoundsOffset[2], width - safeBoundsOffset[1] * 2, height - safeBoundsOffset[2] * 2
+    return x + offsetX, y + offsetY, width - offsetX * 2, height - offsetY * 2
 end
 
 --------------------------------------------------
@@ -736,7 +746,7 @@ function Camera:zoomTargetsToBounds()
     local differenceY = math.max(differenceTop, differenceBottom) * 2
 
     -- We get the amount of pixels that we want to grow by (differenceX),
-    -- then we calculate how much percent we need to grow by (differenceX / safeW),
+    -- then we calculate how much percent we need to grow by (differenceX / cameraWidth),
     -- then we convert that to an actual multipliable increase (0.1 becomes 1.1),
     -- then we divide 1 over that number, since that's how zoom works.
     local zoomX = 1 / (1 + differenceX / cameraWidth)
