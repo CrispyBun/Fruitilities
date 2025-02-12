@@ -790,11 +790,12 @@ end
 --------------------------------------------------
 --- ### UI:actionRelease()
 --- Tells the UI that the action key has been released
+---@return boolean actionHappened Whether or not an action was triggered on an element
 function UI:actionRelease()
-    if self.enabledState ~= "enabled" then return end
+    if self.enabledState ~= "enabled" then return false end
 
     -- Bail if the action isn't down in the first place to prevent wonky behavior with multiple key presses
-    if not self.actionDown then return end
+    if not self.actionDown then return false end
 
     self.actionDown = false
 
@@ -803,10 +804,14 @@ function UI:actionRelease()
             self:select(self.lastSelection) -- Reselect the last selection (otherwise touch scrolling can feel clunky on mouse)
         end
         self.touchDraggedMember = nil
-        return -- Make sure the possibly reselected member doesn't get clicked
+        return false -- Return to make sure the possibly reselected member doesn't get clicked
     end
 
-    if self.selectedMember then self:triggerEvent("action", self.selectedMember) end
+    if self.selectedMember then
+        self:triggerEvent("action", self.selectedMember)
+        return true
+    end
+    return false
 end
 
 --------------------------------------------------
@@ -816,9 +821,10 @@ end
 --- It's recommended to call actionPress and actionRelease on the respective key events instead of actionPulse,
 --- but if you just want a single callback for a generic "key pressed" event, you can use actionPulse.  
 --- Note that this doesn't allow for touch scrolling to work.
+---@return boolean actionHappened
 function UI:actionPulse()
     self:actionPress()
-    self:actionRelease()
+    return self:actionRelease()
 end
 
 --------------------------------------------------
