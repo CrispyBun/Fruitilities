@@ -7,7 +7,7 @@
 --[[
 MIT License
 
-Copyright (c) 2024 Ava "CrispyBun" Špráchalů
+Copyright (c) 2024-2025 Ava "CrispyBun" Špráchalů
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -721,7 +721,7 @@ function UI:navigate(direction)
     end
 
     -- Skip past elements we can't select (even if they were selected using definedNav)
-    while nextSelected and (not nextSelected:isSelectable() or not nextSelected.element.behavior.buttonSelectable) do
+    while nextSelected and not nextSelected:isSelectable("button") do
         nextSelected = nextSelected:forwardNavigation(selectedMember, dir)
     end
 
@@ -770,7 +770,7 @@ function UI:updateCursor(x, y)
         local member = self.members[memberIndex]
         local memberX, memberY, memberWidth, memberHeight = member:getCroppedBounds()
         if x > memberX and y > memberY and x < memberX + memberWidth and y < memberY + memberHeight then
-            if member:isSelectable() and member.element.behavior.cursorSelectable then
+            if member:isSelectable("cursor") then
                 self:select(member)
                 foundSelection = true
             end
@@ -2674,12 +2674,17 @@ function LiveMember:childElementsAreIdentical(elements)
     return true
 end
 
+---@param mode? "cursor"|"button"
 ---@return boolean
-function LiveMember:isSelectable()
+function LiveMember:isSelectable(mode)
     local style = self.element.style
     local behavior = self.element.behavior
 
+    if mode == "cursor" and not behavior.cursorSelectable then return false end
+    if mode == "button" and not behavior.buttonSelectable then return false end
+
     if behavior.isSelectable ~= nil then return behavior.isSelectable end
+
     if behavior.action then return true end
     if behavior.callbacks.action then return true end
     if style.colorHover then return true end
