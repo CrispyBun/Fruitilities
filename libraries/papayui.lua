@@ -1016,7 +1016,7 @@ function UI:findDefaultSelectable(buttonSelectionOnly)
 end
 
 --------------------------------------------------
---- Returns the (topmost) member at the given coordinate. Used internally.
+--- Returns the (topmost) member at the given coordinate.
 ---@param x number
 ---@param y number
 ---@return Papayui.LiveMember?
@@ -1029,6 +1029,23 @@ function UI:findMemberAtCoordinate(x, y)
 
         local inBounds = x > memberX and y > memberY and x < memberX + memberWidth and y < memberY + memberHeight
         if inBounds then return member end
+    end
+end
+
+--------------------------------------------------
+--- Returns the (topmost) selectable member at the given coordinate.
+---@param x number
+---@param y number
+---@param selectionMode? "button"|"cursor"
+function UI:findSelectableMemberAtCoordinate(x, y, selectionMode)
+    local members = self.members
+    for memberIndex = #members, 1, -1 do
+        local member = members[memberIndex]
+
+        local memberX, memberY, memberWidth, memberHeight = member:getCroppedBounds()
+
+        local inBounds = x > memberX and y > memberY and x < memberX + memberWidth and y < memberY + memberHeight
+        if inBounds and member:isSelectable(selectionMode) then return member end
     end
 end
 
