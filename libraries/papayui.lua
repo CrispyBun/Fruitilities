@@ -2681,7 +2681,6 @@ end
 ---@param mode? "cursor"|"button"
 ---@return boolean
 function LiveMember:isSelectable(mode)
-    local style = self.element.style
     local behavior = self.element.behavior
 
     if mode == "cursor" and not behavior.cursorSelectable then return false end
@@ -2691,7 +2690,6 @@ function LiveMember:isSelectable(mode)
 
     if behavior.action then return true end
     if behavior.callbacks.action and #behavior.callbacks.action > 0 then return true end
-    if style.callbacks.action and #style.callbacks.action > 0 then return true end
 
     return false
 end
