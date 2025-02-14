@@ -250,7 +250,7 @@ papayui.callbacks = {}
 
 -- -- Example callback
 -- function papayui.callbacks.action(event)
---     print("An element was selected: ", event.targetElement)
+--     print("An element was clicked: ", event.targetElement)
 -- end
 
 --- Optional global draw element function, just like ElementStyle.draw but for all elements
@@ -348,11 +348,6 @@ end
 --- ### papayui.newElementStyle()
 --- Creates a new papayui element style.
 ---
---- Optionally, you can supply mixins to set the style.  
---- * A mixin can be a table containing values for the style, such as `{width = 10, height = 10}`.  
---- * A mixin can also be an array of other mixins, such as `{mixin1, mixin2, mixin3}`.  
---- * Lastly, a mixin can be a combination of the two, such as `{width = 10, height = 10, [1] = mixin2, [2] = mixin3}`.
----
 --- Example usage:
 --- ```
 --- local style = papayui.newElementStyle()
@@ -361,9 +356,8 @@ end
 --- style.color = "background"
 --- style.layout = "singlecolumn"
 --- ```
----@param mixins? table
 ---@return Papayui.ElementStyle
-function papayui.newElementStyle(mixins)
+function papayui.newElementStyle()
     -- new Papayui.ElementStyle
     local style = {
         width = 0,
@@ -387,18 +381,12 @@ function papayui.newElementStyle(mixins)
         ignoreScale = false
     }
 
-    if mixins then
-        papayui.applyMixins(style, mixins)
-    end
-
     return setmetatable(style, ElementStyleMT)
 end
 
 --------------------------------------------------
 --- ### papayui.newElementBehavior()
 --- Creates a new papayui element behavior.
----
---- Optionally, you can supply mixins, which work the same way as in newElementStyle.  
 ---
 --- Example usage:
 --- ```
@@ -409,7 +397,7 @@ end
 --- end
 --- ```
 ---@return Papayui.ElementBehavior
-function papayui.newElementBehavior(mixins)
+function papayui.newElementBehavior()
     -- new Papayui.ElementBehavior
     local behavior = {
         isSelectable = nil,
@@ -417,10 +405,6 @@ function papayui.newElementBehavior(mixins)
         cursorSelectable = true,
         callbacks = {}
     }
-
-    if mixins then
-        papayui.applyMixins(behavior, mixins)
-    end
 
     return setmetatable(behavior, ElementBehaviorMT)
 end
@@ -1663,33 +1647,6 @@ end
 
 -- Misc stuff --------------------------------------------------------------------------------------
 -- Some are exported by the module since they could be useful
-
---- Applies mixins onto the receiving table (copies the mixins' values to it).  
---- * A mixin can be a table containing values, such as `{width = 10, height = 10}`.  
---- * A mixin can also be an array of other mixins, such as `{mixin1, mixin2, mixin3}`.  
---- * Lastly, a mixin can be a combination of the two, such as `{width = 10, height = 10, [1] = mixin2, [2] = mixin3}`.
----@param receivingTable table
----@param mixins table
-function papayui.applyMixins(receivingTable, mixins)
-    local mixinQueueFirst = {value = mixins, next = nil}
-    local mixinQueueLast = mixinQueueFirst
-    while mixinQueueFirst do
-        local mixin = mixinQueueFirst.value
-
-        for _, queuedMixin in ipairs(mixin) do
-            mixinQueueLast.next = {value = queuedMixin, next = nil}
-            mixinQueueLast = mixinQueueLast.next
-        end
-
-        for key, value in pairs(mixin) do
-            if type(key) == "string" then
-                receivingTable[key] = value
-            end
-        end
-
-        mixinQueueFirst = mixinQueueFirst.next
-    end
-end
 
 --- Returns the area where the two input areas overlap.
 ---@param aX number
