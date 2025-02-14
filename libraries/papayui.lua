@@ -152,6 +152,7 @@ papayui.touchScrollingEnabled = true  -- Whether or not holding down the action 
 ---@field preLayout? fun(member: Papayui.LiveMember) Function that can modify some properties of the instanced element (member) when it's about to be laid out in a UI. Useful for resizing the element based on some variable (such as text boxes).
 ---@field preChildren? fun(member: Papayui.LiveMember): Papayui.ElementLayout? Function that can modify some properties of the instanced element (member) right before its children are laid out. Can optionally return an ElementLayout to override the one set in the style. Useful for responsive layouts.
 ---@field postChildren? fun(member: Papayui.LiveMember) Function that can modify some properties of the instanced element (member) right after its children are laid out. Can be useful for repositioning some of the children after the layout is finished.
+---@field callbacks table<Papayui.EventType, fun(event: Papayui.Event)[]> Listeners for events on this element
 local ElementStyle = {}
 local ElementStyleMT = {__index = ElementStyle}
 
@@ -160,7 +161,7 @@ local ElementStyleMT = {__index = ElementStyle}
 ---@field buttonSelectable boolean Whether or not it is possible to navigate to this element using button input (it is not recommended to disable this, it might make certain selection situations odd)
 ---@field cursorSelectable boolean Whether or not it is possible to navigate to this element using cursor input
 ---@field action? fun(event: Papayui.Event) Callback for when this element is selected (action key is pressed on it)
----@field callbacks table<Papayui.EventType, fun(event: Papayui.Event)> Listeners for events on this element
+---@field callbacks table<Papayui.EventType, fun(event: Papayui.Event)[]> Listeners for events on this element
 local ElementBehavior = {}
 local ElementBehaviorMT = {__index = ElementBehavior}
 
@@ -259,24 +260,6 @@ papayui.drawElement = nil
 
 -- Utility -----------------------------------------------------------------------------------------
 
---------------------------------------------------
---- ### papayui.newFunctionStack(...)
---- Returns a function that calls all the given functions in order.  
----
---- Useful for some callbacks and drawing functions where you need to combine the functionality of multiple functions,
---- but the callback can only be set to one function.
----@param ... function
----@return function
-function papayui.newFunctionStack(...)
-    local functions = {...}
-    return function(...)
-        for functionIndex = 1, #functions do
-            functions[functionIndex](...)
-        end
-    end
-end
-papayui.newFuncstack = papayui.newFunctionStack
-
 ---Converts a hex value to a color table or returns nil if the input isn't valid hex
 ---@param hexString string
 ---@return number[]?
@@ -342,6 +325,13 @@ function papayui.parseRgbString(str)
     return color
 end
 
+---@param arr function[]
+local function callFunctionArray(arr, ...)
+    for arrayIndex = 1, #arr do
+        arr[arrayIndex](...)
+    end
+end
+
 -- Element creation --------------------------------------------------------------------------------
 
 --------------------------------------------------
@@ -354,7 +344,10 @@ end
 --- style.width = 200
 --- style.height = 150
 --- style.color = "background"
---- style.layout = "singlecolumn"
+--- style:setPadding(20)
+--- function style.draw(drawEvent)
+---     -- draw stuff
+--- end
 --- ```
 ---@return Papayui.ElementStyle
 function papayui.newElementStyle()
@@ -378,7 +371,8 @@ function papayui.newElementStyle()
         offsetY = 0,
         gap = {0, 0},
         cropContent = false,
-        ignoreScale = false
+        ignoreScale = false,
+        callbacks = {}
     }
 
     return setmetatable(style, ElementStyleMT)
@@ -1063,9 +1057,13 @@ end
 function UI:callEvent(event)
     local eventType = event.type
     local behavior = event.targetMember.element.behavior
+    local style = event.targetMember.element.style
 
     if eventType == "action" and behavior.action then behavior.action(event) end -- A second place to define actions in behaviors for ease of use
-    if behavior.callbacks[eventType] then behavior.callbacks[eventType](event) end
+
+    if behavior.callbacks[eventType] then callFunctionArray(behavior.callbacks[eventType], event) end
+    if style.callbacks[eventType] then callFunctionArray(style.callbacks[eventType], event) end
+
     if papayui.callbacks[eventType] then papayui.callbacks[eventType](event) end
 end
 
@@ -1357,6 +1355,31 @@ function ElementStyle:clone()
     return setmetatable(copiedTable, ElementStyleMT)
 end
 
+--------------------------------------------------
+--- ### ElementStyle:addCallback(eventType, callback)
+--- ### ElementStyle:addListener(eventType, callback)
+--- Adds a callback for the specified event.
+--- 
+--- Example usage:
+--- ```lua
+--- local style = papayui.newElementStyle()
+--- style:addCallback("hoveredUpdate", function (event)
+---     print("The element was updated and is hovered: ", event.targetElement)
+--- end)
+--- ```
+---@param eventType Papayui.EventType
+---@param callback fun(event: Papayui.Event)
+---@return Papayui.ElementStyle self
+function ElementStyle:addCallback(eventType, callback)
+    self.callbacks[eventType] = self.callbacks[eventType] or {}
+    local callbacks = self.callbacks[eventType]
+
+    callbacks[#callbacks+1] = callback
+
+    return self
+end
+ElementStyle.addListener = ElementStyle.addCallback
+
 -- Behavior methods --------------------------------------------------------------------------------
 
 --------------------------------------------------
@@ -1373,20 +1396,22 @@ end
 --- ### ElementBehavior:addListener(eventType, callback)
 --- Adds a callback for the specified event.
 --- 
---- If a callback for this event already exists, it will not be overwritten. Instead, a closure will be created which will call both the previous and the new one.
+--- Example usage:
+--- ```lua
+--- local behavior = papayui.newElementBehavior()
+--- behavior:addCallback("hover", function (event)
+---     print("Element was hovered: ", event.targetElement)
+--- end)
+--- ```
 ---@param eventType Papayui.EventType
 ---@param callback fun(event: Papayui.Event)
 ---@return Papayui.ElementBehavior self
 function ElementBehavior:addCallback(eventType, callback)
-    local previousCallback = self.callbacks[eventType]
-    if not previousCallback then
-        self.callbacks[eventType] = callback
-        return self
-    end
-    self.callbacks[eventType] = function (event)
-        previousCallback(event)
-        callback(event)
-    end
+    self.callbacks[eventType] = self.callbacks[eventType] or {}
+    local callbacks = self.callbacks[eventType]
+
+    callbacks[#callbacks+1] = callback
+
     return self
 end
 ElementBehavior.addListener = ElementBehavior.addCallback
@@ -2665,8 +2690,8 @@ function LiveMember:isSelectable(mode)
     if behavior.isSelectable ~= nil then return behavior.isSelectable end
 
     if behavior.action then return true end
-    if behavior.callbacks.action then return true end
-    if style.colorHover then return true end
+    if behavior.callbacks.action and #behavior.callbacks.action > 0 then return true end
+    if style.callbacks.action and #style.callbacks.action > 0 then return true end
 
     return false
 end
