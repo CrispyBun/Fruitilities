@@ -42,7 +42,12 @@ local parsimmon = {}
 parsimmon.sortEncodedObjects = true
 
 --- If true, tables, when being encoded as objects, will be made multiline to be more readable.
+---@type boolean
 parsimmon.splitEncodedObjectLines = true
+
+--- If true, tables, when being encoded as objects, will wrap square brackers around string keys.
+---@type boolean
+parsimmon.wrapStringKeysInBrackets = false
 
 --- Normally, all tables are parsed as objects, which can result in more verbose outputs
 --- when parsing arrays. You can implement this function to detect arrays and separate them from objects.
@@ -380,8 +385,12 @@ parsimmon.encoders.object = function (object, context)
         local keyType = type(key)
         local encodedKey
 
-        if keyType == "string" then encodedKey = '"' .. key .. '"'
-        else encodedKey = '[' .. parsimmon.encoders.any(key, passedContext) .. ']' end
+        if keyType == "string" then
+            encodedKey = '"' .. key .. '"'
+            if parsimmon.wrapStringKeysInBrackets then encodedKey = "[" .. encodedKey .. "]" end
+        else
+            encodedKey = '[' .. parsimmon.encoders.any(key, passedContext) .. ']'
+        end
 
         out[#out+1] = encodedKey
         out[#out+1] = ": "
