@@ -344,6 +344,11 @@ parsimmon.encoders.number = function (value)
     return tostring(value)
 end
 parsimmon.encoders.string = function (value)
+    value = string.gsub(value, "\\", "\\\\")
+    value = string.gsub(value, '"', '\\"')
+    value = string.gsub(value, "\n", "\\n")
+    value = string.gsub(value, "\r", "\\r")
+    value = string.gsub(value, "\t", "\\t")
     return '"' .. value .. '"'
 end
 parsimmon.encoders.boolean = function (value)
@@ -386,7 +391,7 @@ parsimmon.encoders.object = function (object, context)
         local encodedKey
 
         if keyType == "string" then
-            encodedKey = '"' .. key .. '"'
+            encodedKey = parsimmon.encoders.string(key)
             if parsimmon.wrapStringKeysInBrackets then encodedKey = "[" .. encodedKey .. "]" end
         else
             encodedKey = '[' .. parsimmon.encoders.any(key, passedContext) .. ']'
