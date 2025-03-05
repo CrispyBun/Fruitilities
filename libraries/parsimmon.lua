@@ -33,10 +33,16 @@ local parsimmon = {}
 
 -- Types -------------------------------------------------------------------------------------------
 
+--- The Format wrapped into an interface only intended for encoding/decoding, not implementing
+---@class Parsimmon.WrappedFormat
+---@field format Parsimmon.Format
+local WrappedFormat = {}
+local WrappedFormatMT = {__index = WrappedFormat}
+
 --- A specification and methods for encoding and decoding some string format.
 ---@class Parsimmon.Format
 ---@field modules table<string, Parsimmon.ConvertorModule>
----@field entryModuleName string The module that will first be called when encoding/decoding (default is "start")
+---@field entryModuleName string The module that will first be called when encoding/decoding (default is "entry")
 local Format = {}
 local FormatMT = {__index = Format}
 
@@ -80,17 +86,80 @@ local StateInfoMT = {__index = StateInfo}
 ---@param errMessage string
 local function throwParseError(inputStr, i, errMessage)
     local line = 1
-    local column = 1
+    local column = 0
+    local doLineBreak = false
     for charIndex = 1, i do
-        if inputStr:sub(charIndex, charIndex) == "\n" then
+        column = column + 1
+
+        if doLineBreak then
+            doLineBreak = false
             line = line + 1
             column = 1
-        else
-            column = column + 1
+        end
+
+        if inputStr:sub(charIndex, charIndex) == "\n" then
+            doLineBreak = true
         end
     end
-    error("Parse error near '" .. inputStr:sub(i,i) .. "' at line " .. line .. " column " .. column .. ": " .. errMessage)
+    local char = inputStr:sub(i,i)
+    if char == "\n" then
+        char = "\\n"
+    end
+    error("Parse error near '" .. char .. "' at line " .. line .. " column " .. column .. ": " .. errMessage, 4)
 end
+
+---@param t table
+---@param chars string
+---@param value any
+function parsimmon.addCharsToTable(t, chars, value)
+    for charIndex = 1, #chars do
+        local char = chars:sub(charIndex, charIndex)
+        t[char] = value
+    end
+end
+
+parsimmon.charMaps = {}
+
+-- Whitespace characters
+parsimmon.charMaps.whitespace = {
+    [" "] = true,
+    ["\n"] = true,
+    ["\r"] = true,
+    ["\t"] = true,
+    ["\v"] = true,
+    ["\f"] = true,
+}
+
+-- Generic set of characters that can probably act as a terminator when reading a value in most formats
+parsimmon.charMaps.terminating = {
+    [""] = true,
+    [" "] = true,
+    ["\n"] = true,
+    ["\r"] = true,
+    ["\t"] = true,
+    [","] = true,
+    [":"] = true,
+    [";"] = true,
+    ["="] = true,
+    ["{"] = true,
+    ["}"] = true,
+    ["["] = true,
+    ["]"] = true,
+    ["<"] = true,
+    [">"] = true,
+}
+
+-- Characters which can generally be present after a backslash in strings containing a specific meaning
+parsimmon.charMaps.escapedMeanings = {
+    ["n"] = "\n",
+    ["r"] = "\r",
+    ["t"] = "\t",
+    ["v"] = "\v",
+    ["f"] = "\f",
+    ["a"] = "\a",
+    ["\\"] = "\\",
+    ['"'] = '"',
+}
 
 -- Format creation ---------------------------------------------------------------------------------
 
@@ -100,7 +169,7 @@ function parsimmon.newFormat()
     -- new Parsimmon.Format
     local format = {
         modules = {},
-        entryModuleName = "start"
+        entryModuleName = "entry"
     }
     return setmetatable(format, FormatMT)
 end
@@ -123,16 +192,15 @@ function Format:decode(str)
         charIndex = incrementChar and (charIndex + 1) or (charIndex)
     end
 
-    -- todo: string may not be empty after this,
-    -- add optional format string finalizer thing which makes sure the rest of the string is just whitespace/comments/empty.
-    -- (it should still be able to consume characters one by one, so it can be a special kind of set of states)
-    -- though the entry decoder state can technically deal with this too so maybe it can simply be a boolean saying if trailing characters are allowed
+    -- TODO: we just exited, but we might not be at the end of the string.
+    -- add configurable boolean (probably true by default) to format,
+    -- which says whether or not we should error if we aren't at the end of the string here.
 
     return passedValue
 end
 Format.parse = Format.decode
 
---- Feeds the next character into an in-progress decoding stack of StateInfos.
+--- Feeds the next character into an in-progress decoding stack of StateInfos. Used internally.
 ---@param states Parsimmon.StateInfo[]
 ---@param inputStr string
 ---@param charIndex integer
@@ -183,7 +251,8 @@ function Format:feedNextDecodeChar(states, inputStr, charIndex, passedValue)
     end
 
     local nextModule = self.modules[nextModuleString]
-    if not nextModule then error("Attempting to enter undefined module '" .. tostring(nextModule) .. "' in the format") end
+    if nextModuleString == nil then error("Some module in state '" .. tostring(moduleState) .. "' does not return the NextModuleString") end
+    if not nextModule then error("Some module in state '" .. tostring(moduleState) .. "' is attempting to enter undefined module '" .. tostring(nextModuleString) .. "' in the format") end
 
     states[#states+1] = parsimmon.newStateInfo(nextModule)
     return false, passedValue
@@ -192,7 +261,7 @@ end
 --- Defines a new encoding/decoding module for the format.
 ---@param name string
 ---@param module Parsimmon.ConvertorModule
----@return self
+---@return self self
 function Format:defineModule(name, module)
     if self.modules[name] then error("Module with name '" .. tostring(name) .. "' is already defined in this format", 2) end
     self.modules[name] = module
@@ -225,7 +294,7 @@ end
 --- The stateName `"start"` is the entry point of the module.
 ---@param stateName string
 ---@param stateFn Parsimmon.DecoderStateFn
----@return self
+---@return self self
 function Module:defineDecodingState(stateName, stateFn)
     self.decodingStates[stateName] = stateFn
     return self
@@ -249,10 +318,43 @@ end
 
 --- Sets the state the state info will change into the next time this module is visited.
 ---@param nextState string
----@return self
+---@return self self
 function StateInfo:setNextState(nextState)
     self.nextState = nextState
     return self
 end
+
+-- Wrapped format ----------------------------------------------------------------------------------
+
+--- Wraps a format implementation into an interface only intended for encoding/decoding using the format.
+---@param format Parsimmon.Format
+function parsimmon.wrapFormat(format)
+    -- new Parsimmon.WrappedFormat
+    local wrapped = {
+        format = format
+    }
+    return setmetatable(wrapped, WrappedFormatMT)
+end
+
+--- Decodes the given string as specified by the format.
+---@param str string
+---@return any
+function WrappedFormat:decode(str)
+    return self.format:decode(str)
+end
+
+-- Useful convertor module implementations ---------------------------------------------------------
+
+-- Handy utility modules that can be useful in any format
+parsimmon.genericModules = {}
+
+-- Module purely intended for decoding, consumes whitespace and goes back when it finds a non-whitespace character
+parsimmon.genericModules.consumeWhitespace = parsimmon.newConvertorModule()
+    :defineDecodingState("start", function (currentChar, stateInfo, passedValue)
+        if parsimmon.charMaps.whitespace[currentChar] then
+            return ":CONSUME"
+        end
+        return ":BACK"
+    end)
 
 return parsimmon
