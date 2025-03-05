@@ -42,7 +42,7 @@ local WrappedFormatMT = {__index = WrappedFormat}
 --- A specification and methods for encoding and decoding some string format.
 ---@class Parsimmon.Format
 ---@field modules table<string, Parsimmon.ConvertorModule>
----@field entryModuleName string The module that will first be called when encoding/decoding (default is "entry")
+---@field entryModuleName string The module that will first be called when encoding/decoding (default is "Entry")
 local Format = {}
 local FormatMT = {__index = Format}
 
@@ -56,19 +56,19 @@ local ModuleMT = {__index = Module}
 --- 
 --- Receives the character it's currently acting on (could be an empty string if the end of the input string is reached),
 --- the module's `StateInfo`,
---- and any potential value passed from the previous called function.
+--- and any potential value passed from another (or the same) module.
 --- 
---- Returns the next module it wants to go to, or a special module changing keyword.
---- Also can return a value to pass to the next called function. If this is the entry module returning, it will be used as the final decoded value.
----@alias Parsimmon.DecoderStateFn fun(currentChar: string, stateInfo: Parsimmon.StateInfo, passedValue: any): Parsimmon.NextModuleString, any
+--- Returns a keyword specifying how to do the next module change after this function is done executing (`NextModuleKeyword`).
+--- The second return value depends on the `NextModuleKeyword` used, and can either specify the type of module change, or be used as the passedValue passed into the function in the next module.
+--- If this is the Entry module and it executes ":BACK", the second argument is the final decoded value.
+---@alias Parsimmon.DecoderStateFn fun(currentChar: string, stateInfo: Parsimmon.StateInfo, passedValue: any): Parsimmon.NextModuleKeyword, any
 
----@alias Parsimmon.NextModuleString
----|'":BACK"' # Goes back to the previous module in the stack
----|'":CONSUME+BACK"' # Consumes the current character and goes back to the previous module in the stack
----|'":CONSUME"' # Consumes the current character and stays in the same module
----|'":CURRENT"' # Does not consume the current character and stays in the same module
----|'":ERROR"' # Throws an error. The passedValue will be used as the error message.
----| string # Goes to the module with this name
+---@alias Parsimmon.NextModuleKeyword
+---|'":BACK"' # Goes back to the previous module in the stack (second argument is passed to the module)
+---|'":CONSUME+BACK"' # Consumes the current character and goes back to the previous module in the stack (second argument is passed to the module)
+---|'":CONSUME"' # Consumes the current character and stays in the same module (second argument is passed to the module)
+---|'":CURRENT"' # Does not consume the current character and stays in the same module (second argument is passed to the module)
+---|'":FORWARD"' # Appends the module with the name specified passedValue (second argument) to the stack of modules and moves execution to it
 
 --- Info about the state of an active module.
 ---@class Parsimmon.StateInfo
@@ -169,7 +169,6 @@ function parsimmon.newFormat()
     -- new Parsimmon.Format
     local format = {
         modules = {},
-        entryModuleName = "entry"
     }
     return setmetatable(format, FormatMT)
 end
@@ -221,41 +220,34 @@ function Format:feedNextDecodeChar(states, inputStr, charIndex, passedValue)
     local decoderStateFn = module.decodingStates[moduleState]
     if not decoderStateFn then error("A module is attempting to switch to undefined decoder state: " .. tostring(moduleState)) end
 
-    local nextModuleString
-    nextModuleString, passedValue = decoderStateFn(currentChar, currentStateInfo, passedValue)
+    local nextModuleKeyword
 
-    if nextModuleString == ":BACK" then
         states[#states] = nil
         return false, passedValue
     end
 
-    if nextModuleString == ":CONSUME+BACK" then
         states[#states] = nil
         return true, passedValue
     end
 
-    if nextModuleString == ":CONSUME" then
         return true, passedValue
     end
 
-    if nextModuleString == ":CURRENT" then
         return false, passedValue
     end
 
-    if nextModuleString == ":COLLECT" then
-        error("not yet implemented")
-    end
 
     if nextModuleString == ":ERROR" then
         throwParseError(inputStr, charIndex, tostring(passedValue))
     end
 
-    local nextModule = self.modules[nextModuleString]
-    if nextModuleString == nil then error("Some module in state '" .. tostring(moduleState) .. "' does not return the NextModuleString") end
-    if not nextModule then error("Some module in state '" .. tostring(moduleState) .. "' is attempting to enter undefined module '" .. tostring(nextModuleString) .. "' in the format") end
+    if nextModuleKeyword == ":FORWARD" then
+        passedValue = tostring(passedValue)
+        states[#states+1] = parsimmon.newStateInfo(nextModule)
+        return false
+    end
 
-    states[#states+1] = parsimmon.newStateInfo(nextModule)
-    return false, passedValue
+    error("Some module in state '" .. tostring(moduleState) .. "' is attempting to execute undefined keyword: " .. tostring(nextModuleKeyword))
 end
 
 --- Defines a new encoding/decoding module for the format.
