@@ -69,6 +69,7 @@ local ModuleMT = {__index = Module}
 ---|'":CONSUME"' # Consumes the current character and stays in the same module (second argument is passed to the module)
 ---|'":CURRENT"' # Does not consume the current character and stays in the same module (second argument is passed to the module)
 ---|'":FORWARD"' # Appends the module with the name specified passedValue (second argument) to the stack of modules and moves execution to it
+---|'":ERROR"' # Throws an error. The passedValue (second argument) will be used as the error message.
 
 --- Info about the state of an active module.
 ---@class Parsimmon.StateInfo
@@ -169,6 +170,7 @@ function parsimmon.newFormat()
     -- new Parsimmon.Format
     local format = {
         modules = {},
+        entryModuleName = "Entry"
     }
     return setmetatable(format, FormatMT)
 end
@@ -221,28 +223,35 @@ function Format:feedNextDecodeChar(states, inputStr, charIndex, passedValue)
     if not decoderStateFn then error("A module is attempting to switch to undefined decoder state: " .. tostring(moduleState)) end
 
     local nextModuleKeyword
+    nextModuleKeyword, passedValue = decoderStateFn(currentChar, currentStateInfo, passedValue)
 
+    if nextModuleKeyword == ":BACK" then
         states[#states] = nil
         return false, passedValue
     end
 
+    if nextModuleKeyword == ":CONSUME+BACK" then
         states[#states] = nil
         return true, passedValue
     end
 
+    if nextModuleKeyword == ":CONSUME" then
         return true, passedValue
     end
 
+    if nextModuleKeyword == ":CURRENT" then
         return false, passedValue
     end
 
-
-    if nextModuleString == ":ERROR" then
+    if nextModuleKeyword == ":ERROR" then
         throwParseError(inputStr, charIndex, tostring(passedValue))
     end
 
     if nextModuleKeyword == ":FORWARD" then
         passedValue = tostring(passedValue)
+        local nextModule = self.modules[passedValue]
+        if not nextModule then error("Some module in state '" .. tostring(moduleState) .. "' is attempting to forward to undefined module '" .. passedValue .. "' in the format") end
+
         states[#states+1] = parsimmon.newStateInfo(nextModule)
         return false
     end
