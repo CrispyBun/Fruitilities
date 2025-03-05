@@ -43,7 +43,6 @@ local FormatMT = {__index = Format}
 --- A module for decoding a part of a Format.
 ---@class Parsimmon.ConvertorModule
 ---@field decodingStates table<string, Parsimmon.DecoderStateFn> The states this module can be in when decoding and a function for what to do in that state. All modules have a 'start' state.
----@field collectString boolean Boolean specifying whether or not this module wants to collect the string it passes over to use later. Default is `false`.
 local Module = {}
 local ModuleMT = {__index = Module}
 
@@ -62,7 +61,6 @@ local ModuleMT = {__index = Module}
 ---|'":CONSUME+BACK"' # Consumes the current character and goes back to the previous module in the stack
 ---|'":CONSUME"' # Consumes the current character and stays in the same module
 ---|'":CURRENT"' # Does not consume the current character and stays in the same module
----|'":COLLECT"' # Collects the accumulating string and stays in the same module (ignores the curent character in the collection)
 ---|'":ERROR"' # Throws an error. The passedValue will be used as the error message.
 ---| string # Goes to the module with this name
 
@@ -70,7 +68,6 @@ local ModuleMT = {__index = Module}
 ---@class Parsimmon.StateInfo
 ---@field module Parsimmon.ConvertorModule The module the state belongs to. This shouldn't ever be manually set, and is considered read-only.
 ---@field nextState string The next state the module will switch into when the module is called again
----@field collectedString? string The collected string gets stored here if a module is collecting a string and calls collect
 ---@field memory any A field for the module to save small values it needs to keep track of when encoding/decoding
 ---@field intermediate any A field for the module to save an intermediate output value as it's in the process of being created when encoding/decoding
 local StateInfo = {}
@@ -217,18 +214,8 @@ function parsimmon.newConvertorModule()
         decodingStates = {
             start = defaultModuleDecoderStartFn
         },
-        collectString = false
     }
     return setmetatable(module, ModuleMT)
-end
-
---- Enables or disables the module collecting a cumulative string from the input when decoding.
---- This should only be set once.
----@param collectString boolean
----@return self
-function Module:setEnableStringCollection(collectString)
-    self.collectString = collectString
-    return self
 end
 
 --- Defines a new decoding state for the module and the function that processes it.
@@ -254,7 +241,6 @@ function parsimmon.newStateInfo(module)
     local stateInfo = {
         module = module,
         nextState = "start",
-        collectedString = nil,
         memory = nil,
         intermediate = nil
     }
