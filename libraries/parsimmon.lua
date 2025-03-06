@@ -358,4 +358,261 @@ parsimmon.genericModules.consumeWhitespace = parsimmon.newConvertorModule()
         return ":BACK"
     end)
 
+----------------------------------------------------------------------------------------------------
+-- Format implementations !!! (this will get a bit messy)
+----------------------------------------------------------------------------------------------------
+
+-- You can use these as inspiration for writing your own implementations of other formats.
+-- 
+-- At a first glance, it may seem the way to write these is incredibly messy and hard to read,
+-- which is because it is.
+-- 
+-- But I feel that once you get into the zone of thinking in terms of a state machine (called a module here)
+-- switching states and forwarding execution to other state machines, it can get pretty intuitive to write.
+--
+-- The basic thing to work with is - stateInfo to manage states within the state machine,
+-- returned keywords to optionally consume characters and to manage which state machine gets executed next.
+-- Execution forwarded to another state machine appends the state machine to the stack, so that when it returns, it'll go back to the current state machine.
+
+--- Implemented formats ready to be used :-)
+parsimmon.formats = {}
+
+----- JSON -----
+
+local JSONEntry = parsimmon.newConvertorModule()
+local JSONAny = parsimmon.newConvertorModule()
+local JSONNumber = parsimmon.newConvertorModule()
+local JSONString = parsimmon.newConvertorModule()
+local JSONLiteral = parsimmon.newConvertorModule()
+local JSONArray = parsimmon.newConvertorModule()
+local JSONObject = parsimmon.newConvertorModule()
+
+local jsonSymbols = {}
+parsimmon.addCharsToTable(jsonSymbols, "-0123456789", "Number")
+parsimmon.addCharsToTable(jsonSymbols, '"', "String")
+parsimmon.addCharsToTable(jsonSymbols, "[", "Array")
+parsimmon.addCharsToTable(jsonSymbols, "{", "Object")
+parsimmon.addCharsToTable(jsonSymbols, "AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz", "Literal")
+
+JSONEntry
+    :defineDecodingState("start", function (currentChar, stateInfo, passedValue)
+        stateInfo:setNextState("parse")
+        return ":FORWARD", "ConsumeWhitespace"
+    end)
+    :defineDecodingState("parse", function (currentChar, stateInfo, passedValue)
+        stateInfo:setNextState("finish")
+        return ":FORWARD", "Any"
+    end)
+    :defineDecodingState("finish", function (currentChar, stateInfo, passedValue)
+        stateInfo.intermediate = passedValue
+        stateInfo:setNextState("return")
+        return ":FORWARD", "ConsumeWhitespace"
+    end)
+    :defineDecodingState("return", function (currentChar, stateInfo, passedValue)
+        if currentChar ~= "" then
+            return ":ERROR", "Unexpected non-whitespace character after data: " .. tostring(currentChar)
+        end
+        return ":BACK", stateInfo.intermediate
+    end)
+
+JSONAny
+    :defineDecodingState("start", function (currentChar, stateInfo, passedValue)
+        local nextModule = jsonSymbols[currentChar]
+        if currentChar == "" then return ":ERROR", "Expected value but reached end of input string" end
+        if not nextModule then return ":ERROR", "Unexpected symbol: " .. tostring(currentChar) end
+
+        stateInfo:setNextState("return")
+        return ":FORWARD", nextModule
+    end)
+    :defineDecodingState("return", function (currentChar, stateInfo, passedValue)
+        return ":BACK", passedValue
+    end)
+
+JSONNumber
+    :defineDecodingState("start", function (currentChar, stateInfo, passedValue)
+        if parsimmon.charMaps.terminating[currentChar] then
+            local num = tonumber(stateInfo.intermediate)
+
+            if not num then return ":ERROR", "Invalid number" end
+            if num == math.huge or num == -math.huge then return ":ERROR", "Invalid number" end
+            if num ~= num then return ":ERROR", "Invalid number" end
+
+            return ":BACK", num
+        end
+
+        stateInfo.intermediate = (stateInfo.intermediate or "") .. currentChar
+        return ":CONSUME"
+    end)
+
+JSONString
+    :defineDecodingState("start", function (currentChar, stateInfo, passedValue)
+        if currentChar ~= '"' then return ":ERROR", "Strings must start with '\"'" end
+        stateInfo:setNextState("read")
+        return ":CONSUME"
+    end)
+    :defineDecodingState("read", function (currentChar, stateInfo, passedValue)
+        stateInfo.intermediate = stateInfo.intermediate or {}
+
+        if currentChar == "\\" then
+            stateInfo:setNextState("escape")
+            return ":CONSUME"
+        end
+
+        if currentChar == "" then return ":ERROR", "Unterminated string" end
+        if currentChar == "\n" then return ":ERROR", "Raw line breaks are not allowed in string" end
+        if currentChar == '"' then return ":CONSUME+BACK", table.concat(stateInfo.intermediate) end
+
+        stateInfo.intermediate[#stateInfo.intermediate+1] = currentChar
+        return ":CONSUME"
+    end)
+    :defineDecodingState("escape", function (currentChar, stateInfo, passedValue)
+        if currentChar == "" then return ":ERROR", "Unterminated string" end
+        if currentChar == "u" then return ":ERROR", "Unicode escapes are currently unsupported" end
+
+        local escapedChar = parsimmon.charMaps.escapedMeanings[currentChar]
+        if not escapedChar then return ":ERROR", "Invalid escape character" end
+
+        stateInfo.intermediate[#stateInfo.intermediate+1] = escapedChar
+        stateInfo:setNextState("read")
+        return ":CONSUME"
+    end)
+
+JSONLiteral
+    :defineDecodingState("start", function (currentChar, stateInfo, passedValue)
+        if parsimmon.charMaps.terminating[currentChar] then
+            local str = stateInfo.intermediate or ""
+            if str == "true" then return ":BACK", true end
+            if str == "false" then return ":BACK", false end
+            if str == "null" then return ":BACK", nil end
+            return ":ERROR", "Unknown literal: '" .. tostring(str) .. "'"
+        end
+
+        stateInfo.intermediate = (stateInfo.intermediate or "") .. currentChar
+        return ":CONSUME"
+    end)
+
+-- allows trailing commas, which JSON specification doesn't, but no matter
+JSONArray
+    :defineDecodingState("start", function (currentChar, stateInfo, passedValue)
+        stateInfo.intermediate = {} -- array
+        stateInfo.memory = 1 -- next index
+
+        if currentChar ~= "[" then return ":ERROR", "Arrays must start with '['" end
+        stateInfo:setNextState("find-value")
+        return ":CONSUME"
+    end)
+    :defineDecodingState("find-value", function (currentChar, stateInfo, passedValue)
+        stateInfo:setNextState("value")
+        return ":FORWARD", "ConsumeWhitespace"
+    end)
+    :defineDecodingState("value", function (currentChar, stateInfo, passedValue)
+        if currentChar == "]" then
+            stateInfo:setNextState("return")
+            return ":CONSUME"
+        end
+        stateInfo:setNextState("store-value")
+        return ":FORWARD", "Any"
+    end)
+    :defineDecodingState("store-value", function (currentChar, stateInfo, passedValue)
+        stateInfo.intermediate[stateInfo.memory] = passedValue
+        stateInfo.memory = stateInfo.memory + 1
+
+        stateInfo:setNextState("comma")
+        return ":FORWARD", "ConsumeWhitespace"
+    end)
+    :defineDecodingState("comma", function (currentChar, stateInfo, passedValue)
+        if currentChar == "]" then
+            stateInfo:setNextState("return")
+            return ":CONSUME"
+        end
+        if currentChar == "," then
+            stateInfo:setNextState("find-value")
+            return ":CONSUME"
+        end
+        return ":ERROR", "Expected ',' or ']' in array"
+    end)
+    :defineDecodingState("return", function (currentChar, stateInfo, passedValue)
+        return ":BACK", stateInfo.intermediate
+    end)
+
+-- also allows trailing commas even though it technically shouldn't, but it's fine
+JSONObject
+    :defineDecodingState("start", function (currentChar, stateInfo, passedValue)
+        stateInfo.intermediate = {} -- object
+        stateInfo.memory = nil -- next key
+
+        if currentChar ~= "{" then return ":ERROR", "Objects must start with '{'" end
+        stateInfo:setNextState("find-key")
+        return ":CONSUME"
+    end)
+    :defineDecodingState("find-key", function (currentChar, stateInfo, passedValue)
+        stateInfo:setNextState("key")
+        return ":FORWARD", "ConsumeWhitespace"
+    end)
+    :defineDecodingState("key", function (currentChar, stateInfo, passedValue)
+        if currentChar == "}" then
+            stateInfo:setNextState("return")
+            return ":CONSUME"
+        end
+        if currentChar == '"' then
+            stateInfo:setNextState("store-key")
+            return ":FORWARD", "String"
+        end
+        return ":ERROR", "Expected '\"' or '}' in object"
+    end)
+    :defineDecodingState("store-key", function (currentChar, stateInfo, passedValue)
+        stateInfo.memory = passedValue
+        stateInfo:setNextState("colon")
+        return ":FORWARD", "ConsumeWhitespace"
+    end)
+    :defineDecodingState("colon", function (currentChar, stateInfo, passedValue)
+        if currentChar ~= ":" then
+            return ":ERROR", "Expected ':' after property name in object"
+        end
+        stateInfo:setNextState("find-value")
+        return ":CONSUME"
+    end)
+    :defineDecodingState("find-value", function (currentChar, stateInfo, passedValue)
+        stateInfo:setNextState("value")
+        return ":FORWARD", "ConsumeWhitespace"
+    end)
+    :defineDecodingState("value", function (currentChar, stateInfo, passedValue)
+        stateInfo:setNextState("store-value")
+        return ":FORWARD", "Any"
+    end)
+    :defineDecodingState("store-value", function (currentChar, stateInfo, passedValue)
+        stateInfo.intermediate[stateInfo.memory] = passedValue
+        stateInfo.memory = nil -- clear next key
+
+        stateInfo:setNextState("comma")
+        return ":FORWARD", "ConsumeWhitespace"
+    end)
+    :defineDecodingState("comma", function (currentChar, stateInfo, passedValue)
+        if currentChar == "}" then
+            stateInfo:setNextState("return")
+            return ":CONSUME"
+        end
+        if currentChar == "," then
+            stateInfo:setNextState("find-key")
+            return ":CONSUME"
+        end
+        return ":ERROR", "Expected ',' or '}' in object"
+    end)
+    :defineDecodingState("return", function (currentChar, stateInfo, passedValue)
+        return ":BACK", stateInfo.intermediate
+    end)
+
+local JSON = parsimmon.newFormat()
+JSON:defineModule("ConsumeWhitespace", parsimmon.genericModules.consumeWhitespace)
+JSON:defineModule("Entry", JSONEntry)
+JSON:defineModule("Any", JSONAny)
+JSON:defineModule("Number", JSONNumber)
+JSON:defineModule("String", JSONString)
+JSON:defineModule("Literal", JSONLiteral)
+JSON:defineModule("Array", JSONArray)
+JSON:defineModule("Object", JSONObject)
+
+--- JavaScript Object Notation encoder/decoder
+parsimmon.formats.JSON = parsimmon.wrapFormat(JSON)
+
 return parsimmon
