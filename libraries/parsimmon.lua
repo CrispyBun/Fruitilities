@@ -46,7 +46,7 @@ local WrappedFormatMT = {__index = WrappedFormat}
 local Format = {}
 local FormatMT = {__index = Format}
 
---- A module for decoding a part of a Format.
+--- A state machine module for decoding a part of a Format.
 ---@class Parsimmon.ConvertorModule
 ---@field decodingStates table<string, Parsimmon.DecoderStateFn> The states this module can be in when decoding and a function for what to do in that state. All modules have a 'start' state.
 local Module = {}
@@ -68,8 +68,9 @@ local ModuleMT = {__index = Module}
 ---|'":CONSUME+BACK"' # Consumes the current character and goes back to the previous module in the stack (second argument is passed to the module)
 ---|'":CONSUME"' # Consumes the current character and stays in the same module (second argument is passed to the module)
 ---|'":CURRENT"' # Does not consume the current character and stays in the same module (second argument is passed to the module)
----|'":FORWARD"' # Appends the module with the name specified passedValue (second argument) to the stack of modules and moves execution to it
----|'":ERROR"' # Throws an error. The passedValue (second argument) will be used as the error message.
+---|'":FORWARD"' # Appends the module with the name specified by second argument to the stack of modules and moves execution to it
+---|'":CONSUME+FORWARD"' # Consumes the current character, appends the module with the name specified by second argument to the stack of modules and moves execution to it
+---|'":ERROR"' # Throws an error. The second argument will be used as the error message.
 
 --- Info about the state of an active module.
 ---@class Parsimmon.StateInfo
@@ -247,13 +248,15 @@ function Format:feedNextDecodeChar(states, inputStr, charIndex, passedValue)
         throwParseError(inputStr, charIndex, tostring(passedValue))
     end
 
-    if nextModuleKeyword == ":FORWARD" then
+    if nextModuleKeyword == ":FORWARD" or nextModuleKeyword == ":CONSUME+FORWARD" then
+        local consumed = nextModuleKeyword == ":CONSUME+FORWARD"
+
         passedValue = tostring(passedValue)
         local nextModule = self.modules[passedValue]
         if not nextModule then error("Some module in state '" .. tostring(moduleState) .. "' is attempting to forward to undefined module '" .. passedValue .. "' in the format") end
 
         states[#states+1] = parsimmon.newStateInfo(nextModule)
-        return false
+        return consumed
     end
 
     error("Some module in state '" .. tostring(moduleState) .. "' is attempting to execute undefined keyword: " .. tostring(nextModuleKeyword))
@@ -498,12 +501,8 @@ JSONArray
         stateInfo.memory = 1 -- next index
 
         if currentChar ~= "[" then return ":ERROR", "Arrays must start with '['" end
-        stateInfo:setNextState("find-value")
-        return ":CONSUME"
-    end)
-    :defineDecodingState("find-value", function (currentChar, stateInfo, passedValue)
         stateInfo:setNextState("value")
-        return ":FORWARD", "ConsumeWhitespace"
+        return ":CONSUME+FORWARD", "ConsumeWhitespace"
     end)
     :defineDecodingState("value", function (currentChar, stateInfo, passedValue)
         if currentChar == "]" then
@@ -526,8 +525,8 @@ JSONArray
             return ":CONSUME"
         end
         if currentChar == "," then
-            stateInfo:setNextState("find-value")
-            return ":CONSUME"
+            stateInfo:setNextState("value")
+            return ":CONSUME+FORWARD", "ConsumeWhitespace"
         end
         return ":ERROR", "Expected ',' or ']' in array"
     end)
@@ -542,12 +541,8 @@ JSONObject
         stateInfo.memory = nil -- next key
 
         if currentChar ~= "{" then return ":ERROR", "Objects must start with '{'" end
-        stateInfo:setNextState("find-key")
-        return ":CONSUME"
-    end)
-    :defineDecodingState("find-key", function (currentChar, stateInfo, passedValue)
         stateInfo:setNextState("key")
-        return ":FORWARD", "ConsumeWhitespace"
+        return ":CONSUME+FORWARD", "ConsumeWhitespace"
     end)
     :defineDecodingState("key", function (currentChar, stateInfo, passedValue)
         if currentChar == "}" then
@@ -569,12 +564,8 @@ JSONObject
         if currentChar ~= ":" then
             return ":ERROR", "Expected ':' after property name in object"
         end
-        stateInfo:setNextState("find-value")
-        return ":CONSUME"
-    end)
-    :defineDecodingState("find-value", function (currentChar, stateInfo, passedValue)
         stateInfo:setNextState("value")
-        return ":FORWARD", "ConsumeWhitespace"
+        return ":CONSUME+FORWARD", "ConsumeWhitespace"
     end)
     :defineDecodingState("value", function (currentChar, stateInfo, passedValue)
         stateInfo:setNextState("store-value")
@@ -593,8 +584,8 @@ JSONObject
             return ":CONSUME"
         end
         if currentChar == "," then
-            stateInfo:setNextState("find-key")
-            return ":CONSUME"
+            stateInfo:setNextState("key")
+            return ":CONSUME+FORWARD", "ConsumeWhitespace"
         end
         return ":ERROR", "Expected ',' or '}' in object"
     end)
