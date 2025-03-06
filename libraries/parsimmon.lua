@@ -139,6 +139,8 @@ parsimmon.charMaps.terminating = {
     ["\n"] = true,
     ["\r"] = true,
     ["\t"] = true,
+    ["\v"] = true,
+    ["\f"] = true,
     [","] = true,
     [":"] = true,
     [";"] = true,
@@ -147,6 +149,8 @@ parsimmon.charMaps.terminating = {
     ["}"] = true,
     ["["] = true,
     ["]"] = true,
+    ["("] = true,
+    [")"] = true,
     ["<"] = true,
     [">"] = true,
 }
@@ -352,13 +356,26 @@ end
 -- Handy utility modules that can be useful in any format
 parsimmon.genericModules = {}
 
--- Module purely intended for decoding, consumes whitespace and goes back when it finds a non-whitespace character
+-- Module for decoding, consumes whitespace and goes back when it finds a non-whitespace character
 parsimmon.genericModules.consumeWhitespace = parsimmon.newConvertorModule()
     :defineDecodingState("start", function (currentChar, stateInfo, passedValue)
         if parsimmon.charMaps.whitespace[currentChar] then
             return ":CONSUME"
         end
         return ":BACK"
+    end)
+
+-- Module for decoding, concatenates the incoming chars one by one
+-- until it reaches a character from `parsimmon.charMaps.terminating`,
+-- after which it will go back, returning the concatenated string.
+parsimmon.genericModules.concatUntilTerminating = parsimmon.newConvertorModule()
+    :defineDecodingState("start", function (currentChar, stateInfo, passedValue)
+        stateInfo.intermediate = stateInfo.intermediate or ""
+        if parsimmon.charMaps.terminating[currentChar] then
+            return ":BACK", stateInfo.intermediate
+        end
+        stateInfo.intermediate = stateInfo.intermediate .. currentChar
+        return ":CONSUME"
     end)
 
 ----------------------------------------------------------------------------------------------------
@@ -433,18 +450,17 @@ JSONAny
 
 JSONNumber
     :defineDecodingState("start", function (currentChar, stateInfo, passedValue)
-        if parsimmon.charMaps.terminating[currentChar] then
-            local num = tonumber(stateInfo.intermediate)
+        stateInfo:setNextState("return")
+        return ":FORWARD", "ConcatUntilTerminating"
+    end)
+    :defineDecodingState("return", function (currentChar, stateInfo, passedValue)
+        local num = tonumber(passedValue)
 
-            if not num then return ":ERROR", "Invalid number" end
-            if num == math.huge or num == -math.huge then return ":ERROR", "Invalid number" end
-            if num ~= num then return ":ERROR", "Invalid number" end
+        if not num then return ":ERROR", "Invalid number" end
+        if num == math.huge or num == -math.huge then return ":ERROR", "Invalid number" end
+        if num ~= num then return ":ERROR", "Invalid number" end
 
-            return ":BACK", num
-        end
-
-        stateInfo.intermediate = (stateInfo.intermediate or "") .. currentChar
-        return ":CONSUME"
+        return ":BACK", num
     end)
 
 JSONString
@@ -482,16 +498,15 @@ JSONString
 
 JSONLiteral
     :defineDecodingState("start", function (currentChar, stateInfo, passedValue)
-        if parsimmon.charMaps.terminating[currentChar] then
-            local str = stateInfo.intermediate or ""
-            if str == "true" then return ":BACK", true end
-            if str == "false" then return ":BACK", false end
-            if str == "null" then return ":BACK", nil end
-            return ":ERROR", "Unknown literal: '" .. tostring(str) .. "'"
-        end
-
-        stateInfo.intermediate = (stateInfo.intermediate or "") .. currentChar
-        return ":CONSUME"
+        stateInfo:setNextState("return")
+        return ":FORWARD", "ConcatUntilTerminating"
+    end)
+    :defineDecodingState("return", function (currentChar, stateInfo, passedValue)
+        local str = passedValue
+        if str == "true" then return ":BACK", true end
+        if str == "false" then return ":BACK", false end
+        if str == "null" then return ":BACK", nil end
+        return ":ERROR", "Unknown literal: '" .. tostring(str) .. "'"
     end)
 
 -- allows trailing commas, which JSON specification doesn't, but no matter
@@ -595,6 +610,7 @@ JSONObject
 
 local JSON = parsimmon.newFormat()
 JSON:defineModule("ConsumeWhitespace", parsimmon.genericModules.consumeWhitespace)
+JSON:defineModule("ConcatUntilTerminating", parsimmon.genericModules.concatUntilTerminating)
 JSON:defineModule("Entry", JSONEntry)
 JSON:defineModule("Any", JSONAny)
 JSON:defineModule("Number", JSONNumber)
