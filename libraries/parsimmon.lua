@@ -51,6 +51,7 @@ local FormatMT = {__index = Format}
 
 --- A state machine module for decoding a part of a Format.
 ---@class Parsimmon.ConvertorModule
+---@field name string Name of the module, used in error messages.
 ---@field decodingStates table<string, Parsimmon.DecoderStateFn> The states this module can be in when decoding and a function for what to do in that state. All modules have a 'start' state.
 ---@field encodingStates table<string, Parsimmon.EncoderStateFn> The states this module cam be in when encoding and a function for what to do in that state. All modules have a 'start' state.
 local Module = {}
@@ -248,7 +249,7 @@ function Format:feedNextDecodeChar(stack, inputStr, charIndex, passedValue)
     local moduleState = currentModuleStatus.nextState
 
     local decoderStateFn = module.decodingStates[moduleState]
-    if not decoderStateFn then error("A module is attempting to switch to undefined decoder state: " .. tostring(moduleState)) end
+    if not decoderStateFn then error(string.format("Module '%s' is attempting to switch to undefined decoding state '%s'", module.name, tostring(moduleState))) end
 
     local nextModuleKeyword
     nextModuleKeyword, passedValue = decoderStateFn(currentChar, currentModuleStatus, passedValue)
@@ -280,13 +281,13 @@ function Format:feedNextDecodeChar(stack, inputStr, charIndex, passedValue)
 
         passedValue = tostring(passedValue)
         local nextModule = self.modules[passedValue]
-        if not nextModule then error("Some module in state '" .. tostring(moduleState) .. "' is attempting to forward to undefined module '" .. passedValue .. "' in the format") end
+        if not nextModule then error(string.format("Module '%s' in state '%s' is attempting to forward to undefined module '%s' in the format", module.name, moduleState, passedValue)) end
 
         stack[#stack+1] = parsimmon.newModuleStatus(nextModule, currentModuleStatus.inheritedMemory)
         return consumed
     end
 
-    error("Some module in state '" .. tostring(moduleState) .. "' is attempting to execute undefined keyword: " .. tostring(nextModuleKeyword))
+    error(string.format("Module '%s' in state '%s' is attempting to execute undefined keyword: '%s'", module.name, tostring(moduleState), tostring(nextModuleKeyword)))
 end
 
 --- Defines a new encoding/decoding module for the format.
@@ -312,10 +313,12 @@ local function defaultModuleEncoderStartFn()
 end
 
 --- Creates a new module for encoding/decoding parts of a Format.
+---@param name? string Name of the module
 ---@return Parsimmon.ConvertorModule
-function parsimmon.newConvertorModule()
+function parsimmon.newConvertorModule(name)
     -- new Parsimmon.ConvertorModule
     local module = {
+        name = name or "Unnamed module",
         decodingStates = {
             start = defaultModuleDecoderStartFn
         },
@@ -432,13 +435,13 @@ parsimmon.genericModules.concatUntilTerminating = parsimmon.newConvertorModule()
 -- The JSON is littered with a few comments
 -- to hopefully give an example on how to write these.
 
-local JSONEntry = parsimmon.newConvertorModule()
-local JSONAny = parsimmon.newConvertorModule()
-local JSONNumber = parsimmon.newConvertorModule()
-local JSONString = parsimmon.newConvertorModule()
-local JSONLiteral = parsimmon.newConvertorModule()
-local JSONArray = parsimmon.newConvertorModule()
-local JSONObject = parsimmon.newConvertorModule()
+local JSONEntry = parsimmon.newConvertorModule("JSONEntry")
+local JSONAny = parsimmon.newConvertorModule("JSONAny")
+local JSONNumber = parsimmon.newConvertorModule("JSONNumber")
+local JSONString = parsimmon.newConvertorModule("JSONString")
+local JSONLiteral = parsimmon.newConvertorModule("JSONLiteral")
+local JSONArray = parsimmon.newConvertorModule("JSONArray")
+local JSONObject = parsimmon.newConvertorModule("JSONObject")
 
 local jsonSymbols = {}
 parsimmon.addCharsToTable(jsonSymbols, "-0123456789", "Number")
