@@ -77,8 +77,9 @@ local ModuleMT = {__index = Module}
 ---@class Parsimmon.ModuleStatus
 ---@field module Parsimmon.ConvertorModule The module the status belongs to. This shouldn't ever be manually set, and is considered read-only.
 ---@field nextState string The next state the module will switch into when the module is called again
----@field memory any A field for the module to save small values it needs to keep track of when encoding/decoding
 ---@field intermediate any A field for the module to save an intermediate output value as it's in the process of being created when encoding/decoding
+---@field memory any A field for the module to save small values it needs to keep track of when encoding/decoding
+---@field inheritedMemory any Similar to `ModuleStatus.memory`, but this field gets set in each new `ModuleStatus` in the stack from the previous one. Since only the reference gets copied, if a table is put into this field early on, it will essentially serve as a global memory for all the modules.
 local ModuleStatus = {}
 local ModuleStatusMT = {__index = ModuleStatus}
 
@@ -261,7 +262,7 @@ function Format:feedNextDecodeChar(stack, inputStr, charIndex, passedValue)
         local nextModule = self.modules[passedValue]
         if not nextModule then error("Some module in state '" .. tostring(moduleState) .. "' is attempting to forward to undefined module '" .. passedValue .. "' in the format") end
 
-        stack[#stack+1] = parsimmon.newModuleStatus(nextModule)
+        stack[#stack+1] = parsimmon.newModuleStatus(nextModule, currentModuleStatus.inheritedMemory)
         return consumed
     end
 
@@ -314,14 +315,16 @@ end
 
 --- Creates a new ModuleStatus for an active module. This is used internally by Formats to initialize the ModuleStatuses.
 ---@param module Parsimmon.ConvertorModule The module this ModuleStatus belongs to
+---@param inheritedMemory? any The value to set in the `inheritedMemory` field
 ---@return Parsimmon.ModuleStatus
-function parsimmon.newModuleStatus(module)
+function parsimmon.newModuleStatus(module, inheritedMemory)
     -- new Parsimmon.ModuleStatus
     local status = {
         module = module,
         nextState = "start",
+        intermediate = nil,
         memory = nil,
-        intermediate = nil
+        inheritedMemory = inheritedMemory,
     }
     return setmetatable(status, ModuleStatusMT)
 end
