@@ -1,5 +1,5 @@
 ------------------------------------------------------------
--- A (somewhat) generic parsing library
+-- A (somewhat) generic parsing library for readable formats
 -- written by yours truly, CrispyBun.
 -- crispybun@pm.me
 -- https://github.com/CrispyBun/Fruitilities
@@ -31,6 +31,9 @@ SOFTWARE.
 
 local parsimmon = {}
 
+--- Implemented formats ready to be used :-)
+parsimmon.formats = {}
+
 -- Types -------------------------------------------------------------------------------------------
 
 --- The Format wrapped into an interface only intended for encoding/decoding, not implementing
@@ -49,6 +52,7 @@ local FormatMT = {__index = Format}
 --- A state machine module for decoding a part of a Format.
 ---@class Parsimmon.ConvertorModule
 ---@field decodingStates table<string, Parsimmon.DecoderStateFn> The states this module can be in when decoding and a function for what to do in that state. All modules have a 'start' state.
+---@field encodingStates table<string, Parsimmon.EncoderStateFn> The states this module cam be in when encoding and a function for what to do in that state. All modules have a 'start' state.
 local Module = {}
 local ModuleMT = {__index = Module}
 
@@ -59,12 +63,12 @@ local ModuleMT = {__index = Module}
 --- * the module's `ModuleStatus`,
 --- * and any potential value passed from another (or the same) module.
 --- 
---- Returns a keyword (`NextModuleKeyword`) specifying how to do the next module change after this function is done executing.
---- The second return value depends on the `NextModuleKeyword` used, and can either specify the type of module change, or be used as the passedValue passed into the function in the next executed module.
+--- Returns a keyword (`NextModuleDecoderKeyword`) specifying how to do the next module change after this function is done executing.
+--- The second return value depends on the `NextModuleDecoderKeyword` used, and can either specify the type of module change, or be used as the passedValue passed into the function in the next executed module.
 --- If this is the Entry module and it executes ":BACK", the second argument is the final decoded value.
----@alias Parsimmon.DecoderStateFn fun(currentChar: string, status: Parsimmon.ModuleStatus, passedValue: any): Parsimmon.NextModuleKeyword, any
+---@alias Parsimmon.DecoderStateFn fun(currentChar: string, status: Parsimmon.ModuleStatus, passedValue: any): Parsimmon.NextModuleDecoderKeyword, any
 
----@alias Parsimmon.NextModuleKeyword
+---@alias Parsimmon.NextModuleDecoderKeyword
 ---|'":BACK"' # Goes back to the previous module in the stack (second argument is passed to the module)
 ---|'":CONSUME+BACK"' # Consumes the current character and goes back to the previous module in the stack (second argument is passed to the module)
 ---|'":CONSUME"' # Consumes the current character and stays in the same module (second argument is passed to the module)
@@ -72,6 +76,22 @@ local ModuleMT = {__index = Module}
 ---|'":FORWARD"' # Appends the module with the name specified by second argument to the stack of modules and moves execution to it
 ---|'":CONSUME+FORWARD"' # Consumes the current character, appends the module with the name specified by second argument to the stack of modules and moves execution to it
 ---|'":ERROR"' # Throws an error. The second argument will be used as the error message.
+
+--- The function that decides what to do in a given encoder state in a module.
+--- 
+--- Receives:
+--- * the value it's currently acting on (this is sent in from the previous module),
+--- * and the module's `ModuleStatus`.
+--- 
+--- Returns a keyword (`NextModuleEncoderKeyword`) specifying how to do the next module change and potentially what string to yield to the output.
+--- The second and third return values are used for some specific returned keywords.
+---@alias Parsimmon.EncoderStateFn fun(value: any, status: Parsimmon.ModuleStatus): Parsimmon.NextModuleEncoderKeyword, string?, any
+
+---@alias Parsimmon.NextModuleEncoderKeyword
+---|'":YIELD"' # Yields the second argument (a string) to the final output. All yields from all modules will be concatenated in order, to produce the final encoded value.
+---|'":FORWARD"' # Forwards execution to the module with the name specified in the second argument. The third argument will be used as the `value` passed into that module to encode.
+---|'":BACK"' # Returns execution back to the previous module in the stack.
+---|'":YIELD+BACK"' # Yields the second argument to the final output and goes back to the previous module in the stack.
 
 --- Info about the status of an active module.
 ---@class Parsimmon.ModuleStatus
@@ -282,8 +302,13 @@ end
 -- ConvertorModule creation (for Formats) ---------------------------------------------------------
 
 ---@type Parsimmon.DecoderStateFn
-local function defaultModuleDecoderStartFn(_, _, passedValue)
+local function defaultModuleDecoderStartFn()
     error("No 'start' decoding state defined for this module")
+end
+
+---@type Parsimmon.EncoderStateFn
+local function defaultModuleEncoderStartFn()
+    error("No 'start' encoding state defined for this module")
 end
 
 --- Creates a new module for encoding/decoding parts of a Format.
@@ -294,6 +319,9 @@ function parsimmon.newConvertorModule()
         decodingStates = {
             start = defaultModuleDecoderStartFn
         },
+        encodingStates = {
+            start = defaultModuleEncoderStartFn
+        }
     }
     return setmetatable(module, ModuleMT)
 end
@@ -398,9 +426,6 @@ parsimmon.genericModules.concatUntilTerminating = parsimmon.newConvertorModule()
 -- The basic thing to work with is - status to manage states within the state machine,
 -- returned keywords to consume characters and to manage which state machine gets executed next.
 -- Execution forwarded to another state machine appends the state machine to the stack, so that when it returns, it'll go back to the current state machine.
-
---- Implemented formats ready to be used :-)
-parsimmon.formats = {}
 
 ----- JSON -----
 
