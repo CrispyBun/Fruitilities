@@ -401,6 +401,9 @@ parsimmon.formats = {}
 
 ----- JSON -----
 
+-- The JSON is littered with a few comments
+-- to hopefully give an example on how to write these.
+
 local JSONEntry = parsimmon.newConvertorModule()
 local JSONAny = parsimmon.newConvertorModule()
 local JSONNumber = parsimmon.newConvertorModule()
@@ -416,6 +419,7 @@ parsimmon.addCharsToTable(jsonSymbols, "[", "Array")
 parsimmon.addCharsToTable(jsonSymbols, "{", "Object")
 parsimmon.addCharsToTable(jsonSymbols, "AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz", "Literal")
 
+-- eats surrounding whitespaces, forwards the contents it finds to "Any"
 JSONEntry
     :defineDecodingState("start", function (currentChar, status, passedValue)
         status:setNextState("parse")
@@ -437,6 +441,8 @@ JSONEntry
         return ":BACK", status.intermediate
     end)
 
+-- assumes the first char it gets is the first char of the value.
+-- determines the type based on the first symbol and forwards it to the appropriate module.
 JSONAny
     :defineDecodingState("start", function (currentChar, status, passedValue)
         local nextModule = jsonSymbols[currentChar]
@@ -450,6 +456,8 @@ JSONAny
         return ":BACK", passedValue
     end)
 
+-- assumes the first char it gets is the first char of the number.
+-- supports decoding some notations that JSON specs don't, like hexadecimal.
 JSONNumber
     :defineDecodingState("start", function (currentChar, status, passedValue)
         status:setNextState("return")
@@ -465,14 +473,15 @@ JSONNumber
         return ":BACK", num
     end)
 
+-- assumes the first char is the opening quote of the string.
 JSONString
     :defineDecodingState("start", function (currentChar, status, passedValue)
         if currentChar ~= '"' then return ":ERROR", "Strings must start with '\"'" end
         status:setNextState("read")
-        return ":CONSUME"
+        return ":CONSUME" -- consume the opening quote, move on to reading the string itself
     end)
     :defineDecodingState("read", function (currentChar, status, passedValue)
-        status.intermediate = status.intermediate or {}
+        status.intermediate = status.intermediate or {} -- collected chars to be concatenated at the end
 
         if currentChar == "\\" then
             status:setNextState("escape")
@@ -481,7 +490,7 @@ JSONString
 
         if currentChar == "" then return ":ERROR", "Unterminated string" end
         if currentChar == "\n" then return ":ERROR", "Raw line breaks are not allowed in string" end
-        if currentChar == '"' then return ":CONSUME+BACK", table.concat(status.intermediate) end
+        if currentChar == '"' then return ":CONSUME+BACK", table.concat(status.intermediate) end -- consume the closing quote and return the string
 
         status.intermediate[#status.intermediate+1] = currentChar
         return ":CONSUME"
@@ -498,6 +507,8 @@ JSONString
         return ":CONSUME"
     end)
 
+-- assumes the first char it gets is the first char of the literal.
+-- nulls are parsed as nils, which may cause things like holes in arrays or the values simply not being in the final object. this is unfortunately just a lua limitation.
 JSONLiteral
     :defineDecodingState("start", function (currentChar, status, passedValue)
         status:setNextState("return")
@@ -511,7 +522,8 @@ JSONLiteral
         return ":ERROR", "Unknown literal: '" .. tostring(str) .. "'"
     end)
 
--- allows trailing commas, which JSON specification doesn't, but no matter
+-- assumes the first char is the opening bracket of the array.
+-- supports decoding arrays with trailing commas, which JSON specification doesn't.
 JSONArray
     :defineDecodingState("start", function (currentChar, status, passedValue)
         status.intermediate = {} -- array
@@ -519,15 +531,15 @@ JSONArray
 
         if currentChar ~= "[" then return ":ERROR", "Arrays must start with '['" end
         status:setNextState("value")
-        return ":CONSUME+FORWARD", "ConsumeWhitespace"
+        return ":CONSUME+FORWARD", "ConsumeWhitespace" -- consume the '[', forward to eating whitespace, then next char will be the value
     end)
     :defineDecodingState("value", function (currentChar, status, passedValue)
-        if currentChar == "]" then
+        if currentChar == "]" then -- no value, array closed instead
             status:setNextState("return")
             return ":CONSUME"
         end
         status:setNextState("store-value")
-        return ":FORWARD", "Any"
+        return ":FORWARD", "Any" -- forward to parsing the value (Any)
     end)
     :defineDecodingState("store-value", function (currentChar, status, passedValue)
         status.intermediate[status.memory] = passedValue
@@ -537,13 +549,13 @@ JSONArray
         return ":FORWARD", "ConsumeWhitespace"
     end)
     :defineDecodingState("comma", function (currentChar, status, passedValue)
-        if currentChar == "]" then
+        if currentChar == "]" then -- no comma, array closed instead
             status:setNextState("return")
             return ":CONSUME"
         end
         if currentChar == "," then
             status:setNextState("value")
-            return ":CONSUME+FORWARD", "ConsumeWhitespace"
+            return ":CONSUME+FORWARD", "ConsumeWhitespace" -- consume comma, consume whitespace, go back to looking for a value
         end
         return ":ERROR", "Expected ',' or ']' in array"
     end)
@@ -551,7 +563,8 @@ JSONArray
         return ":BACK", status.intermediate
     end)
 
--- also allows trailing commas even though it technically shouldn't, but it's fine
+-- assumes the first char is the opening brace of the object.
+-- supports decoding objects with trailing commas, which JSON specification doesn't.
 JSONObject
     :defineDecodingState("start", function (currentChar, status, passedValue)
         status.intermediate = {} -- object
@@ -562,18 +575,18 @@ JSONObject
         return ":CONSUME+FORWARD", "ConsumeWhitespace"
     end)
     :defineDecodingState("key", function (currentChar, status, passedValue)
-        if currentChar == "}" then
+        if currentChar == "}" then -- no key, object closed
             status:setNextState("return")
             return ":CONSUME"
         end
         if currentChar == '"' then
             status:setNextState("store-key")
-            return ":FORWARD", "String"
+            return ":FORWARD", "String" -- forward to parsing key (always a String)
         end
         return ":ERROR", "Expected '\"' or '}' in object"
     end)
     :defineDecodingState("store-key", function (currentChar, status, passedValue)
-        status.memory = passedValue
+        status.memory = passedValue -- store next key
         status:setNextState("colon")
         return ":FORWARD", "ConsumeWhitespace"
     end)
@@ -586,17 +599,17 @@ JSONObject
     end)
     :defineDecodingState("value", function (currentChar, status, passedValue)
         status:setNextState("store-value")
-        return ":FORWARD", "Any"
+        return ":FORWARD", "Any" -- forward to parsing value (Any)
     end)
     :defineDecodingState("store-value", function (currentChar, status, passedValue)
         status.intermediate[status.memory] = passedValue
-        status.memory = nil -- clear next key
+        status.memory = nil -- clear next key just for clarity
 
         status:setNextState("comma")
         return ":FORWARD", "ConsumeWhitespace"
     end)
     :defineDecodingState("comma", function (currentChar, status, passedValue)
-        if currentChar == "}" then
+        if currentChar == "}" then -- no comma, object closed
             status:setNextState("return")
             return ":CONSUME"
         end
