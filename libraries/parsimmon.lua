@@ -435,8 +435,10 @@ end
 --- The stateName `"start"` is the entry point of the module.
 ---@param stateName string
 ---@param stateFn Parsimmon.EncoderStateFn
+---@return self self
 function Module:defineEncodingState(stateName, stateFn)
     self.encodingStates[stateName] = stateFn
+    return self
 end
 
 -- ModuleStatus creation (for ConvertorModules) ----------------------------------------------------
