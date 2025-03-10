@@ -70,13 +70,13 @@ local ModuleMT = {__index = Module}
 ---@alias Parsimmon.DecoderStateFn fun(currentChar: string, status: Parsimmon.ModuleStatus, passedValue: any): Parsimmon.NextModuleDecoderKeyword, any
 
 ---@alias Parsimmon.NextModuleDecoderKeyword
----|'":BACK"' # Goes back to the previous module in the stack (second argument is passed to the module)
----|'":CONSUME+BACK"' # Consumes the current character and goes back to the previous module in the stack (second argument is passed to the module)
----|'":CONSUME"' # Consumes the current character and stays in the same module (second argument is passed to the module)
----|'":CURRENT"' # Does not consume the current character and stays in the same module (second argument is passed to the module)
----|'":FORWARD"' # Appends the module with the name specified by second argument to the stack of modules and moves execution to it
----|'":CONSUME+FORWARD"' # Consumes the current character, appends the module with the name specified by second argument to the stack of modules and moves execution to it
----|'":ERROR"' # Throws an error. The second argument will be used as the error message.
+---|'":BACK"' # Goes back to the previous module in the stack (second return value is passed to the module)
+---|'":CONSUME+BACK"' # Consumes the current character and goes back to the previous module in the stack (second return value is passed to the module)
+---|'":CONSUME"' # Consumes the current character and stays in the same module (second return value is passed to the module)
+---|'":CURRENT"' # Does not consume the current character and stays in the same module (second return value is passed to the module)
+---|'":FORWARD"' # Appends the module with the name specified by second return value to the stack of modules and moves execution to it
+---|'":CONSUME+FORWARD"' # Consumes the current character, appends the module with the name specified by second return value to the stack of modules and moves execution to it
+---|'":ERROR"' # Throws an error. The second return value will be used as the error message.
 
 --- The function that decides what to do in a given encoder state in a module.
 --- 
@@ -89,10 +89,12 @@ local ModuleMT = {__index = Module}
 ---@alias Parsimmon.EncoderStateFn fun(value: any, status: Parsimmon.ModuleStatus): Parsimmon.NextModuleEncoderKeyword, string?, any
 
 ---@alias Parsimmon.NextModuleEncoderKeyword
----|'":YIELD"' # Yields the second argument (a string) to the final output. All yields from all modules will be concatenated in order, to produce the final encoded value.
----|'":FORWARD"' # Forwards execution to the module with the name specified in the second argument. The third argument will be used as the `value` passed into that module to encode.
+---|'":YIELD"' # Yields the second return value (a string) to the final output. All yields from all modules will be concatenated by parsimmon to produce the final encoded value.
+---|'":CURRENT"' # Keeps execution in the same module.
+---|'":FORWARD"' # Forwards execution to the module with the name specified in the second return value. The third return value will be used as the `value` passed into that module to encode.
 ---|'":BACK"' # Returns execution back to the previous module in the stack.
----|'":YIELD+BACK"' # Yields the second argument to the final output and goes back to the previous module in the stack.
+---|'":YIELD+BACK"' # Yields the second return value to the final output and goes back to the previous module in the stack.
+---|'":ERROR"' # Throws an error. The second return value will be used as the error message.
 
 --- Info about the status of an active module.
 ---@class Parsimmon.ModuleStatus
@@ -101,6 +103,7 @@ local ModuleMT = {__index = Module}
 ---@field intermediate any A field for the module to save an intermediate output value as it's in the process of being created when encoding/decoding
 ---@field memory any A field for the module to save small values it needs to keep track of when encoding/decoding
 ---@field inheritedMemory any Similar to `ModuleStatus.memory`, but this field gets set in each new `ModuleStatus` in the stack from the previous one. Since only the reference gets copied, if a table is put into this field early on, it will essentially serve as a global memory for all the modules.
+---@field valueToEncode any Only used in encoding. This is the value that gets passed as the `value` parameter for each call of the module.
 local ModuleStatus = {}
 local ModuleStatusMT = {__index = ModuleStatus}
 
@@ -133,6 +136,10 @@ local function throwParseError(inputStr, i, errMessage)
     error("Parse error near '" .. char .. "' at line " .. line .. " column " .. column .. ": " .. errMessage, 4)
 end
 
+local function throwEncodeError(errMessage)
+    error("Error trying to encode value: " .. errMessage, 4)
+end
+
 ---@param t table
 ---@param chars string
 ---@param value any
@@ -143,6 +150,7 @@ function parsimmon.addCharsToTable(t, chars, value)
     end
 end
 
+-- Useful maps of certain sets of characters
 parsimmon.charMaps = {}
 
 -- Whitespace characters
@@ -207,11 +215,7 @@ end
 ---@param str string
 ---@return any
 function Format:decode(str)
-    local startModule = self.modules[self.entryModuleName]
-    if not startModule then error("Entry module '" .. tostring(self.entryModuleName) .. "' is not present in the Format") end
-
-    ---@type Parsimmon.ModuleStatus[]
-    local stack = {parsimmon.newModuleStatus(startModule)}
+    local stack = self:prepareModuleStack()
 
     local charIndex = 1
     local passedValue
@@ -228,6 +232,36 @@ function Format:decode(str)
     return passedValue
 end
 Format.parse = Format.decode
+
+--- Encodes the given value as specified by the format.
+---@param value any
+---@return string
+function Format:encode(value)
+    local stack = self:prepareModuleStack(value)
+
+    ---@type string[]
+    local output = {}
+    while #stack > 0 do
+        local yieldedString = self:feedNextEncodePulse(stack)
+        if yieldedString then output[#output+1] = yieldedString end
+    end
+
+    return table.concat(output)
+end
+
+--- Prepares the initial stack of ModuleStatuses for encoding or decoding. Used internally.
+---@private
+---@param valueToEncode? any The initial value to encode if encoding
+---@return Parsimmon.ModuleStatus[]
+function Format:prepareModuleStack(valueToEncode)
+    local startModule = self.modules[self.entryModuleName]
+    if not startModule then error("Entry module '" .. tostring(self.entryModuleName) .. "' is not present in the Format", 2) end
+
+    ---@type Parsimmon.ModuleStatus[]
+    local stack = {parsimmon.newModuleStatus(startModule, nil, valueToEncode)}
+
+    return stack
+end
 
 --- Feeds the next character into an in-progress decoding stack of ModuleStatuses. Used internally.
 ---@private
@@ -290,6 +324,58 @@ function Format:feedNextDecodeChar(stack, inputStr, charIndex, passedValue)
     error(string.format("Module '%s' in state '%s' is attempting to execute undefined keyword: '%s'", module.name, tostring(moduleState), tostring(nextModuleKeyword)))
 end
 
+--- Pulses an in-progress encoding stack of ModuleStatuses. Used internally.
+---@private
+---@param stack Parsimmon.ModuleStatus[]
+---@return string? yieldedString
+function Format:feedNextEncodePulse(stack)
+    if #stack == 0 then
+        error("Stack of statuses is empty", 2)
+    end
+
+    local currentModuleStatus = stack[#stack]
+    local module = currentModuleStatus.module
+    local moduleState = currentModuleStatus.nextState
+
+    local encoderStateFn = module.encodingStates[moduleState]
+    if not encoderStateFn then error(string.format("Module '%s' is attempting to switch to undefined encoding state '%s'", module.name, tostring(moduleState))) end
+
+    local nextModuleKeyword, secondReturn, thirdReturn = encoderStateFn(currentModuleStatus.valueToEncode, currentModuleStatus)
+
+    if nextModuleKeyword == ":YIELD" then
+        return tostring(secondReturn)
+    end
+
+    if nextModuleKeyword == ":YIELD+BACK" then
+        stack[#stack] = nil
+        return tostring(secondReturn)
+    end
+
+    if nextModuleKeyword == ":BACK" then
+        stack[#stack] = nil
+        return
+    end
+
+    if nextModuleKeyword == ":CURRENT" then
+        return
+    end
+
+    if nextModuleKeyword == ":ERROR" then
+        throwEncodeError(tostring(secondReturn))
+    end
+
+    if nextModuleKeyword == ":FORWARD" then
+        secondReturn = tostring(secondReturn)
+        local nextModule = self.modules[secondReturn]
+        if not nextModule then error(string.format("Module '%s' in state '%s' is attempting to forward to undefined module '%s' in the format", module.name, moduleState, secondReturn)) end
+
+        stack[#stack+1] = parsimmon.newModuleStatus(nextModule, currentModuleStatus.inheritedMemory, thirdReturn)
+        return
+    end
+
+    error(string.format("Module '%s' in state '%s' is attempting to execute undefined keyword: '%s'", module.name, tostring(moduleState), tostring(nextModuleKeyword)))
+end
+
 --- Defines a new encoding/decoding module for the format.
 ---@param name string
 ---@param module Parsimmon.ConvertorModule
@@ -347,8 +433,9 @@ end
 --- Creates a new ModuleStatus for an active module. This is used internally by Formats to initialize the ModuleStatuses.
 ---@param module Parsimmon.ConvertorModule The module this ModuleStatus belongs to
 ---@param inheritedMemory? any The value to set in the `inheritedMemory` field
+---@param valueToEncode? any The value to set in the `valueToEncode` field
 ---@return Parsimmon.ModuleStatus
-function parsimmon.newModuleStatus(module, inheritedMemory)
+function parsimmon.newModuleStatus(module, inheritedMemory, valueToEncode)
     -- new Parsimmon.ModuleStatus
     local status = {
         module = module,
@@ -356,6 +443,7 @@ function parsimmon.newModuleStatus(module, inheritedMemory)
         intermediate = nil,
         memory = nil,
         inheritedMemory = inheritedMemory,
+        valueToEncode = valueToEncode,
     }
     return setmetatable(status, ModuleStatusMT)
 end
@@ -380,11 +468,20 @@ function parsimmon.wrapFormat(format)
     return setmetatable(wrapped, WrappedFormatMT)
 end
 
+--- ### WrappedFormat:decode(str)
 --- Decodes the given string as specified by the format.
 ---@param str string
 ---@return any
 function WrappedFormat:decode(str)
     return self.format:decode(str)
+end
+
+--- ### WrappedFormat:encode(value)
+--- Encodes the given value as specified by the format.
+---@param value any
+---@return string
+function WrappedFormat:encode(value)
+    return self.format:encode(value)
 end
 
 -- Useful convertor module implementations ---------------------------------------------------------
