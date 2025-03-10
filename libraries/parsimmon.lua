@@ -354,6 +354,7 @@ function Format:encode(value)
 
     return table.concat(output)
 end
+Format.stringify = Format.encode
 
 --- Prepares the initial stack of ModuleStatuses for encoding or decoding. Used internally.
 ---@private
@@ -594,6 +595,7 @@ end
 function WrappedFormat:decode(str)
     return self.format:decode(str)
 end
+WrappedFormat.parse = WrappedFormat.decode
 
 --- ### WrappedFormat:encode(value)
 --- Encodes the given value as specified by the format.
@@ -602,6 +604,7 @@ end
 function WrappedFormat:encode(value)
     return self.format:encode(value)
 end
+WrappedFormat.stringify = WrappedFormat.encode
 
 -- Useful convertor module implementations ---------------------------------------------------------
 
