@@ -415,7 +415,7 @@ function parsimmon.newConvertorModule(name)
     return setmetatable(module, ModuleMT)
 end
 
---- Defines a new decoding state for the module and the function that processes it.
+--- Defines a new decoding state for the module and adds the function that processes it.
 --- 
 --- If the state already exists, it overwrites it.
 --- 
@@ -426,6 +426,17 @@ end
 function Module:defineDecodingState(stateName, stateFn)
     self.decodingStates[stateName] = stateFn
     return self
+end
+
+--- Defines a new encoding state for the module and adds the function that processes it.
+--- 
+--- If the state already exists, it overwrites it.
+--- 
+--- The stateName `"start"` is the entry point of the module.
+---@param stateName string
+---@param stateFn Parsimmon.EncoderStateFn
+function Module:defineEncodingState(stateName, stateFn)
+    self.encodingStates[stateName] = stateFn
 end
 
 -- ModuleStatus creation (for ConvertorModules) ----------------------------------------------------
