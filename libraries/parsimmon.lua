@@ -186,7 +186,44 @@ parsimmon.charMaps.terminating = {
     [">"] = true,
 }
 
--- Characters which can generally be present after a backslash in strings containing a specific meaning
+-- Control characters.
+-- Each is either mapped to an empty string or a character that is usually used after a backslash to represent it.
+parsimmon.charMaps.controlCharacters = {
+    ["\00"] = "",
+    ["\01"] = "",
+    ["\02"] = "",
+    ["\03"] = "",
+    ["\04"] = "",
+    ["\05"] = "",
+    ["\06"] = "",
+    ["\07"] = "a",
+    ["\08"] = "b",
+    ["\09"] = "t",
+    ["\10"] = "n",
+    ["\11"] = "v",
+    ["\12"] = "f",
+    ["\13"] = "r",
+    ["\14"] = "",
+    ["\15"] = "",
+    ["\16"] = "",
+    ["\17"] = "",
+    ["\18"] = "",
+    ["\19"] = "",
+    ["\20"] = "",
+    ["\21"] = "",
+    ["\22"] = "",
+    ["\23"] = "",
+    ["\24"] = "",
+    ["\25"] = "",
+    ["\26"] = "",
+    ["\27"] = "",
+    ["\28"] = "",
+    ["\29"] = "",
+    ["\30"] = "",
+    ["\31"] = "",
+}
+
+-- Characters which can generally be present after a backslash to represent some different special character
 parsimmon.charMaps.escapedMeanings = {
     ["n"] = "\n",
     ["r"] = "\r",
@@ -194,8 +231,7 @@ parsimmon.charMaps.escapedMeanings = {
     ["v"] = "\v",
     ["f"] = "\f",
     ["a"] = "\a",
-    ["\\"] = "\\",
-    ['"'] = '"',
+    ["b"] = "\b",
 }
 
 -- Format creation ---------------------------------------------------------------------------------
@@ -559,6 +595,8 @@ do
     local JSONArray = parsimmon.newConvertorModule("JSONArray")
     local JSONObject = parsimmon.newConvertorModule("JSONObject")
 
+    --- decoding:
+
     local jsonSymbols = {}
     parsimmon.addCharsToTable(jsonSymbols, "-0123456789", "Number")
     parsimmon.addCharsToTable(jsonSymbols, '"', "String")
@@ -637,6 +675,7 @@ do
 
             if currentChar == "" then return ":ERROR", "Unterminated string" end
             if currentChar == "\n" then return ":ERROR", "Raw line breaks are not allowed in string" end
+            if parsimmon.charMaps.controlCharacters[currentChar] then return ":ERROR", "Illegal control character" end
             if currentChar == '"' then return ":CONSUME+BACK", table.concat(status.intermediate) end -- consume the closing quote and return the string
 
             status.intermediate[#status.intermediate+1] = currentChar
@@ -647,7 +686,13 @@ do
             if currentChar == "u" then return ":ERROR", "Unicode escapes are currently unsupported" end
 
             local escapedChar = parsimmon.charMaps.escapedMeanings[currentChar]
-            if not escapedChar then return ":ERROR", "Invalid escape character" end
+            if not escapedChar then
+                if currentChar == '"' or currentChar == "/" or currentChar == "\\" then
+                    escapedChar = currentChar
+                else
+                    if not escapedChar then return ":ERROR", "Invalid escape character" end
+                end
+            end
 
             status.intermediate[#status.intermediate+1] = escapedChar
             status:setNextState("read")
