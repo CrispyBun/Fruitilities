@@ -389,13 +389,13 @@ end
 -- ConvertorModule creation (for Formats) ---------------------------------------------------------
 
 ---@type Parsimmon.DecoderStateFn
-local function defaultModuleDecoderStartFn()
-    error("No 'start' decoding state defined for this module")
+local function defaultModuleDecoderStartFn(_, status)
+    error(string.format("No 'start' decoding state defined for module '%s'", status.module.name))
 end
 
 ---@type Parsimmon.EncoderStateFn
-local function defaultModuleEncoderStartFn()
-    error("No 'start' encoding state defined for this module")
+local function defaultModuleEncoderStartFn(_, status)
+    error(string.format("No 'start' encoding state defined for module '%s'", status.module.name))
 end
 
 --- Creates a new module for encoding/decoding parts of a Format.
