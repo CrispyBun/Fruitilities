@@ -46,6 +46,7 @@ local WrappedFormatMT = {__index = WrappedFormat}
 ---@class Parsimmon.Format
 ---@field modules table<string, Parsimmon.ConvertorModule>
 ---@field entryModuleName string The module that will first be called when encoding/decoding (default is "Entry")
+---@field _decoder? Parsimmon.ChunkDecoder An internal decoder for decoding things in one go
 local Format = {}
 local FormatMT = {__index = Format}
 
@@ -67,10 +68,12 @@ local ModuleMT = {__index = Module}
 --- Returns a keyword (`NextModuleDecoderKeyword`) specifying how to do the next module change after this function is done executing.
 --- The second return value depends on the `NextModuleDecoderKeyword` used, and can either specify the type of module change, or be used as the passedValue passed into the function in the next executed module.
 --- If this is the Entry module and it executes ":BACK", the second argument is the final decoded value.
+--- 
+--- It is possible for a decoder to ouput the final value before the input string is read fully.
 ---@alias Parsimmon.DecoderStateFn fun(currentChar: string, status: Parsimmon.ModuleStatus, passedValue: any): Parsimmon.NextModuleDecoderKeyword, any
 
 ---@alias Parsimmon.NextModuleDecoderKeyword
----|'":BACK"' # Goes back to the previous module in the stack (second return value is passed to the module)
+---|'":BACK"' # Goes back to the previous module in the stack (second return value is passed to the module). The root (Entry) module calling this is seen as it giving the final returned decoded value and decoding can stop.
 ---|'":CONSUME+BACK"' # Consumes the current character and goes back to the previous module in the stack (second return value is passed to the module)
 ---|'":CONSUME"' # Consumes the current character and stays in the same module (second return value is passed to the module)
 ---|'":CURRENT"' # Does not consume the current character and stays in the same module (second return value is passed to the module)
@@ -89,10 +92,10 @@ local ModuleMT = {__index = Module}
 ---@alias Parsimmon.EncoderStateFn fun(value: any, status: Parsimmon.ModuleStatus): Parsimmon.NextModuleEncoderKeyword, string?, any
 
 ---@alias Parsimmon.NextModuleEncoderKeyword
----|'":YIELD"' # Yields the second return value (a string) to the final output. All yields from all modules will be concatenated by parsimmon to produce the final encoded value.
+---|'":YIELD"' # Yields the second return value (a string) to the final output. All yields from all modules will be concatenated by parsimmon to produce the final encoded value and encoding can stop.
 ---|'":CURRENT"' # Keeps execution in the same module.
 ---|'":FORWARD"' # Forwards execution to the module with the name specified in the second return value. The third return value will be used as the `value` passed into that module to encode.
----|'":BACK"' # Returns execution back to the previous module in the stack.
+---|'":BACK"' # Returns execution back to the previous module in the stack. The root (Entry) module calling this is seen as information that the final string has been yielded.
 ---|'":YIELD+BACK"' # Yields the second return value to the final output and goes back to the previous module in the stack.
 ---|'":ERROR"' # Throws an error. The second return value will be used as the error message.
 
@@ -107,12 +110,29 @@ local ModuleMT = {__index = Module}
 local ModuleStatus = {}
 local ModuleStatusMT = {__index = ModuleStatus}
 
+--- Holds a state and allows decoding a string in chunks.
+---@class Parsimmon.ChunkDecoder
+---@field format Parsimmon.Format The format used for decoding
+---@field stack Parsimmon.ModuleStatus[] The state
+---@field passedValue any Passed value from previous state to pass to the next state
+---@field firstChunkFed boolean
+local ChunkDecoder = {}
+local ChunkDecoderMT = {__index = ChunkDecoder}
+
 -- Utility -----------------------------------------------------------------------------------------
 
 ---@param inputStr string
 ---@param i integer
 ---@param errMessage string
-local function throwParseError(inputStr, i, errMessage)
+---@param unknownLineAndColumn? boolean
+local function throwParseError(inputStr, i, errMessage, unknownLineAndColumn)
+    if unknownLineAndColumn then
+        if inputStr == "" then
+            error("Parse error near end of input string: " .. errMessage, 4)
+        end
+        error("Parse error near '" .. inputStr:sub(i,i) .. "': " .. errMessage, 4)
+    end
+
     local line = 1
     local column = 0
     local doLineBreak = false
@@ -291,6 +311,7 @@ parsimmon.charMaps.controlCharacters = {
     ["\29"] = "",
     ["\30"] = "",
     ["\31"] = "",
+    ["\127"] = "",
 }
 
 -- Characters which can generally be present after a backslash to represent some different special character
@@ -321,21 +342,12 @@ end
 ---@param str string
 ---@return any
 function Format:decode(str)
-    local stack = self:prepareModuleStack()
+    local decoder = self._decoder or self:newChunkDecoder()
+    self._decoder = decoder
 
-    local charIndex = 1
-    local passedValue
-    while #stack > 0 do
-        local incrementChar
-        incrementChar, passedValue = self:feedNextDecodeChar(stack, str, charIndex, passedValue)
-        charIndex = incrementChar and (charIndex + 1) or (charIndex)
-    end
-
-    -- TODO: we just exited, but we might not be at the end of the string.
-    -- add configurable boolean (probably true by default) to format,
-    -- which says whether or not we should error if we aren't at the end of the string here.
-
-    return passedValue
+    decoder:reset()
+    decoder:continue(str)
+    return decoder:finish()
 end
 Format.parse = Format.decode
 
@@ -356,8 +368,14 @@ function Format:encode(value)
 end
 Format.stringify = Format.encode
 
---- Prepares the initial stack of ModuleStatuses for encoding or decoding. Used internally.
----@private
+--- Creates a new chunk decoder that can decode a string in chunks.
+function Format:newChunkDecoder()
+    local decoder = parsimmon.newChunkDecoder(self)
+    return decoder
+end
+
+--- Prepares the initial stack of ModuleStatuses for encoding or decoding.  
+--- This is usually used internally unless you want to manually feed each step of the decoder/encoder for whatever reason.
 ---@param valueToEncode? any The initial value to encode if encoding
 ---@return Parsimmon.ModuleStatus[]
 function Format:prepareModuleStack(valueToEncode)
@@ -370,15 +388,18 @@ function Format:prepareModuleStack(valueToEncode)
     return stack
 end
 
---- Feeds the next character into an in-progress decoding stack of ModuleStatuses. Used internally.
----@private
+--- Feeds the next character into an in-progress decoding stack of ModuleStatuses.  
+--- This is usually just used internally, and you should use methods like `Format:decode()` instead.
+--- 
+--- The format is done decoding once the stack is empty.
 ---@param stack Parsimmon.ModuleStatus[]
 ---@param inputStr string
 ---@param charIndex integer
 ---@param passedValue any
+---@param unknownLineAndColumn? boolean
 ---@return boolean incrementChar
 ---@return any passedValue
-function Format:feedNextDecodeChar(stack, inputStr, charIndex, passedValue)
+function Format:feedNextDecodeChar(stack, inputStr, charIndex, passedValue, unknownLineAndColumn)
     if #stack == 0 then
         error("Stack of statuses is empty", 2)
     end
@@ -414,7 +435,7 @@ function Format:feedNextDecodeChar(stack, inputStr, charIndex, passedValue)
     end
 
     if nextModuleKeyword == ":ERROR" then
-        throwParseError(inputStr, charIndex, tostring(passedValue))
+        throwParseError(inputStr, charIndex, tostring(passedValue), unknownLineAndColumn)
     end
 
     if nextModuleKeyword == ":FORWARD" or nextModuleKeyword == ":CONSUME+FORWARD" then
@@ -431,8 +452,10 @@ function Format:feedNextDecodeChar(stack, inputStr, charIndex, passedValue)
     error(string.format("Module '%s' in state '%s' is attempting to execute undefined keyword: '%s'", module.name, tostring(moduleState), tostring(nextModuleKeyword)))
 end
 
---- Pulses an in-progress encoding stack of ModuleStatuses. Used internally.
----@private
+--- Pulses an in-progress encoding stack of ModuleStatuses.  
+--- This is usually just used internally, and you should use methods like `Format:encode()` instead.
+--- 
+--- The format is done encoding once the stack is empty.
 ---@param stack Parsimmon.ModuleStatus[]
 ---@return string? yieldedString
 function Format:feedNextEncodePulse(stack)
@@ -576,6 +599,59 @@ function ModuleStatus:setNextState(nextState)
     return self
 end
 
+-- Chunk decoders and encoders ---------------------------------------------------------------------
+
+-- Used internally by formats. Creates a ChunkDecoder.
+---@param format Parsimmon.Format
+---@return Parsimmon.ChunkDecoder
+function parsimmon.newChunkDecoder(format)
+    -- new Parsimmon.ChunkDecoder
+    local decoder = {
+        format = format,
+        stack = format:prepareModuleStack(),
+        passedValue = nil,
+        firstChunkFed = false,
+    }
+    return setmetatable(decoder, ChunkDecoderMT)
+end
+
+--- ### ChunkDecoder:continue(str)
+--- Feeds the next chunk of the input string to the decoder.  
+--- After the last chunk is fed, `ChunkDecoder:finish()` should be called.
+---@param str string The next fed chunk of the input string
+function ChunkDecoder:continue(str)
+    local charIndex = 1
+    while #self.stack > 0 and charIndex <= #str do
+        local incrementChar, passedValue = self.format:feedNextDecodeChar(self.stack, str, charIndex, self.passedValue, self.firstChunkFed)
+        charIndex = incrementChar and (charIndex + 1) or (charIndex)
+
+        self.passedValue = passedValue
+    end
+    self.firstChunkFed = true
+end
+ChunkDecoder.feed = ChunkDecoder.continue
+ChunkDecoder.write = ChunkDecoder.continue
+
+--- ### ChunkDecoder:finish()
+--- Tells the chunk decoder the last chunk of the input string has been fed in and an output value is expected.
+---@return any decodedValue
+function ChunkDecoder:finish()
+    while #self.stack > 0 do
+        -- Feed empty strings (end of input) until the format finishes
+        local _, passedValue = self.format:feedNextDecodeChar(self.stack, "", 1, self.passedValue, true)
+        self.passedValue = passedValue
+    end
+    return self.passedValue
+end
+
+--- ### ChunkDecoder:reset()
+--- Resets the chunk decoder so a fresh new input can be fed in.
+function ChunkDecoder:reset()
+    self.stack = self.format:prepareModuleStack()
+    self.passedValue = nil
+    self.firstChunkFed = false
+end
+
 -- Wrapped format ----------------------------------------------------------------------------------
 
 --- Wraps a format implementation into an interface only intended for encoding/decoding using the format.
@@ -590,7 +666,7 @@ end
 
 --- ### WrappedFormat:decode(str)
 --- Decodes the given string as specified by the format.
----@param str string
+---@param str string The string to decode
 ---@return any
 function WrappedFormat:decode(str)
     return self.format:decode(str)
@@ -599,12 +675,19 @@ WrappedFormat.parse = WrappedFormat.decode
 
 --- ### WrappedFormat:encode(value)
 --- Encodes the given value as specified by the format.
----@param value any
+---@param value any The value to encode
 ---@return string
 function WrappedFormat:encode(value)
     return self.format:encode(value)
 end
 WrappedFormat.stringify = WrappedFormat.encode
+
+--- ### WrappedFormat:newChunkDecoder()
+--- Creates a new `ChunkDecoder` from the format, used for decoding a large input string in chunks.
+---@return Parsimmon.ChunkDecoder
+function WrappedFormat:newChunkDecoder()
+    return self.format:newChunkDecoder()
+end
 
 -- Useful convertor module implementations ---------------------------------------------------------
 
@@ -694,7 +777,7 @@ do
         end)
         :defineDecodingState("return", function (currentChar, status, passedValue)
             if currentChar ~= "" then
-                return ":ERROR", "Unexpected non-whitespace character after data: " .. tostring(currentChar)
+                return ":ERROR", "Unexpected non-whitespace character after data"
             end
             return ":BACK", status.intermediate
         end)
