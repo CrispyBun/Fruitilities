@@ -47,6 +47,7 @@ local WrappedFormatMT = {__index = WrappedFormat}
 ---@field modules table<string, Parsimmon.ConvertorModule>
 ---@field entryModuleName string The module that will first be called when encoding/decoding (default is "Entry")
 ---@field _decoder? Parsimmon.ChunkDecoder An internal decoder for decoding things in one go
+---@field _encoder? Parsimmon.ChunkEncoder An internal encoder for encoding things in one go
 local Format = {}
 local FormatMT = {__index = Format}
 
@@ -118,6 +119,13 @@ local ModuleStatusMT = {__index = ModuleStatus}
 ---@field firstChunkFed boolean
 local ChunkDecoder = {}
 local ChunkDecoderMT = {__index = ChunkDecoder}
+
+--- Holds a state and allows encoding a value in chunks.
+---@class Parsimmon.ChunkEncoder
+---@field format Parsimmon.Format The format used for encoding
+---@field stack Parsimmon.ModuleStatus[] The state
+local ChunkEncoder = {}
+local ChunkEncoderMT = {__index = ChunkEncoder}
 
 -- Utility -----------------------------------------------------------------------------------------
 
@@ -355,23 +363,33 @@ Format.parse = Format.decode
 ---@param value any
 ---@return string
 function Format:encode(value)
-    local stack = self:prepareModuleStack(value)
-
     ---@type string[]
     local output = {}
-    while #stack > 0 do
-        local yieldedString = self:feedNextEncodePulse(stack)
-        if yieldedString then output[#output+1] = yieldedString end
-    end
+    local encoder = self._encoder or self:newChunkEncoder()
+    self._encoder = encoder
 
-    return table.concat(output)
+    encoder:reset(value)
+    while true do
+        local yieldedString = encoder:continue()
+        if not yieldedString then return table.concat(output) end
+        output[#output+1] = yieldedString
+    end
 end
 Format.stringify = Format.encode
 
 --- Creates a new chunk decoder that can decode a string in chunks.
+---@return Parsimmon.ChunkDecoder
 function Format:newChunkDecoder()
     local decoder = parsimmon.newChunkDecoder(self)
     return decoder
+end
+
+--- Creates a new chunk encoder that can encode a value in chunks.
+---@param valueToEncode any
+---@return Parsimmon.ChunkEncoder
+function Format:newChunkEncoder(valueToEncode)
+    local encoder = parsimmon.newChunkEncoder(self, valueToEncode)
+    return encoder
 end
 
 --- Prepares the initial stack of ModuleStatuses for encoding or decoding.  
@@ -601,7 +619,7 @@ end
 
 -- Chunk decoders and encoders ---------------------------------------------------------------------
 
--- Used internally by formats. Creates a ChunkDecoder.
+--- Used internally by formats. Creates a ChunkDecoder.
 ---@param format Parsimmon.Format
 ---@return Parsimmon.ChunkDecoder
 function parsimmon.newChunkDecoder(format)
@@ -633,7 +651,7 @@ ChunkDecoder.feed = ChunkDecoder.continue
 ChunkDecoder.write = ChunkDecoder.continue
 
 --- ### ChunkDecoder:finish()
---- Tells the chunk decoder the last chunk of the input string has been fed in and an output value is expected.
+--- Tells the decoder the last chunk of the input string has been fed in and an output value is expected.
 ---@return any decodedValue
 function ChunkDecoder:finish()
     while #self.stack > 0 do
@@ -650,6 +668,40 @@ function ChunkDecoder:reset()
     self.stack = self.format:prepareModuleStack()
     self.passedValue = nil
     self.firstChunkFed = false
+end
+
+--- Used internally by formats. Creates a ChunkEncoder.
+---@param format Parsimmon.Format
+---@param valueToEncode any
+---@return Parsimmon.ChunkEncoder
+function parsimmon.newChunkEncoder(format, valueToEncode)
+    -- new Parsimmon.ChunkEncoder
+    local encoder = {
+        format = format,
+        stack = format:prepareModuleStack(valueToEncode),
+    }
+    return setmetatable(encoder, ChunkEncoderMT)
+end
+
+--- ### ChunkEncoder:continue()
+--- Prompts the encoder to return the next part of the string to encode. When this returns `nil`, all strings have been returned.
+--- 
+--- The strings are returned in the order in which they should be concatenated to construct the final encoded string.
+---@return string|nil
+function ChunkEncoder:continue()
+    while true do
+        if #self.stack == 0 then return nil end
+        local yieldedString = self.format:feedNextEncodePulse(self.stack)
+        if yieldedString then return yieldedString end
+    end
+end
+ChunkEncoder.pulse = ChunkEncoder.continue
+
+--- ### ChunkEncoder:reset(valueToEncode)
+--- Resets the encoder with a new value to encode so it can start encoding again.
+---@param valueToEncode any
+function ChunkEncoder:reset(valueToEncode)
+    self.stack = self.format:prepareModuleStack(valueToEncode)
 end
 
 -- Wrapped format ----------------------------------------------------------------------------------
@@ -687,6 +739,14 @@ WrappedFormat.stringify = WrappedFormat.encode
 ---@return Parsimmon.ChunkDecoder
 function WrappedFormat:newChunkDecoder()
     return self.format:newChunkDecoder()
+end
+
+--- ### WrappedFormat:newChunkEncoder(valueToEncode)
+--- Creates a new `ChunkEncoder` from the format, used for encoding a value which will yield a large encoded string, in chunks.
+---@param valueToEncode any
+---@return Parsimmon.ChunkEncoder
+function WrappedFormat:newChunkEncoder(valueToEncode)
+    return self.format:newChunkEncoder(valueToEncode)
 end
 
 -- Useful convertor module implementations ---------------------------------------------------------
