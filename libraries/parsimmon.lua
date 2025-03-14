@@ -38,7 +38,8 @@ parsimmon.formats = {}
 
 --- The Format wrapped into an interface only intended for encoding/decoding, not implementing
 ---@class Parsimmon.WrappedFormat
----@field format Parsimmon.Format
+---@field format Parsimmon.Format The format used for encoding/decoding. This is read-only.
+---@field config table A table of configuration values which some formats may read for different purposes. This shouldn't be overwritten, only the values inside may be set.
 local WrappedFormat = {}
 local WrappedFormatMT = {__index = WrappedFormat}
 
@@ -46,6 +47,7 @@ local WrappedFormatMT = {__index = WrappedFormat}
 ---@class Parsimmon.Format
 ---@field modules table<string, Parsimmon.ConvertorModule>
 ---@field entryModuleName string The module that will first be called when encoding/decoding (default is "Entry")
+---@field config table Per-format configuration which the encoders and decoders may use (this shouldn't be overwritten, only the values inside may be set)
 ---@field _decoder? Parsimmon.ChunkDecoder An internal decoder for decoding things in one go
 ---@field _encoder? Parsimmon.ChunkEncoder An internal encoder for encoding things in one go
 local Format = {}
@@ -102,6 +104,7 @@ local ModuleMT = {__index = Module}
 
 --- Info about the status of an active module.
 ---@class Parsimmon.ModuleStatus
+---@field format Parsimmon.Format The format the module belongs to. This is here for the ability to read the format config.
 ---@field module Parsimmon.ConvertorModule The module the status belongs to. This shouldn't ever be manually set, and is considered read-only.
 ---@field nextState string The next state the module will switch into when the module is called again
 ---@field intermediate any A field for the module to save an intermediate output value as it's in the process of being created when encoding/decoding
@@ -341,9 +344,25 @@ function parsimmon.newFormat()
     -- new Parsimmon.Format
     local format = {
         modules = {},
-        entryModuleName = "Entry"
+        entryModuleName = "Entry",
+        config = {},
     }
     return setmetatable(format, FormatMT)
+end
+
+--- Sets a single value in the config.
+---@param key string
+---@param value any
+function Format:setConfigValue(key, value)
+    self.config[key] = value
+end
+
+--- Sets a number of values in the config.
+---@param values table<string, any>
+function Format:setConfig(values)
+    for key, value in pairs(values) do
+        self.config[key] = value
+    end
 end
 
 --- Decodes the given string as specified by the format.
@@ -401,7 +420,7 @@ function Format:prepareModuleStack(valueToEncode)
     if not startModule then error("Entry module '" .. tostring(self.entryModuleName) .. "' is not present in the Format", 2) end
 
     ---@type Parsimmon.ModuleStatus[]
-    local stack = {parsimmon.newModuleStatus(startModule, nil, valueToEncode)}
+    local stack = {parsimmon.newModuleStatus(self, startModule, nil, valueToEncode)}
 
     return stack
 end
@@ -463,7 +482,7 @@ function Format:feedNextDecodeChar(stack, inputStr, charIndex, passedValue, unkn
         local nextModule = self.modules[passedValue]
         if not nextModule then error(string.format("Module '%s' in state '%s' is attempting to forward to undefined module '%s' in the format", module.name, moduleState, passedValue)) end
 
-        stack[#stack+1] = parsimmon.newModuleStatus(nextModule, currentModuleStatus.inheritedMemory)
+        stack[#stack+1] = parsimmon.newModuleStatus(self, nextModule, currentModuleStatus.inheritedMemory)
         return consumed
     end
 
@@ -517,7 +536,7 @@ function Format:feedNextEncodePulse(stack)
         local nextModule = self.modules[secondReturn]
         if not nextModule then error(string.format("Module '%s' in state '%s' is attempting to forward to undefined module '%s' in the format", module.name, moduleState, secondReturn)) end
 
-        stack[#stack+1] = parsimmon.newModuleStatus(nextModule, currentModuleStatus.inheritedMemory, thirdReturn)
+        stack[#stack+1] = parsimmon.newModuleStatus(self, nextModule, currentModuleStatus.inheritedMemory, thirdReturn)
         return
     end
 
@@ -592,13 +611,15 @@ end
 -- ModuleStatus creation (for ConvertorModules) ----------------------------------------------------
 
 --- Creates a new ModuleStatus for an active module. This is used internally by Formats to initialize the ModuleStatuses.
+---@param format Parsimmon.Format The format the modules belong to
 ---@param module Parsimmon.ConvertorModule The module this ModuleStatus belongs to
 ---@param inheritedMemory? any The value to set in the `inheritedMemory` field
 ---@param valueToEncode? any The value to set in the `valueToEncode` field
 ---@return Parsimmon.ModuleStatus
-function parsimmon.newModuleStatus(module, inheritedMemory, valueToEncode)
+function parsimmon.newModuleStatus(format, module, inheritedMemory, valueToEncode)
     -- new Parsimmon.ModuleStatus
     local status = {
+        format = format,
         module = module,
         nextState = "start",
         intermediate = nil,
@@ -711,8 +732,10 @@ end
 function parsimmon.wrapFormat(format)
     -- new Parsimmon.WrappedFormat
     local wrapped = {
-        format = format
+        format = format,
+        config = {}
     }
+    format.config = wrapped.config
     return setmetatable(wrapped, WrappedFormatMT)
 end
 
@@ -748,6 +771,9 @@ end
 function WrappedFormat:newChunkEncoder(valueToEncode)
     return self.format:newChunkEncoder(valueToEncode)
 end
+
+WrappedFormat.setConfigValue = Format.setConfigValue
+WrappedFormat.setConfig = Format.setConfig
 
 -- Useful convertor module implementations ---------------------------------------------------------
 
@@ -926,7 +952,7 @@ do
             local str = passedValue
             if str == "true" then return ":BACK", true end
             if str == "false" then return ":BACK", false end
-            if str == "null" then return ":BACK", nil end
+            if str == "null" then return ":BACK", status.format.config.nullValue end
             return ":ERROR", "Unknown literal: '" .. tostring(str) .. "'"
         end)
 
@@ -1057,7 +1083,7 @@ do
                 local valueType = type(value)
                 status:setNextState("finish")
 
-                if valueType == "nil" or valueType == "boolean" then
+                if valueType == "nil" or valueType == "boolean" or value == status.format.config.nullValue then
                     return ":FORWARD", "Literal", value
                 end
 
@@ -1114,6 +1140,7 @@ do
                 if value == nil then return ":YIELD+BACK", "null" end
                 if value == true then return ":YIELD+BACK", "true" end
                 if value == false then return ":YIELD+BACK", "false" end
+                if value == status.format.config.nullValue then return ":YIELD+BACK", "null" end
                 return ":ERROR", string.format("Can't encode '%s' as a literal", tostring(value))
             end)
 
@@ -1214,6 +1241,11 @@ do
     JSON:defineModule("Object", JSONObject)
 
     --- JavaScript Object Notation encoder/decoder
+    --- 
+    --- The optional config property `nullValue` will replace null values to that property instead of using nils.
+    --- This can for example be set to some specific table reference which you can then check as a replacement for null,
+    --- to prevent values being lost completely and potential holes in arrays forming.
+    --- If this value is detected in encoding (and it isn't a boolean), it will also be encoded as null.
     parsimmon.formats.JSON = parsimmon.wrapFormat(JSON)
 end
 
