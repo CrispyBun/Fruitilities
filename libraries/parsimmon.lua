@@ -1107,177 +1107,177 @@ do
             return ":BACK", status.intermediate
         end)
 
-        --- encoding:
+    --- encoding:
 
-        local jsonStringCharConvertor = {
-            ["\\"] = "\\\\",
-            ['"'] = '\\"',
-            ["\n"] = "\\n",
-            ["\r"] = "\\r",
-            ["\b"] = "\\b",
-            ["\f"] = "\\f",
-            ["\t"] = "\\t",
-        }
+    local jsonStringCharConvertor = {
+        ["\\"] = "\\\\",
+        ['"'] = '\\"',
+        ["\n"] = "\\n",
+        ["\r"] = "\\r",
+        ["\b"] = "\\b",
+        ["\f"] = "\\f",
+        ["\t"] = "\\t",
+    }
 
-        JSONEntry
-            :defineEncodingState("start", function (value, status)
+    JSONEntry
+        :defineEncodingState("start", function (value, status)
+            status:setNextState("finish")
+            return ":FORWARD", "Any", value -- just forward to Any and then return, no other processing needed
+        end)
+        :defineEncodingState("finish", function (value, status)
+            return ":BACK"
+        end)
+
+    JSONAny
+        :defineEncodingState("start", function (value, status)
+            local valueType = type(value)
+            status:setNextState("finish")
+
+            if valueType == "nil" or valueType == "boolean" or value == status.format.config.nullValue then
+                return ":FORWARD", "Literal", value
+            end
+
+            if valueType == "number" then
+                return ":FORWARD", "Number", value
+            end
+
+            if valueType == "string" then
+                return ":FORWARD", "String", value
+            end
+
+            if valueType == "table" then
+                local isArray = value[1] ~= nil -- this is probably the best way to guess this
+                if isArray then return ":FORWARD", "Array", value end
+                return ":FORWARD", "Object", value
+            end
+
+            return ":ERROR", string.format("Can't encode value of type '%s'", valueType)
+        end)
+        :defineEncodingState("finish", function ()
+            return ":BACK"
+        end)
+
+    JSONNumber
+        :defineEncodingState("start", function (value, status)
+            if type(value) ~= "number" then return ":ERROR", "Attempting to encode non-number into a number" end
+            if value == math.huge or value == -math.huge then return ":ERROR", "Can't encode infinity into a JSON number" end
+            if value ~= value then return ":ERROR", "Can't encode NaN into a JSON number" end
+            return ":YIELD+BACK", tostring(value)
+        end)
+
+    JSONString
+        :defineEncodingState("start", function (value, status)
+            if type(value) ~= "string" then return ":ERROR", "Attempting to encode non-string into a string" end
+
+            local newString = {'"'}
+            for charIndex = 1, #value do
+                local char = string.sub(value, charIndex, charIndex)
+
+                char = jsonStringCharConvertor[char] or char
+                if parsimmon.charMaps.controlCharacters[char] then
+                    return ":ERROR", "Encoding certain control characters is currently unsupported"
+                end
+
+                newString[#newString+1] = char
+            end
+            newString[#newString+1] = '"'
+
+            return ":YIELD+BACK", table.concat(newString)
+        end)
+
+    JSONLiteral
+        :defineEncodingState("start", function (value, status)
+            if value == nil then return ":YIELD+BACK", "null" end
+            if value == true then return ":YIELD+BACK", "true" end
+            if value == false then return ":YIELD+BACK", "false" end
+            if value == status.format.config.nullValue then return ":YIELD+BACK", "null" end
+            return ":ERROR", string.format("Can't encode '%s' as a literal", tostring(value))
+        end)
+
+    JSONArray
+        :defineEncodingState("start", function (array, status)
+            status.memory = 0 -- Current index being encoded (0 at first because we will increment it later)
+            status:setNextState("value")
+            return ":YIELD", "[" -- Start the array, move on to encoding the values
+        end)
+        :defineEncodingState("value", function (array, status)
+            if status.memory >= #array then
+                return ":YIELD+BACK", "]" -- no more values
+            end
+
+            status.memory = status.memory + 1
+            local nextElement = array[status.memory]
+
+            status:setNextState("comma")
+            return ":FORWARD", "Any", nextElement
+        end)
+        :defineEncodingState("comma", function (array, status)
+            status:setNextState("value")
+
+            if status.memory >= #array then
+                return ":CURRENT" -- Make sure we don't add a trailing comma for the last element
+            end
+
+            return ":YIELD", ", "
+        end)
+
+    JSONObject
+        :defineEncodingState("start", function (object, status)
+            -- Inherited memory will only be used by objects to keep track of the indentation depth
+            status.inheritedMemory = (status.inheritedMemory or 0) + 1
+
+            local keys = {}
+
+            for key in pairs(object) do
+                if type(key) ~= "string" then
+                    return ":ERROR", "Can't encode object with non-string key types or mixed key types"
+                end
+                keys[#keys+1] = key
+            end
+
+            table.sort(keys, parsimmon.compareAnythingReversed)
+            status.memory = keys -- All keys we need to encode, in reversed desired order so we can pop them one by one
+
+            if #keys == 0 then
+                return ":YIELD+BACK", "{}" -- Immediately return if the object is empty
+            end
+
+            status:setNextState("indent-key")
+            return ":YIELD", "{\n"
+        end)
+        :defineEncodingState("indent-key", function (object, status)
+            status:setNextState("key")
+            return ":YIELD", parsimmon.stringrep("    ", status.inheritedMemory)
+        end)
+        :defineEncodingState("key", function (object, status)
+            local nextKey = status.memory[#status.memory]
+            status:setNextState("colon")
+            return ":FORWARD", "String", nextKey
+        end)
+        :defineEncodingState("colon", function (object, status)
+            status:setNextState("value")
+            return ":YIELD", ": "
+        end)
+        :defineEncodingState("value", function (object, status)
+            local nextKeyIndex = #status.memory -- list of table keys still to be encoded
+            local nextKey = status.memory[nextKeyIndex] -- last key - the one we just encoded the key for and now need the value
+            local nextValue = object[nextKey]
+            status.memory[nextKeyIndex] = nil -- pop
+
+            status:setNextState("comma")
+            return ":FORWARD", "Any", nextValue
+        end)
+        :defineEncodingState("comma", function (object, status)
+            if #status.memory == 0 then -- No more keys left to encode, finish instead of adding comma
                 status:setNextState("finish")
-                return ":FORWARD", "Any", value -- just forward to Any and then return, no other processing needed
-            end)
-            :defineEncodingState("finish", function (value, status)
-                return ":BACK"
-            end)
-
-        JSONAny
-            :defineEncodingState("start", function (value, status)
-                local valueType = type(value)
-                status:setNextState("finish")
-
-                if valueType == "nil" or valueType == "boolean" or value == status.format.config.nullValue then
-                    return ":FORWARD", "Literal", value
-                end
-
-                if valueType == "number" then
-                    return ":FORWARD", "Number", value
-                end
-
-                if valueType == "string" then
-                    return ":FORWARD", "String", value
-                end
-
-                if valueType == "table" then
-                    local isArray = value[1] ~= nil -- this is probably the best way to guess this
-                    if isArray then return ":FORWARD", "Array", value end
-                    return ":FORWARD", "Object", value
-                end
-
-                return ":ERROR", string.format("Can't encode value of type '%s'", valueType)
-            end)
-            :defineEncodingState("finish", function ()
-                return ":BACK"
-            end)
-
-        JSONNumber
-            :defineEncodingState("start", function (value, status)
-                if type(value) ~= "number" then return ":ERROR", "Attempting to encode non-number into a number" end
-                if value == math.huge or value == -math.huge then return ":ERROR", "Can't encode infinity into a JSON number" end
-                if value ~= value then return ":ERROR", "Can't encode NaN into a JSON number" end
-                return ":YIELD+BACK", tostring(value)
-            end)
-
-        JSONString
-            :defineEncodingState("start", function (value, status)
-                if type(value) ~= "string" then return ":ERROR", "Attempting to encode non-string into a string" end
-
-                local newString = {'"'}
-                for charIndex = 1, #value do
-                    local char = string.sub(value, charIndex, charIndex)
-
-                    char = jsonStringCharConvertor[char] or char
-                    if parsimmon.charMaps.controlCharacters[char] then
-                        return ":ERROR", "Encoding certain control characters is currently unsupported"
-                    end
-
-                    newString[#newString+1] = char
-                end
-                newString[#newString+1] = '"'
-
-                return ":YIELD+BACK", table.concat(newString)
-            end)
-
-        JSONLiteral
-            :defineEncodingState("start", function (value, status)
-                if value == nil then return ":YIELD+BACK", "null" end
-                if value == true then return ":YIELD+BACK", "true" end
-                if value == false then return ":YIELD+BACK", "false" end
-                if value == status.format.config.nullValue then return ":YIELD+BACK", "null" end
-                return ":ERROR", string.format("Can't encode '%s' as a literal", tostring(value))
-            end)
-
-        JSONArray
-            :defineEncodingState("start", function (array, status)
-                status.memory = 0 -- Current index being encoded (0 at first because we will increment it later)
-                status:setNextState("value")
-                return ":YIELD", "[" -- Start the array, move on to encoding the values
-            end)
-            :defineEncodingState("value", function (array, status)
-                if status.memory >= #array then
-                    return ":YIELD+BACK", "]" -- no more values
-                end
-
-                status.memory = status.memory + 1
-                local nextElement = array[status.memory]
-
-                status:setNextState("comma")
-                return ":FORWARD", "Any", nextElement
-            end)
-            :defineEncodingState("comma", function (array, status)
-                status:setNextState("value")
-
-                if status.memory >= #array then
-                    return ":CURRENT" -- Make sure we don't add a trailing comma for the last element
-                end
-
-                return ":YIELD", ", "
-            end)
-
-        JSONObject
-            :defineEncodingState("start", function (object, status)
-                -- Inherited memory will only be used by objects to keep track of the indentation depth
-                status.inheritedMemory = (status.inheritedMemory or 0) + 1
-
-                local keys = {}
-
-                for key in pairs(object) do
-                    if type(key) ~= "string" then
-                        return ":ERROR", "Can't encode object with non-string key types or mixed key types"
-                    end
-                    keys[#keys+1] = key
-                end
-
-                table.sort(keys, parsimmon.compareAnythingReversed)
-                status.memory = keys -- All keys we need to encode, in reversed desired order so we can pop them one by one
-
-                if #keys == 0 then
-                    return ":YIELD+BACK", "{}" -- Immediately return if the object is empty
-                end
-
-                status:setNextState("indent-key")
-                return ":YIELD", "{\n"
-            end)
-            :defineEncodingState("indent-key", function (object, status)
-                status:setNextState("key")
-                return ":YIELD", parsimmon.stringrep("    ", status.inheritedMemory)
-            end)
-            :defineEncodingState("key", function (object, status)
-                local nextKey = status.memory[#status.memory]
-                status:setNextState("colon")
-                return ":FORWARD", "String", nextKey
-            end)
-            :defineEncodingState("colon", function (object, status)
-                status:setNextState("value")
-                return ":YIELD", ": "
-            end)
-            :defineEncodingState("value", function (object, status)
-                local nextKeyIndex = #status.memory -- list of table keys still to be encoded
-                local nextKey = status.memory[nextKeyIndex] -- last key - the one we just encoded the key for and now need the value
-                local nextValue = object[nextKey]
-                status.memory[nextKeyIndex] = nil -- pop
-
-                status:setNextState("comma")
-                return ":FORWARD", "Any", nextValue
-            end)
-            :defineEncodingState("comma", function (object, status)
-                if #status.memory == 0 then -- No more keys left to encode, finish instead of adding comma
-                    status:setNextState("finish")
-                    return ":YIELD", "\n"
-                end
-                status:setNextState("indent-key")
-                return ":YIELD", ",\n"
-            end)
-            :defineEncodingState("finish", function (object, status)
-                return ":YIELD+BACK", parsimmon.stringrep("    ", status.inheritedMemory-1) .. "}" -- final indent + closing brace
-            end)
+                return ":YIELD", "\n"
+            end
+            status:setNextState("indent-key")
+            return ":YIELD", ",\n"
+        end)
+        :defineEncodingState("finish", function (object, status)
+            return ":YIELD+BACK", parsimmon.stringrep("    ", status.inheritedMemory-1) .. "}" -- final indent + closing brace
+        end)
 
     local JSON = parsimmon.newFormat()
     JSON:defineModule("ConsumeWhitespace", parsimmon.genericModules.consumeWhitespace)
