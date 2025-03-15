@@ -29,6 +29,20 @@ SOFTWARE.
 --]]
 ------------------------------------------------------------
 
+-- While you could technically (with some difficulty) use this library
+-- to parse Unicode strings, it's only really designed for ASCII strings.
+-- This makes some formats limited at decoding if the format itself uses Unicode characters,
+-- however if it doesn't, there's no limitation, as searching for ASCII characters in a Unicode string
+-- is still fine and won't break up the Unicode multibyte sequences, as they can't use valid ASCII chars.
+--
+-- JSON is fine for example, as its valid whitespace and syntax characters only use ASCII symbols,
+-- and even if the strings stored inside the JSON are Unicode, they will be parsed properly, as the
+-- decoder is only searching for the quote symbol, which is valid ASCII.
+-- It doesn't care if the string between those quotes is Unicode.
+--
+-- JSON5, on the other hand, isn't implemented fully up to its specification,
+-- because it allows using some Unicode characters as whitespace, which the decoder simply won't be able to read.
+
 local parsimmon = {}
 
 --- Implemented formats ready to be used :-)
@@ -411,6 +425,24 @@ function Format:newChunkEncoder(valueToEncode)
     return encoder
 end
 
+--- Creates an identical copy of the format. Any config values are only shallow-copied, but modules are deep-copied.
+---@return Parsimmon.Format
+function Format:duplicate()
+    -- new Parsimmon.Format
+    local format = {
+        modules = {},
+        entryModuleName = self.entryModuleName,
+        config = {},
+    }
+    for name, module in pairs(self.modules) do
+        format.modules[name] = module:duplicate()
+    end
+    for key, value in pairs(self.config) do
+        format.config[key] = value
+    end
+    return setmetatable(format, FormatMT)
+end
+
 --- Prepares the initial stack of ModuleStatuses for encoding or decoding.  
 --- This is usually used internally unless you want to manually feed each step of the decoder/encoder for whatever reason.
 ---@param valueToEncode? any The initial value to encode if encoding
@@ -579,6 +611,24 @@ function parsimmon.newConvertorModule(name)
             start = defaultModuleEncoderStartFn
         }
     }
+    return setmetatable(module, ModuleMT)
+end
+
+--- Creates an identical copy of the module.
+---@return Parsimmon.ConvertorModule
+function Module:duplicate()
+    -- new Parsimmon.ConvertorModule
+    local module = {
+        name = self.name,
+        decodingStates = {},
+        encodingStates = {},
+    }
+    for state, stateFn in pairs(self.decodingStates) do
+        module.decodingStates[state] = stateFn
+    end
+    for state, stateFn in pairs(self.encodingStates) do
+        module.encodingStates[state] = stateFn
+    end
     return setmetatable(module, ModuleMT)
 end
 
