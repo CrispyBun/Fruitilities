@@ -299,6 +299,8 @@ parsimmon.charMaps.terminating = {
     [")"] = true,
     ["<"] = true,
     [">"] = true,
+    ["/"] = true,
+    ["\\"] = true,
 }
 
 -- Control characters.
@@ -831,7 +833,7 @@ WrappedFormat.setConfig = Format.setConfig
 parsimmon.genericModules = {}
 
 -- Module for decoding, consumes whitespace and goes back when it finds a non-whitespace character
-parsimmon.genericModules.consumeWhitespace = parsimmon.newConvertorModule()
+parsimmon.genericModules.consumeWhitespace = parsimmon.newConvertorModule("ConsumeWhitespace")
     :defineDecodingState("start", function (currentChar, status, passedValue)
         if parsimmon.charMaps.whitespace[currentChar] then
             return ":CONSUME"
@@ -845,7 +847,7 @@ parsimmon.genericModules.consumeWhitespace = parsimmon.newConvertorModule()
 -- Module for decoding, concatenates the incoming chars one by one
 -- until it reaches a character from `parsimmon.charMaps.terminating`,
 -- after which it will go back, returning the concatenated string.
-parsimmon.genericModules.concatUntilTerminating = parsimmon.newConvertorModule()
+parsimmon.genericModules.concatUntilTerminating = parsimmon.newConvertorModule("ConcatUntilTerminating")
     :defineDecodingState("start", function (currentChar, status, passedValue)
         status.intermediate = status.intermediate or ""
         if parsimmon.charMaps.terminating[currentChar] then
@@ -982,7 +984,7 @@ do
                 if currentChar == '"' or currentChar == "/" or currentChar == "\\" then
                     escapedChar = currentChar
                 else
-                    if not escapedChar then return ":ERROR", "Invalid escape character" end
+                    return ":ERROR", "Invalid escape character"
                 end
             end
 
@@ -1297,6 +1299,209 @@ do
     --- to prevent values being lost completely and potential holes in arrays forming.
     --- If this value is detected in encoding (and it isn't a boolean), it will also be encoded as null.
     parsimmon.formats.JSON = parsimmon.wrapFormat(JSON)
+end
+
+do
+    local JSON5 = parsimmon.formats.JSON.format:duplicate()
+
+    --- decoding:
+
+    local json5Symbols = {}
+    parsimmon.addCharsToTable(json5Symbols, "+-.0123456789", "Number")
+    parsimmon.addCharsToTable(json5Symbols, "\"\'", "String")
+    parsimmon.addCharsToTable(json5Symbols, "[", "Array")
+    parsimmon.addCharsToTable(json5Symbols, "{", "Object")
+    parsimmon.addCharsToTable(json5Symbols, "AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz", "Literal")
+
+    local JSON5Any = JSON5.modules.Any
+    JSON5Any.name = "JSON5Any"
+
+    local JSON5Number = JSON5.modules.Number
+    JSON5Number.name = "JSON5Number"
+
+    local JSON5String = JSON5.modules.String
+    JSON5String.name = "JSON5String"
+
+    local JSON5Literal = JSON5.modules.Literal
+    JSON5Literal.name = "JSON5Literal"
+
+    local JSON5Object = JSON5.modules.Object
+    JSON5Object.name = "JSON5Object"
+
+    local ConsumeWhitespaceAndComments = JSON5.modules.ConsumeWhitespace
+    ConsumeWhitespaceAndComments.name = "ConsumeWhitespaceAndComments"
+
+    local JSON5IdentifierName = parsimmon.newConvertorModule("JSON5IdentifierName")
+    local ConsumeComment = parsimmon.newConvertorModule("ConsumeComment")
+
+    JSON5:defineModule("IdentifierName", JSON5IdentifierName)
+    JSON5:defineModule("ConsumeComment", ConsumeComment)
+
+    -- Only rewriting the states of the modules that differ from JSON:
+
+    JSON5Any
+        :defineDecodingState("start", function (currentChar, status, passedValue)
+            local nextModule = json5Symbols[currentChar]
+            if currentChar == "" then return ":ERROR", "Expected value but reached end of input string" end
+            if not nextModule then return ":ERROR", "Unexpected symbol: " .. tostring(currentChar) end
+
+            status:setNextState("return")
+            return ":FORWARD", nextModule
+        end)
+
+    JSON5Number
+        :defineDecodingState("return", function (currentChar, status, passedValue)
+            local num = tonumber(passedValue)
+            if not num then return ":ERROR", "Invalid number" end
+            return ":BACK", num
+        end)
+
+    JSON5String
+        :defineDecodingState("start", function (currentChar, status, passedValue)
+            if not (currentChar == '"' or currentChar == "'") then return ":ERROR", "Strings must start with '\"' or '''" end
+            status.memory = currentChar -- Remember which char needs to end the string
+
+            status:setNextState("read")
+            return ":CONSUME"
+        end)
+        :defineDecodingState("read", function (currentChar, status, passedValue)
+            status.intermediate = status.intermediate or {}
+
+            if currentChar == "\\" then
+                status:setNextState("escape")
+                return ":CONSUME"
+            end
+
+            if currentChar == "" then return ":ERROR", "Unterminated string" end
+            if currentChar == "\n" then return ":ERROR", "Raw line breaks are not allowed in string" end
+            if currentChar == status.memory then return ":CONSUME+BACK", table.concat(status.intermediate) end
+
+            status.intermediate[#status.intermediate+1] = currentChar
+            return ":CONSUME"
+        end)
+        :defineDecodingState("escape", function (currentChar, status, passedValue)
+            if currentChar == "" then return ":ERROR", "Unterminated string" end
+            if currentChar == "u" then return ":ERROR", "Unicode escapes are currently unsupported" end
+
+            if currentChar == "\r" or currentChar == "\n" then
+                status:setNextState("consume-newline")
+                return ":CURRENT"
+            end
+
+            local escapedChar = parsimmon.charMaps.escapedMeanings[currentChar]
+            escapedChar = escapedChar or currentChar
+
+            status.intermediate[#status.intermediate+1] = escapedChar
+            status:setNextState("read")
+            return ":CONSUME"
+        end)
+        :defineDecodingState("consume-newline", function (currentChar, status, passedValue)
+            -- this is for the weird JSON5 literal newline escape that just deletes the newline
+            -- this will also consume entire chains like "\r\r\r\n" but idk if i care
+            if currentChar == "\r" then return ":CONSUME" end
+            if currentChar == "\n" then
+                status:setNextState("read")
+                return ":CONSUME"
+            end
+            status:setNextState("read")
+            return ":CURRENT"
+        end)
+
+    JSON5Literal
+        :defineDecodingState("return", function (currentChar, status, passedValue)
+            local str = passedValue
+            if str == "true" then return ":BACK", true end
+            if str == "false" then return ":BACK", false end
+            if str == "null" then return ":BACK", status.format.config.nullValue end
+
+            local num = tonumber(str) -- numbers can also be literals (namely nan and inf will be parsed here)
+            if num then return ":BACK", num end
+
+            return ":ERROR", "Unknown literal: '" .. tostring(str) .. "'"
+        end)
+
+    JSON5Object
+        :defineDecodingState("key", function (currentChar, status, passedValue)
+            if currentChar == "}" then
+                status:setNextState("return")
+                return ":CONSUME"
+            end
+
+            status:setNextState("store-key")
+            if currentChar == '"' or currentChar == "'" then
+                return ":FORWARD", "String"
+            end
+            return ":FORWARD", "IdentifierName"
+        end)
+
+    JSON5IdentifierName
+        :defineDecodingState("start", function (currentChar, status, passedValue)
+            status:setNextState("return")
+            return ":FORWARD", "ConcatUntilTerminating"
+        end)
+        :defineDecodingState("return", function (currentChar, status, passedValue)
+            if passedValue == "" then return ":ERROR", "Unexpected character" end -- just so a complete lack of identifier isn't valid
+            return ":BACK", passedValue -- this allows even more characters than JSON5 allows, but that's not an issue when decoding, we're just less strict
+        end)
+
+    ConsumeWhitespaceAndComments
+        :defineDecodingState("start", function (currentChar, status, passedValue)
+            if parsimmon.charMaps.whitespace[currentChar] then
+                return ":CONSUME"
+            end
+            if currentChar == "/" then
+                return ":FORWARD", "ConsumeComment"
+            end
+            return ":BACK"
+        end)
+
+    ConsumeComment
+        :defineDecodingState("start", function (currentChar, status, passedValue)
+            if currentChar ~= "/" then return ":ERROR", "Comments must start with '/'" end
+            status:setNextState("determine-comment-type")
+            return ":CONSUME"
+        end)
+        :defineDecodingState("determine-comment-type", function (currentChar, status, passedValue)
+            if currentChar == "/" then
+                status:setNextState("single-line")
+                return ":CONSUME"
+            end
+            if currentChar == "*" then
+                status:setNextState("multi-line")
+                return ":CONSUME"
+            end
+            return ":ERROR", "Unexpected character: '/'" -- '/' because the real unexpected character is the initial / starting the "comment"
+        end)
+        :defineDecodingState("single-line", function (currentChar, status, passedValue)
+            if currentChar == "\n" then return ":CONSUME+BACK" end
+            if currentChar == "" then return ":BACK" end
+            return ":CONSUME"
+        end)
+        :defineDecodingState("multi-line", function (currentChar, status, passedValue)
+            if currentChar == "*" then
+                status:setNextState("multi-line-potential-end")
+                return ":CONSUME"
+            end
+            if currentChar == "" then
+                return ":ERROR", "Unterminated multi-line comment"
+            end
+            return ":CONSUME"
+        end)
+        :defineDecodingState("multi-line-potential-end", function (currentChar, status, passedValue)
+            if currentChar == "/" then
+                return ":CONSUME+BACK"
+            end
+            status:setNextState("multi-line")
+            return ":CONSUME"
+        end)
+
+    --- JSON5 encoder/decoder  
+    --- A somewhat more readable superset of JSON,
+    --- which allows identifiers that aren't wrapped in quotes,
+    --- trailing commas, single-quoted strings, inf and nan numbers, and some other tweaks.
+    --- 
+    --- The `nullValue` config field works the same as in the JSON format implementation.
+    parsimmon.formats.JSON5 = parsimmon.wrapFormat(JSON5)
 end
 
 return parsimmon
