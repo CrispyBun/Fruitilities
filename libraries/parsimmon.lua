@@ -304,7 +304,7 @@ parsimmon.charMaps.terminating = {
 }
 
 -- Control characters.
--- Each is either mapped to an empty string or a character that is usually used after a backslash to represent it.
+-- Each is either mapped to an empty string or to how it is usually represented by escaping it.
 parsimmon.charMaps.controlCharacters = {
     ["\00"] = "",
     ["\01"] = "",
@@ -313,13 +313,13 @@ parsimmon.charMaps.controlCharacters = {
     ["\04"] = "",
     ["\05"] = "",
     ["\06"] = "",
-    ["\07"] = "a",
-    ["\08"] = "b",
-    ["\09"] = "t",
-    ["\10"] = "n",
-    ["\11"] = "v",
-    ["\12"] = "f",
-    ["\13"] = "r",
+    ["\07"] = "\\a",
+    ["\08"] = "\\b",
+    ["\09"] = "\\t",
+    ["\10"] = "\\n",
+    ["\11"] = "\\v",
+    ["\12"] = "\\f",
+    ["\13"] = "\\r",
     ["\14"] = "",
     ["\15"] = "",
     ["\16"] = "",
@@ -1493,6 +1493,55 @@ do
             end
             status:setNextState("multi-line")
             return ":CONSUME"
+        end)
+
+    --- decoding:
+
+    local json5StringCharConvertor = {
+        ["\\"] = "\\\\",
+        ['"'] = '\\"',
+        ["\n"] = "\\n",
+        ["\r"] = "\\r",
+        ["\b"] = "\\b",
+        ["\f"] = "\\f",
+        ["\t"] = "\\t",
+    }
+
+    JSON5Number
+        :defineEncodingState("start", function (value, status)
+            if type(value) ~= "number" then return ":ERROR", "Attempting to encode non-number into a number" end
+            if value ~= value then return ":YIELD+BACK", "NaN" end
+            if value == math.huge then return ":YIELD+BACK", "Infinity" end
+            if value == -math.huge then return ":YIELD+BACK", "-Infinity" end
+            return ":YIELD+BACK", tostring(value)
+        end)
+
+    JSON5String
+        :defineEncodingState("start", function (value, status)
+            if type(value) ~= "string" then return ":ERROR", "Attempting to encode non-string into a string" end
+
+            local newString = {'"'}
+            for charIndex = 1, #value do
+                local char = string.sub(value, charIndex, charIndex)
+                char = json5StringCharConvertor[char] or char
+                newString[#newString+1] = char
+            end
+            newString[#newString+1] = '"'
+
+            return ":YIELD+BACK", table.concat(newString)
+        end)
+
+    JSON5Object
+        :defineEncodingState("key", function (object, status)
+            local nextKey = status.memory[#status.memory]
+
+            status:setNextState("colon")
+
+            if string.match(nextKey, "^[_%$%a][_%$%w]*$") then
+                -- the string is pure enough to look nice as an IdentifierName
+                return ":YIELD", nextKey
+            end
+            return ":FORWARD", "String", nextKey
         end)
 
     --- JSON5 encoder/decoder  
