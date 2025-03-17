@@ -1543,6 +1543,14 @@ do
             end
             return ":FORWARD", "String", nextKey
         end)
+        :defineEncodingState("comma", function (object, status)
+            if #status.memory == 0 then -- No more keys left to encode
+                status:setNextState("finish")
+            else
+                status:setNextState("indent-key")
+            end
+            return ":YIELD", ",\n"
+        end)
 
     --- JSON5 encoder/decoder  
     --- A somewhat more readable superset of JSON,
