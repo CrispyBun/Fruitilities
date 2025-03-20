@@ -1601,17 +1601,54 @@ do
                 return ":ERROR", "Mismatch in amount of values in row"
             end
 
-            for rowIndex = 1, #row do
-                local column = output[rowIndex] or {}
-                output[rowIndex] = column
+            for columnIndex = 1, #row do
+                -- set keys to appropriate integers or strings based on if a header is present
+                -- (the header itself will still be encoded under integer keys)
+                local columnKey = columnIndex
+                if status.format.config.hasHeader then
+                    if output[columnIndex] and output[columnIndex][1] then -- if the header is already created
+                        columnKey = output[columnIndex][1]
+                    end
+                end
 
-                column[#column+1] = row[rowIndex]
+                local column = output[columnKey] or {}
+                output[columnKey] = column
+
+                column[#column+1] = row[columnIndex]
             end
 
             if currentChar ~= "" then
                 return ":FORWARD", "Row"
             end
-            return ":BACK", status.intermediate
+
+            status:setNextState("finish")
+            return ":CURRENT"
+        end)
+        :defineDecodingState("finish", function (currentChar, status, passedValue)
+            local output = status.intermediate
+
+            if status.format.config.hasIdColumn then
+                local idColumnKey = status.format.config.hasHeader and output[1][1] or 1
+                local dontTransformNumericKeys = status.format.config.hasHeader -- If there's a header, it will be stored under numeric keys, and shouldn't be touched
+
+                local ids = output[idColumnKey]
+                if not ids then return ":BACK", output end -- Has header and only header is present, no non-header values
+
+                -- transform all non-header and non-id fields to use the idColumn for IDs instead of integers
+                for columnKey, column in pairs(output) do
+                    if  columnKey ~= idColumnKey
+                        and (type(columnKey) ~= "number" or not dontTransformNumericKeys)
+                    then
+                        for rowIndex = 1, #column do
+                            local id = ids[rowIndex]
+                            column[id] = column[rowIndex]
+                            column[rowIndex] = nil
+                        end
+                    end
+                end
+            end
+
+            return ":BACK", output
         end)
 
     CSVRow
@@ -1701,11 +1738,25 @@ do
         end)
 
     --- Comma-Separated Values encoder/decoder.
+    --- 
+    --- Returns a table in the format `t[columnId][rowId]`.  
+    --- `columnId` and `rowId` may be integers or strings based on the config (both are integers with the default config).
     ---
     --- The decoder allows a trailing newline (as per the little CSV standards that exist),
     --- meaning if the CSV only has a single column and the last row is an empty string,
     --- the last row won't be parsed as it's just considered a trailing newline.
     --- You can make sure this doesn't happen by encoding the final empty string as `""`. 
+    --- 
+    --- The config value `hasHeader` can be set to `true` to make the first row of the CSV string
+    --- be considered a header. If this is the case, only the header will be decoded into integer keys,
+    --- and all other columns will be under a string key specified by the header (non-header `columnId`s will be strings).
+    --- 
+    --- The config value `hasIdColumn` can be set to `true` to make the first column of the CSV string
+    --- be considered a column of IDs. If this is the case, only the ID column will be an array of values,
+    --- and all other columns (besides the header, if `hasHeader` is true) will be maps, mapping the
+    --- ID of that row to their values instead (so non-idColumn and non-header `rowId`s will be strings).
+    --- 
+    --- ps. The decoding config is a bit hard to explain with just text. Sorgy.
     parsimmon.formats.CSV = parsimmon.wrapFormat(CSV)
 end
 
