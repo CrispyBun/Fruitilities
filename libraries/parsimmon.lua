@@ -844,6 +844,25 @@ parsimmon.genericModules.consumeWhitespace = parsimmon.newConvertorModule("Consu
         return ":ERROR", "The consumeWhitespace module can't be used for encoding"
     end)
 
+-- Consumes either `"\r\n"`, `"\r"`, or `"\n"`, whichever it finds. Consumes nothing if the char it receives isn't one of those characters.
+parsimmon.genericModules.consumeNewline = parsimmon.newConvertorModule("ConsumeNewline")
+    :defineDecodingState("start", function (currentChar, status, passedValue)
+        if currentChar == "\r" then
+            status:setNextState("carriage-return-start")
+            return ":CONSUME"
+        end
+        if currentChar == "\n" then
+            return ":CONSUME+BACK"
+        end
+        return ":BACK"
+    end)
+    :defineDecodingState("carriage-return-start", function (currentChar, status, passedValue)
+        if currentChar == "\n" then
+            return ":CONSUME+BACK"
+        end
+        return ":BACK"
+    end)
+
 -- Module for decoding, concatenates the incoming chars one by one
 -- until it reaches a character from `parsimmon.charMaps.terminating`,
 -- after which it will go back, returning the concatenated string.
@@ -1336,6 +1355,7 @@ do
 
     JSON5:defineModule("IdentifierName", JSON5IdentifierName)
     JSON5:defineModule("ConsumeComment", ConsumeComment)
+    JSON5:defineModule("ConsumeNewline", parsimmon.genericModules.consumeNewline)
 
     -- Only rewriting the states of the modules that differ from JSON:
 
@@ -1384,8 +1404,8 @@ do
             if currentChar == "u" then return ":ERROR", "Unicode escapes are currently unsupported" end
 
             if currentChar == "\r" or currentChar == "\n" then
-                status:setNextState("consume-newline")
-                return ":CURRENT"
+                status:setNextState("read")
+                return ":FORWARD", "ConsumeNewline"
             end
 
             local escapedChar = parsimmon.charMaps.escapedMeanings[currentChar]
@@ -1394,17 +1414,6 @@ do
             status.intermediate[#status.intermediate+1] = escapedChar
             status:setNextState("read")
             return ":CONSUME"
-        end)
-        :defineDecodingState("consume-newline", function (currentChar, status, passedValue)
-            -- this is for the weird JSON5 literal newline escape that just deletes the newline
-            -- this will also consume entire chains like "\r\r\r\n" but idk if i care
-            if currentChar == "\r" then return ":CONSUME" end
-            if currentChar == "\n" then
-                status:setNextState("read")
-                return ":CONSUME"
-            end
-            status:setNextState("read")
-            return ":CURRENT"
         end)
 
     JSON5Literal
@@ -1559,6 +1568,145 @@ do
     --- 
     --- The `nullValue` config field works the same as in the JSON format implementation.
     parsimmon.formats.JSON5 = parsimmon.wrapFormat(JSON5)
+end
+
+do
+    local CSV = parsimmon.newFormat()
+
+    local CSVEntry = parsimmon.newConvertorModule("CSVEntry")
+    local CSVRow = parsimmon.newConvertorModule("CSVRow")
+    local CSVValue = parsimmon.newConvertorModule("CSVValue")
+    local CSVString = parsimmon.newConvertorModule("CSVString")
+    local CSVRawText = parsimmon.newConvertorModule("CSVRawText")
+
+    CSV:defineModule("Entry", CSVEntry)
+    CSV:defineModule("Row", CSVRow)
+    CSV:defineModule("Value", CSVValue)
+    CSV:defineModule("String", CSVString)
+    CSV:defineModule("RawText", CSVRawText)
+    CSV:defineModule("ConsumeNewline", parsimmon.genericModules.consumeNewline)
+
+    CSVEntry
+        :defineDecodingState("start", function (currentChar, status, passedValue)
+            status.intermediate = {} -- table[columnIndex][rowIndex]
+
+            status:setNextState("receive-row")
+            return ":FORWARD", "Row"
+        end)
+        :defineDecodingState("receive-row", function (currentChar, status, passedValue)
+            local output = status.intermediate
+            local row = passedValue
+
+            if #output ~= 0 and #row ~= #output then -- It's impossible for any row to be completely empty ("" is still considered a single value of "", not nothing), so an output length of 0 means this is the first row
+                return ":ERROR", "Mismatch in amount of values in row"
+            end
+
+            for rowIndex = 1, #row do
+                local column = output[rowIndex] or {}
+                output[rowIndex] = column
+
+                column[#column+1] = row[rowIndex]
+            end
+
+            if currentChar ~= "" then
+                return ":FORWARD", "Row"
+            end
+            return ":BACK", status.intermediate
+        end)
+
+    CSVRow
+        :defineDecodingState("start", function (currentChar, status, passedValue)
+            status.intermediate = {} -- the full row
+            status:setNextState("receive-value")
+            return ":FORWARD", "Value"
+        end)
+        :defineDecodingState("receive-value", function (currentChar, status, passedValue)
+            status.intermediate[#status.intermediate+1] = passedValue
+
+            if currentChar == "," then
+                return ":CONSUME+FORWARD", "Value"
+            end
+            if currentChar == "\r" or currentChar == "\n" then
+                status:setNextState("return")
+                return ":FORWARD", "ConsumeNewline"
+            end
+            if currentChar == "" then
+                status:setNextState("return")
+                return ":CURRENT"
+            end
+
+            return ":ERROR", "Unexpected character (expected comma, newline or end of file after value)"
+        end)
+        :defineDecodingState("return", function (currentChar, status, passedValue)
+            return ":BACK", status.intermediate
+        end)
+
+    CSVValue
+        :defineDecodingState("start", function (currentChar, status, passedValue)
+            status:setNextState("return")
+
+            if currentChar == '"' then
+                return ":FORWARD", "String"
+            end
+            return ":FORWARD", "RawText"
+        end)
+        :defineDecodingState("return", function (currentChar, status, passedValue)
+            return ":BACK", passedValue
+        end)
+
+    CSVRawText
+        :defineDecodingState("start", function (currentChar, status, passedValue)
+            status.intermediate = status.intermediate or ""
+
+            if currentChar == "," or currentChar == "" or currentChar == "\r" or currentChar == "\n" then
+                return ":BACK", status.intermediate
+            end
+
+            if currentChar == '"' then
+                return ":ERROR", "Illegal double-quote inside unquoted CSV field"
+            end
+
+            status.intermediate = status.intermediate .. currentChar
+            return ":CONSUME"
+        end)
+
+    CSVString
+        :defineDecodingState("start", function (currentChar, status, passedValue)
+            if currentChar ~= '"' then
+                return ":ERROR", "CSV strings must start with '\"'"
+            end
+
+            status.intermediate = {}
+            status:setNextState("read")
+            return ":CONSUME"
+        end)
+        :defineDecodingState("read", function (currentChar, status, passedValue)
+            if currentChar == '"' then
+                status:setNextState("quote-encountered")
+                return ":CONSUME"
+            end
+            if currentChar == "" then
+                return ":ERROR", "Unterminated string"
+            end
+            status.intermediate[#status.intermediate+1] = currentChar
+            return ":CONSUME"
+        end)
+        :defineDecodingState("quote-encountered", function (currentChar, status, passedValue)
+            if currentChar == '"' then -- escaped
+                status.intermediate[#status.intermediate+1] = currentChar
+                status:setNextState("read")
+                return ":CONSUME"
+            end
+            return ":BACK", table.concat(status.intermediate)
+        end)
+
+    --- Comma-Separated Values encoder/decoder.
+    ---
+    --- The decoder allows a trailing newline (as per the little CSV standards that exist),
+    --- meaning if the CSV only has a single column and the last row is an empty string,
+    --- the last row won't be parsed as it's just considered a trailing newline.
+    --- You can make sure this doesn't happen by encoding the final empty string as `""`. 
+    parsimmon.formats.CSV = parsimmon.wrapFormat(CSV)
 end
 
 return parsimmon
