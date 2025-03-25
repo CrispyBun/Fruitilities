@@ -1603,7 +1603,7 @@ do
 
             for columnIndex = 1, #row do
                 -- set keys to appropriate integers or strings based on if a header is present
-                -- (the header itself will still be encoded under integer keys)
+                -- (the header itself will still be encoded under integer keys, which will later be deleted)
                 local columnKey = columnIndex
                 if status.format.config.hasHeader then
                     if output[columnIndex] and output[columnIndex][1] then -- if the header is already created
@@ -1627,23 +1627,33 @@ do
         :defineDecodingState("finish", function (currentChar, status, passedValue)
             local output = status.intermediate
 
+            -- The key under which the ID column is (if any)
+            local idColumnKey = status.format.config.hasHeader and output[1][1] or 1
+
+            -- delete any header data
+            if status.format.config.hasHeader then
+                for index in ipairs(output) do
+                    output[index] = nil
+                end
+            end
+
             if status.format.config.hasIdColumn then
-                local idColumnKey = status.format.config.hasHeader and output[1][1] or 1
-                local dontTransformNumericKeys = status.format.config.hasHeader -- If there's a header, it will be stored under numeric keys, and shouldn't be touched
-
                 local ids = output[idColumnKey]
-                if not ids then return ":BACK", output end -- Has header and only header is present, no non-header values
+                if not ids then return ":BACK", output end
 
-                -- transform all non-header and non-id fields to use the idColumn for IDs instead of integers
+                -- the ID column shouldn't be in the output
+                if type(idColumnKey) == "number" then
+                    table.remove(output, idColumnKey)
+                else
+                    output[idColumnKey] = nil
+                end
+
+                -- transform all rows to use the idColumn for IDs instead of integers
                 for columnKey, column in pairs(output) do
-                    if  columnKey ~= idColumnKey
-                        and (type(columnKey) ~= "number" or not dontTransformNumericKeys)
-                    then
-                        for rowIndex = 1, #column do
-                            local id = ids[rowIndex]
-                            column[id] = column[rowIndex]
-                            column[rowIndex] = nil
-                        end
+                    for rowIndex = 1, #column do
+                        local id = ids[rowIndex]
+                        column[id] = column[rowIndex]
+                        column[rowIndex] = nil
                     end
                 end
             end
@@ -1748,13 +1758,12 @@ do
     --- You can make sure this doesn't happen by encoding the final empty string as `""`. 
     --- 
     --- The config value `hasHeader` can be set to `true` to make the first row of the CSV string
-    --- be considered a header. If this is the case, only the header will be decoded into integer keys,
-    --- and all other columns will be under a string key specified by the header (non-header `columnId`s will be strings).
+    --- be considered a header. If this is the case, the header itself won't exist as values in the decoded table,
+    --- and all other columns will be under a string key specified by the header.
     --- 
     --- The config value `hasIdColumn` can be set to `true` to make the first column of the CSV string
-    --- be considered a column of IDs. If this is the case, only the ID column will be an array of values,
-    --- and all other columns (besides the header, if `hasHeader` is true) will be maps, mapping the
-    --- ID of that row to their values instead (so non-idColumn and non-header `rowId`s will be strings).
+    --- be considered a column of IDs. If this is the case, the ID column won't be a part of the decoded table,
+    --- and all rows will be under a string key specified by the ID column.
     --- 
     --- ps. The decoding config is a bit hard to explain with just text. Sorgy.
     parsimmon.formats.CSV = parsimmon.wrapFormat(CSV)
