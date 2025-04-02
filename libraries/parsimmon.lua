@@ -241,23 +241,6 @@ function parsimmon.compareAnythingReversed(a, b)
     return false
 end
 
---- `string.rep` implemented for lua versions where it isn't natively.
---- if it is natively available, the native version will replace this.
----@param s string|number
----@param n integer
----@param sep? string|number
----@return string
-function parsimmon.stringrep(s, n, sep)
-    sep = sep and tostring(sep)
-    local t = {}
-    for i = 1, n do
-        t[i] = s
-    end
-    return table.concat(t, sep)
-end
-
-if string.rep then parsimmon.stringrep = string.rep end
-
 ---@param t table
 ---@param chars string
 ---@param value any
@@ -1271,7 +1254,7 @@ do
         end)
         :defineEncodingState("indent-key", function (object, status)
             status:setNextState("key")
-            return ":YIELD", parsimmon.stringrep("    ", status.inheritedMemory)
+            return ":YIELD", string.rep("    ", status.inheritedMemory)
         end)
         :defineEncodingState("key", function (object, status)
             local nextKey = status.memory[#status.memory]
@@ -1300,7 +1283,7 @@ do
             return ":YIELD", ",\n"
         end)
         :defineEncodingState("finish", function (object, status)
-            return ":YIELD+BACK", parsimmon.stringrep("    ", status.inheritedMemory-1) .. "}" -- final indent + closing brace
+            return ":YIELD+BACK", string.rep("    ", status.inheritedMemory-1) .. "}" -- final indent + closing brace
         end)
 
     local JSON = parsimmon.newFormat()
