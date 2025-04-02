@@ -48,6 +48,9 @@ local parsimmon = {}
 --- Implemented formats ready to be used :-)
 parsimmon.formats = {}
 
+---@diagnostic disable-next-line: deprecated
+local unpack = table.unpack or unpack
+
 -- Types -------------------------------------------------------------------------------------------
 
 --- The Format wrapped into an interface only intended for encoding/decoding, not implementing
@@ -109,7 +112,7 @@ local ModuleMT = {__index = Module}
 ---@alias Parsimmon.EncoderStateFn fun(value: any, status: Parsimmon.ModuleStatus): Parsimmon.NextModuleEncoderKeyword, string?, any
 
 ---@alias Parsimmon.NextModuleEncoderKeyword
----|'":YIELD"' # Yields the second return value (a string) to the final output. All yields from all modules will be concatenated by parsimmon to produce the final encoded value and encoding can stop.
+---|'":YIELD"' # Yields the second return value (a string) to the final output. All yields from all modules will be concatenated by parsimmon to produce the final encoded value.
 ---|'":CURRENT"' # Keeps execution in the same module.
 ---|'":FORWARD"' # Forwards execution to the module with the name specified in the second return value. The third return value will be used as the `value` passed into that module to encode.
 ---|'":BACK"' # Returns execution back to the previous module in the stack. The root (Entry) module calling this is seen as information that the final string has been yielded.
@@ -1586,6 +1589,8 @@ do
     CSV:defineModule("RawText", CSVRawText)
     CSV:defineModule("ConsumeNewline", parsimmon.genericModules.consumeNewline)
 
+    -- the csv parser is such a mess lol
+
     CSVEntry
         :defineDecodingState("start", function (currentChar, status, passedValue)
             status.intermediate = {} -- table[columnIndex][rowIndex]
@@ -1747,9 +1752,148 @@ do
             return ":BACK", table.concat(status.intermediate)
         end)
 
+    CSVEntry
+        :defineEncodingState("start", function (value, status)
+            if type(value) ~= "table" then
+                return ":ERROR", "Only tables can be encoded into CSV"
+            end
+
+            local allColumnIdTypes
+            local allRowIdTypes
+
+            local columnIds = {}
+            local rowIds = {}
+
+            for columnId in pairs(value) do
+                local columnIdType = type(columnId)
+                allColumnIdTypes = allColumnIdTypes or columnIdType
+                if columnIdType ~= allColumnIdTypes then
+                    return ":ERROR", "Mixed keys for column IDs are not allowed"
+                end
+                columnIds[#columnIds+1] = columnId
+            end
+
+            if #columnIds == 0 then
+                return ":YIELD+BACK", ""
+            end
+
+            local firstColumn = value[columnIds[1]]
+            if type(firstColumn) ~= "table" then
+                return ":ERROR", "Table is in invalid format - correct format is table<columnId, table<rowId, value>> (indexed t[columnId][rowId])"
+            end
+
+            for rowId in pairs(firstColumn) do
+                local rowIdType = type(rowId)
+                allRowIdTypes = allRowIdTypes or rowIdType
+                if rowIdType ~= allRowIdTypes then
+                    return ":ERROR", "Mixed keys for row IDs are not allowed"
+                end
+                rowIds[#rowIds+1] = rowId
+            end
+
+            table.sort(rowIds, parsimmon.compareAnythingReversed)
+            table.sort(columnIds, parsimmon.compareAnything)
+
+            status.intermediate = rowIds -- will be popped one by one
+            status.memory = columnIds -- will always be looped over in full
+
+            if not (allColumnIdTypes == "number" or allColumnIdTypes == "string") then
+                return ":ERROR", "columnIds must be either all integers or all strings"
+            end
+            if not (allRowIdTypes == "number" or allRowIdTypes == "string" or allRowIdTypes == nil) then
+                return ":ERROR", "rowIds must be either all integers or all strings"
+            end
+
+            if allColumnIdTypes == "string" then
+                status:setNextState("header")
+                if allRowIdTypes == "string" then
+                    return ":YIELD", "," -- there's a header and an idColumn, meaning the top left cell is unknown/meaningless but we need to put something there
+                end
+            else
+                status:setNextState("row")
+            end
+            return ":CURRENT"
+        end)
+        :defineEncodingState("header", function (value, status)
+            local copied = {unpack(status.memory)}
+            status:setNextState("row-end")
+            return ":FORWARD", "Row", copied
+        end)
+        :defineEncodingState("row", function (value, status)
+            local rowIds = status.intermediate
+            local columnIds = status.memory
+
+            if #rowIds == 0 then return ":BACK" end
+            local rowId = rowIds[#rowIds]
+            rowIds[#rowIds] = nil
+
+            local row = {}
+            if type(rowId) == "string" then
+                row[#row+1] = rowId -- idColumn
+            end
+
+            for columnIndex = 1, #columnIds do
+                local columnId = columnIds[columnIndex]
+                local rowValue = value[columnId][rowId]
+                if not rowValue then return ":ERROR", "Not all rows have the same length" end
+
+                row[#row+1] = rowValue
+            end
+
+            status:setNextState("row-end")
+            return ":FORWARD", "Row", row
+        end)
+        :defineEncodingState("row-end", function (value, status)
+            status:setNextState("row")
+            local rowIds = status.intermediate
+            if #rowIds > 0 then
+                return ":YIELD", "\n"
+            end
+            return ":CURRENT"
+        end)
+
+    CSVRow
+        :defineEncodingState("start", function (row, status)
+            status.memory = 0 -- Current index
+            status:setNextState("value")
+            return ":CURRENT"
+        end)
+        :defineEncodingState("value", function (row, status)
+            status.memory = status.memory + 1
+            if status.memory > #row then
+                return ":BACK"
+            end
+            local value = row[status.memory]
+
+            status:setNextState("comma")
+            return ":FORWARD", "Value", value
+        end)
+        :defineEncodingState("comma", function (row, status)
+            status:setNextState("value")
+            if status.memory == #row then return ":CURRENT" end
+            return ":YIELD", ","
+        end)
+
+    CSVValue
+        :defineEncodingState("start", function (value, status)
+            value = tostring(value)
+            local needsQuotes = false
+
+            if string.find(value, "\n", 1, true) then needsQuotes = true end
+            if string.find(value, "\r", 1, true) then needsQuotes = true end
+            if string.find(value, ",", 1, true) then needsQuotes = true end
+            if string.find(value, '"', 1, true) then
+                needsQuotes = true
+                value = string.gsub(value, '"', '""')
+            end
+
+            if needsQuotes then value = '"' .. value .. '"' end
+            return ":YIELD+BACK", value
+        end)
+
     --- Comma-Separated Values encoder/decoder.
     --- 
-    --- Returns a table in the format `t[columnId][rowId]`.  
+    --- Works with tables in the format `t[columnId][rowId]`.  
     --- `columnId` and `rowId` may be integers or strings based on the config (both are integers with the default config).
     ---
     --- The decoder allows a trailing newline (as per the little CSV standards that exist),
@@ -1766,6 +1910,11 @@ do
     --- and all rows will be under a string key specified by the ID column.
     --- 
     --- ps. The decoding config is a bit hard to explain with just text. Sorgy.
+    --- 
+    --- The decoding config does not affect encoding and encoding will work for any correctly formatted table no matter the config,
+    --- though be sure to select the correct decoding config when decoding the table back into data.
+    --- 
+    --- The encoding assumes the inputted table has the same amount of rows in each column.
     parsimmon.formats.CSV = parsimmon.wrapFormat(CSV)
 end
 
