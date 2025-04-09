@@ -1901,4 +1901,87 @@ do
     parsimmon.formats.CSV = parsimmon.wrapFormat(CSV)
 end
 
+do
+    local ARSON = parsimmon.formats.JSON5.format:duplicate()
+
+    -- When decoding, ARSONLiteral will handle not only literals, but also typed objects
+    local ARSONLiteralOrObjectType = ARSON.modules.Literal
+    ARSONLiteralOrObjectType.name = "ARSONLiteralOrObjectType"
+
+    local ARSONObject = ARSON.modules.Object
+    ARSONObject.name = "ARSONObject"
+
+    ARSONLiteralOrObjectType
+        :defineDecodingState("return", function (currentChar, status, passedValue)
+            local str = passedValue
+            if str == "true" then return ":BACK", true end
+            if str == "false" then return ":BACK", false end
+            if str == "null" then return ":BACK", status.format.config.nullValue end
+
+            local num = tonumber(str) -- numbers can also be literals (namely nan and inf will be parsed here)
+            if num then return ":BACK", num end
+
+            -- No literal matches, this could be a typed object
+            status.memory = passedValue
+            status:setNextState("potential-typed-object")
+            return ":FORWARD", "ConsumeWhitespace"
+        end)
+        :defineDecodingState("potential-typed-object", function (currentChar, status, passedValue)
+            if currentChar ~= "{" then
+                return ":ERROR", "Unknown literal: '" .. tostring(status.memory) .. "'"
+            end
+            status:setNextState("return-typed-object")
+            return ":FORWARD", "Object"
+        end)
+        :defineDecodingState("return-typed-object", function (currentChar, status, passedValue)
+            local typeKey = status.format.config.typeKey or "_TYPE"
+            passedValue[typeKey] = status.memory
+            return ":BACK", passedValue
+        end)
+
+    ARSONObject
+        :defineEncodingState("start", function (object, status)
+            -- Inherited memory will only be used by objects to keep track of the indentation depth
+            status.inheritedMemory = (status.inheritedMemory or 0) + 1
+
+            local typeKey = status.format.config.typeKey or "_TYPE"
+            local keys = {}
+
+            for key in pairs(object) do
+                if type(key) == "string" and key ~= typeKey then
+                    keys[#keys+1] = key
+                end
+            end
+
+            table.sort(keys, parsimmon.compareAnythingReversed)
+            status.memory = keys -- All keys we need to encode, in reversed desired order so we can pop them one by one
+
+            status:setNextState("begin-encoding")
+
+            if object[typeKey] then
+                return ":YIELD", tostring(object[typeKey]) .. (#keys > 0 and " " or "")
+            end
+            return ":CURRENT"
+        end)
+        :defineEncodingState("begin-encoding", function (value, status)
+            local keys = status.memory
+
+            if #keys == 0 then
+                return ":YIELD+BACK", "{}" -- Immediately return if the object is empty
+            end
+
+            status:setNextState("indent-key")
+            return ":YIELD", "{\n"
+        end)
+
+    --- A custom format based on JSON5, allowing specifying a type for an object by preceding it with the type name.
+    --- 
+    --- The name of an object's type cannot be a valid literal (such as `"true"` or `"inf"`)
+    --- and must be composed of lowercase and uppercase latin letters only.
+    --- 
+    --- The config value `typeKey` is used to store and read the type of objects. The default value is `"_TYPE"`.
+    --- It does not have to be a string.
+    parsimmon.formats.ARSON = parsimmon.wrapFormat(ARSON)
+end
+
 return parsimmon
