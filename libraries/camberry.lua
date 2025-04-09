@@ -997,7 +997,7 @@ function camberry.newRig(duration, easing, sourceValues, targetValues)
     return setmetatable(rig, RigMT)
 end
 
-local random = love and love.math and love.math.random or math.random
+local random = _G["love"] and _G["love"].math.random or math.random
 --------------------------------------------------
 --- ### camberry.newShakeRig(intensity, duration, speed)
 --- Creates a new rig intended for shaking a camera.
