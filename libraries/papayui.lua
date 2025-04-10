@@ -1347,6 +1347,17 @@ function ElementStyle:setColor(color, colorHover)
 end
 
 --------------------------------------------------
+--- ### ElementStyle:setCrop(cropContent)
+--- Sets whether or not the element crops its content.
+--- Equivalent to setting the style's `cropContent` field.
+---@param cropContent boolean
+---@return Papayui.ElementStyle
+function ElementStyle:setCrop(cropContent)
+    self.cropContent = cropContent
+    return self
+end
+
+--------------------------------------------------
 --- ### ElementStyle:clone()
 --- Returns a copy of the style
 ---@return Papayui.ElementStyle
