@@ -533,6 +533,7 @@ function UI:update(dt)
 
     dt = dt or defaultDeltaTime
     local dtNormalised = dt / defaultDeltaTime
+    dtNormalised = math.min(dtNormalised, 1) -- Arbitrary cap on the simulation step, otherwise friction calculation overshoots too much
 
     local members = self.members
     for memberIndex = 1, #members do
@@ -557,14 +558,30 @@ function UI:update(dt)
                 scrollVelocityX, scrollVelocityY = 0, 0
             end
 
-            member.scrollX = scrollX + scrollVelocityX * dtNormalised
-            member.scrollY = scrollY + scrollVelocityY * dtNormalised
-            member.scrollVelocityX = scrollVelocityX - (scrollVelocityX * papayui.scrollFriction) * dtNormalised
-            member.scrollVelocityY = scrollVelocityY - (scrollVelocityY * papayui.scrollFriction) * dtNormalised
+            local frictionX = scrollVelocityX * papayui.scrollFriction
+            local frictionY = scrollVelocityY * papayui.scrollFriction
+
+            -- Apply first half of friction force
+            scrollVelocityX = scrollVelocityX - frictionX * dtNormalised * 0.5
+            scrollVelocityY = scrollVelocityY - frictionY * dtNormalised * 0.5
+
+            -- Move
+            scrollX = scrollX + scrollVelocityX * dtNormalised
+            scrollY = scrollY + scrollVelocityY * dtNormalised
+
+            -- Apply second half of friction force
+            scrollVelocityX = scrollVelocityX - frictionX * dtNormalised * 0.5
+            scrollVelocityY = scrollVelocityY - frictionY * dtNormalised * 0.5
+
+            -- Apply the values
+            member.scrollX = scrollX
+            member.scrollY = scrollY
+            member.scrollVelocityX = scrollVelocityX
+            member.scrollVelocityY = scrollVelocityY
 
             -- Make slow portions of scrolling look less jittery
-            if math.abs(member.scrollX - scrollX) < 0.25 * dtNormalised then member.scrollVelocityX = 0 end
-            if math.abs(member.scrollY - scrollY) < 0.25 * dtNormalised then member.scrollVelocityY = 0 end
+            if math.abs(scrollVelocityX) < 0.25 then member.scrollVelocityX = 0 end
+            if math.abs(scrollVelocityY) < 0.25 then member.scrollVelocityY = 0 end
 
             -- Cap scroll to limits
             local hitLimit = false
@@ -1803,14 +1820,16 @@ local function predictNeededScrollVelocity(targetDistanceTravelled, friction, hi
 
     if targetDistanceTravelled == 0 then return 0 end
 
-    for attempt = 1, highestAttempt do
+    for attempt = 0, highestAttempt, 1 do
         local initialVelocity = attempt * (targetDistanceTravelled > 0 and 1 or -1)
 
         local velocity = initialVelocity
         local result = 0
         for velocityIteration = 1, simulationTime do
+            local absoluteFriction = velocity * friction
+            velocity = velocity - absoluteFriction * 0.5
             result = result + velocity
-            velocity = velocity - (velocity * friction)
+            velocity = velocity - absoluteFriction * 0.5
         end
 
         if math.abs(result) >= math.abs(targetDistanceTravelled) then return initialVelocity end
