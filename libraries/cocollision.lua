@@ -422,6 +422,15 @@ function Shape:setPosition(x, y)
 end
 
 --------------------------------------------------
+--- ### Shape:getPosition()
+--- Returns the shape's position.
+---@return number x
+---@return number y
+function Shape:getPosition()
+    return self.x, self.y
+end
+
+--------------------------------------------------
 --- ### Shape:intersects(shape)
 --- ### Shape:collidesWith(shape)
 --- Checks for a collision between two shapes.  
