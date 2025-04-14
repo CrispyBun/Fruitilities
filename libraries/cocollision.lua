@@ -1089,6 +1089,7 @@ end
 function SpatialPartition:refreshShape(shape)
     local cellRange = self.shapes[shape]
     if not cellRange then error("The given shape is not in the partition", 2) end
+    if cocollision.boundlessShapes[shape.shapeType] then error("Boundless shapes are not supported in spatial partitions", 2) end
 
     local x1, y1, x2, y2 = self:shapeToCellRange(shape)
 
