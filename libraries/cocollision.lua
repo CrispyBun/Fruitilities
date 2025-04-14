@@ -1040,7 +1040,7 @@ end
 --- Returns if the shape type the shape is set to is boundless.
 ---@return boolean
 function Shape:isBoundless()
-    return cocollision.boundlessShapes[self.shapeType]
+    return cocollision.boundlessShapes[self.shapeType] or false
 end
 
 --------------------------------------------------
@@ -1102,6 +1102,15 @@ function SpatialPartition:removeShape(shape)
     local cellRange = self.shapes[shape]
     self:removeShapeFromCellRange(shape, cellRange[1], cellRange[2], cellRange[3], cellRange[4])
     self.shapes[shape] = nil
+end
+
+--------------------------------------------------
+--- ### SpatialPartition:hasShape(shape)
+--- Checks whether or not the given shape is present in the partition.
+---@param shape Cocollision.Shape
+---@return boolean
+function SpatialPartition:hasShape(shape)
+    return not not self.shapes[shape]
 end
 
 --------------------------------------------------
@@ -1246,6 +1255,8 @@ end
 --- ### SpatialPartition:addShapeToCellRange(shape, x1, y1, x2, y2)
 --- Adds a shape to the specified range of cells. For most purposes, it is better to simply call
 --- `SpatialPartition:addShape()`, which will call this method automatically, and will allow you to refresh the shape easily later.
+--- 
+--- If you use this function to add a shape to the partition, the shape will NOT be considered present in the partition.
 ---@param shape Cocollision.Shape
 ---@param x1 integer
 ---@param y1 integer
