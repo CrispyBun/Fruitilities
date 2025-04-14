@@ -1036,6 +1036,14 @@ function Shape:getBoundingBox()
 end
 
 --------------------------------------------------
+--- ### Shape:isBoundless()
+--- Returns if the shape type the shape is set to is boundless.
+---@return boolean
+function Shape:isBoundless()
+    return cocollision.boundlessShapes[self.shapeType]
+end
+
+--------------------------------------------------
 --- ### Shape:debugDraw()
 --- Draws the shape for debugging purposes.  
 --- This is the only platform dependent function. If shape drawing isn't implemented, this function does nothing.
