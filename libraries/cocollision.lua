@@ -1058,10 +1058,16 @@ end
 --- ### SpatialPartition:addShape(shape)
 --- Adds a shape to the partition. If this shape ever moves or transforms in any way,
 --- make sure to call `SpatialPartition:refreshShape(shape)` to keep it in the correct place in the partition.
+--- 
+--- Boundless shapes (besides `"none"`) are not supported.
 ---@param shape Cocollision.Shape
 function SpatialPartition:addShape(shape)
     if self.shapes[shape] then error("Shape is already present in the partition", 2) end
-    if cocollision.boundlessShapes[shape.shapeType] then error("Boundless shapes are not supported in spatial partitions", 2) end
+
+    -- `"none"` shape types are boundless, but it seems worth it to make an exception for them.
+    -- they'll all just be stored at cell x=y=0 but that shouldn't matter too much.
+    local shapeType = shape.shapeType
+    if shapeType ~= "none" and cocollision.boundlessShapes[shapeType] then error("Boundless shapes are not supported in spatial partitions", 2) end
 
     local x1, y1, x2, y2 = self:shapeToCellRange(shape)
 
@@ -1089,7 +1095,9 @@ end
 function SpatialPartition:refreshShape(shape)
     local cellRange = self.shapes[shape]
     if not cellRange then error("The given shape is not in the partition", 2) end
-    if cocollision.boundlessShapes[shape.shapeType] then error("Boundless shapes are not supported in spatial partitions", 2) end
+
+    local shapeType = shape.shapeType
+    if shapeType ~= "none" and cocollision.boundlessShapes[shapeType] then error("Boundless shapes are not supported in spatial partitions", 2) end
 
     local x1, y1, x2, y2 = self:shapeToCellRange(shape)
 
@@ -1149,7 +1157,11 @@ end
 ---@return Cocollision.Shape[]
 function SpatialPartition:getCell(x, y)
     local outShapes = {}
+
+    -- If this turns out to be too slow, it could be worth a refactor to use a pairing function for the cell keys.
+    -- For now though, I enjoy the cell keys being readable.
     local cellKey = x .. ";" .. y
+
     local shapesArray = self.cells[cellKey]
     if shapesArray then
         for shapeIndex = 1, #shapesArray do
