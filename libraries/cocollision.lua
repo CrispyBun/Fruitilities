@@ -2367,6 +2367,8 @@ cocollision.graphics.debugDrawShape = function(shape, fullColor, drawBounds)
         love.graphics.circle("fill", vertices[1], vertices[2], vertices[3] - vertices[1])
         love.graphics.setColor(colorFull)
         love.graphics.circle("line", vertices[1], vertices[2], vertices[3] - vertices[1])
+
+        love.graphics.setColor(cr, cg, cb, ca)
         return
     end
 
@@ -2385,6 +2387,8 @@ cocollision.graphics.debugDrawShape = function(shape, fullColor, drawBounds)
         love.graphics.setColor(colorFull)
         love.graphics.circle("line", vertices[1], vertices[2], r1)
         love.graphics.circle("line", vertices[1], vertices[2], r2)
+
+        love.graphics.setColor(cr, cg, cb, ca)
         return
     end
 
