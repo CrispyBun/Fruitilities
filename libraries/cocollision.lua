@@ -1361,12 +1361,21 @@ function cocollision.rectanglesIntersect(rectangle1, rectangle2, x1, y1, x2, y2)
 
     local pushX = -leftPush < rightPush and leftPush or rightPush
     local pushY = -upPush < downPush and upPush or downPush
+
     if math.abs(pushX) < math.abs(pushY) then
-        pushX = pushX + (pushX > 0 and cocollision.pushVectorIncrease or -cocollision.pushVectorIncrease)
+        pushX = pushX + (pushX > 0 and cocollision.pushVectorIncrease or pushX < 0 and -cocollision.pushVectorIncrease or 0)
         pushY = 0
+
+        if pushX == 0 then -- Touching edges
+            pushX = pushX + ((ax1 == bx2) and cocollision.pushVectorIncrease or (ax2 == bx1) and -cocollision.pushVectorIncrease or 0)
+        end
     else
         pushX = 0
-        pushY = pushY + (pushY > 0 and cocollision.pushVectorIncrease or -cocollision.pushVectorIncrease)
+        pushY = pushY + (pushY > 0 and cocollision.pushVectorIncrease or pushY < 0 and -cocollision.pushVectorIncrease or 0)
+
+        if pushY == 0 then -- Touching edges
+            pushY = pushY + ((ay1 == by2) and cocollision.pushVectorIncrease or (ay2 == by1) and -cocollision.pushVectorIncrease or 0)
+        end
     end
 
     return true, {infoType = "push_vector", pushX, pushY}
@@ -1490,6 +1499,14 @@ function cocollision.polygonsIntersect(polygon1, polygon2, x1, y1, x2, y2)
         pushVectorY = -pushVectorY
     end
 
+    -- Fix touching edges
+    if pushVectorX == 0 and pushVectorY == 0 then
+        local pushSignX = centerDifferenceX > 0 and 1 or centerDifferenceX < 0 and -1 or 0
+        local pushSignY = centerDifferenceY > 0 and 1 or centerDifferenceY < 0 and -1 or 0
+        pushVectorX = cocollision.pushVectorIncrease * pushSignX * -1
+        pushVectorY = cocollision.pushVectorIncrease * pushSignY * -1
+    end
+
     return true, {infoType = "push_vector", pushVectorX, pushVectorY}
 end
 local polygonsIntersect = cocollision.polygonsIntersect
@@ -1611,6 +1628,10 @@ function cocollision.polygonIntersectsCircle(polygon, polygonX, polygonY, circle
 
     if not cocollision.doPushVectorCalculation then return true end
 
+    -- Technically the wrong way to do the pushVectorIncrease (adds it to both axes) but no one's gonna know
+    pushVectorX = pushVectorX + (pushVectorX > 0 and cocollision.pushVectorIncrease or pushVectorX < 0 and -cocollision.pushVectorIncrease or 0)
+    pushVectorY = pushVectorY + (pushVectorY > 0 and cocollision.pushVectorIncrease or pushVectorY < 0 and -cocollision.pushVectorIncrease or 0)
+
     -- Make sure the push vector is pointing in the right direction
     polygonCenterX = polygonCenterX / (#polygon / 2)
     polygonCenterY = polygonCenterY / (#polygon / 2)
@@ -1653,9 +1674,15 @@ function cocollision.circlesIntersect(circle1X, circle1Y, circle1Radius, circle2
     local differenceY = circle1Y - circle2Y
     local distance = math.sqrt(differenceX * differenceX + differenceY * differenceY)
     if distance > circle1Radius + circle2Radius then return false end
+
     if not cocollision.doPushVectorCalculation then return true end
 
-    local pushDistance = circle1Radius + circle2Radius - distance
+    local pushDistance = circle1Radius + circle2Radius - distance + cocollision.pushVectorIncrease
+
+    if distance == 0 then
+        return true, {infoType = "push_vector", pushDistance, 0}
+    end
+
     local pushVectorX = differenceX / distance * pushDistance
     local pushVectorY = differenceY / distance * pushDistance
     return true, {infoType = "push_vector", pushVectorX, pushVectorY}
