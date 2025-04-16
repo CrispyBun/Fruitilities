@@ -1369,7 +1369,7 @@ function cocollision.rectanglesIntersect(rectangle1, rectangle2, x1, y1, x2, y2)
         pushY = pushY + (pushY > 0 and cocollision.pushVectorIncrease or -cocollision.pushVectorIncrease)
     end
 
-    return true, {pushX, pushY}
+    return true, {infoType = "push_vector", pushX, pushY}
 end
 local rectanglesIntersect = cocollision.rectanglesIntersect
 
@@ -1490,7 +1490,7 @@ function cocollision.polygonsIntersect(polygon1, polygon2, x1, y1, x2, y2)
         pushVectorY = -pushVectorY
     end
 
-    return true, {pushVectorX, pushVectorY}
+    return true, {infoType = "push_vector", pushVectorX, pushVectorY}
 end
 local polygonsIntersect = cocollision.polygonsIntersect
 
@@ -1626,7 +1626,7 @@ function cocollision.polygonIntersectsCircle(polygon, polygonX, polygonY, circle
         pushVectorY = -pushVectorY
     end
 
-    return true, {pushVectorX, pushVectorY}
+    return true, {infoType = "push_vector", pushVectorX, pushVectorY}
 end
 local polygonIntersectsCircle = cocollision.polygonIntersectsCircle
 
@@ -1658,7 +1658,7 @@ function cocollision.circlesIntersect(circle1X, circle1Y, circle1Radius, circle2
     local pushDistance = circle1Radius + circle2Radius - distance
     local pushVectorX = differenceX / distance * pushDistance
     local pushVectorY = differenceY / distance * pushDistance
-    return true, {pushVectorX, pushVectorY}
+    return true, {infoType = "push_vector", pushVectorX, pushVectorY}
 end
 local circlesIntersect = cocollision.circlesIntersect
 
@@ -1888,7 +1888,7 @@ function cocollision.linesIntersect(ax1, ay1, ax2, ay2, bx1, by1, bx2, by2, line
         local uMax = line2EndpointCount <= 1 and math.huge or 1
 
         if t >= tMin and t <= tMax and u >= uMin and u <= uMax then
-            return true, {t = t, u = u}
+            return true, {infoType = "line_intersection", t = t, u = u}
         end
     end
 
