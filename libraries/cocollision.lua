@@ -520,8 +520,8 @@ end
 ---@param partition Cocollision.SpatialPartition
 ---@param filterFunction? fun(shape: Cocollision.Shape): boolean
 ---@return boolean intersectedAny
----@return (table?)[]? collisionInfos
----@return Cocollision.Shape[]? intersectedShapes
+---@return (table?)[] collisionInfos
+---@return Cocollision.Shape[] intersectedShapes
 function Shape:findAllPartitionIntersections(partition, filterFunction)
     local otherShapes = partition:getShapeCellRange(self)
     local collisionInfos = {}
@@ -541,7 +541,7 @@ function Shape:findAllPartitionIntersections(partition, filterFunction)
         end
     end
 
-    if #intersectedShapes == 0 then return false end
+    if #intersectedShapes == 0 then return false, collisionInfos, intersectedShapes end
     return true, collisionInfos, intersectedShapes
 end
 
