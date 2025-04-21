@@ -1647,6 +1647,14 @@ function cocollision.polygonIntersectsCircle(polygon, polygonX, polygonY, circle
         pushVectorY = -pushVectorY
     end
 
+    -- Fix touching edges
+    if pushVectorX == 0 and pushVectorY == 0 then
+        local pushSignX = centerDifferenceX > 0 and 1 or centerDifferenceX < 0 and -1 or 0
+        local pushSignY = centerDifferenceY > 0 and 1 or centerDifferenceY < 0 and -1 or 0
+        pushVectorX = cocollision.pushVectorIncrease * pushSignX * -1
+        pushVectorY = cocollision.pushVectorIncrease * pushSignY * -1
+    end
+
     return true, {infoType = "push_vector", pushVectorX, pushVectorY}
 end
 local polygonIntersectsCircle = cocollision.polygonIntersectsCircle
