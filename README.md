@@ -7,7 +7,6 @@ In [LÖVE](https://love2d.org/), graphics work out of the box, but for any other
 The libraries make it easy enough by exposing all rendering-related functions into a table in `<library>.graphics`, which you can overwrite with your specific implementations.
 
 Outside of LÖVE, the libraries all still work with no tweaks needed, but the rendering functions simply won't do anything.
-More out-of-the-box rendering functionality for other environments (such as [raylib](https://www.raylib.com/), [ComputerCraft](https://tweaked.cc/)) *may* be added in the future, but no promises. Pull requests welcome!
 
 ## Documentation
 
