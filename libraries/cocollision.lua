@@ -483,7 +483,7 @@ Shape.collisionAt = Shape.intersectsAt
 --- Checks for an intersection between the shape and the shapes in the given spatial partition, returning true for the first shape it intersects with (along with any possible collision info, and the intersected shape).  
 --- You can optionally supply a filter function which must return true for a given shape to be tested.
 ---@param partition Cocollision.SpatialPartition
----@param filterFunction? fun(shape: Cocollision.Shape): boolean
+---@param filterFunction? fun(checkedShape: Cocollision.Shape, checkingShape: Cocollision.Shape): boolean
 ---@return boolean intersects
 ---@return table? collisionInfo
 ---@return Cocollision.Shape? intersectedShape
@@ -500,7 +500,7 @@ function Shape:intersectsAnyInPartition(partition, filterFunction)
             if cell then
                 for shapeIndex = 1, #cell do
                     local otherShape = cell[shapeIndex]
-                    local canTest = (self ~= otherShape) and (not seenShapes[otherShape]) and (not filterFunction or filterFunction(otherShape))
+                    local canTest = (self ~= otherShape) and (not seenShapes[otherShape]) and (not filterFunction or filterFunction(otherShape, self))
                     seenShapes[otherShape] = true
                     if canTest then
                         local intersects, info = self:intersects(otherShape)
@@ -518,7 +518,7 @@ end
 --- ### Shape:findAllPartitionIntersections(partition)
 --- Like `Shape:intersectsAnyInPartition()`, but tests for all intersections and returns them in an array. The `collisionInfos` array may have holes in it.
 ---@param partition Cocollision.SpatialPartition
----@param filterFunction? fun(shape: Cocollision.Shape): boolean
+---@param filterFunction? fun(checkedShape: Cocollision.Shape, checkingShape: Cocollision.Shape): boolean
 ---@return boolean intersectedAny
 ---@return (table?)[] collisionInfos
 ---@return Cocollision.Shape[] intersectedShapes
@@ -530,7 +530,7 @@ function Shape:findAllPartitionIntersections(partition, filterFunction)
 
     for otherShapeIndex = 1, #otherShapes do
         local otherShape = otherShapes[otherShapeIndex]
-        local canTest = (self ~= otherShape) and (not filterFunction or filterFunction(otherShape))
+        local canTest = (self ~= otherShape) and (not filterFunction or filterFunction(otherShape, self))
         if canTest then
             local intersects, info = self:intersects(otherShape)
             if intersects then
