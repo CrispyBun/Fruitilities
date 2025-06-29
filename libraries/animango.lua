@@ -256,6 +256,16 @@ function Sprite:changeAnimationFrom(requiredCurrentAnimation, animationName)
 end
 
 --------------------------------------------------
+--- ### Sprite:hasAnimation(animationName)
+--- Returns true if the sprite contains the specified animation, or false otherwise.
+---@param animationName string
+---@return boolean
+function Sprite:hasAnimation(animationName)
+    if self.animations[animationName] then return true end
+    return false
+end
+
+--------------------------------------------------
 --- ### Sprite:setCurrentFrame(frame)
 --- Sets the sprite's current frame in the animaton.
 ---@param frame number
