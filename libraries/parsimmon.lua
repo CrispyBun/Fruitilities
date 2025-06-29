@@ -810,6 +810,15 @@ function WrappedFormat:newChunkEncoder(valueToEncode)
     return self.format:newChunkEncoder(valueToEncode)
 end
 
+--- ### WrappedFormat:duplicate()
+--- Creates a new identical copy of the WrappedFormat,
+--- useful for having multiple of these with different set config values.
+---@return Parsimmon.WrappedFormat
+function WrappedFormat:duplicate()
+    local format = self.format:duplicate()
+    return parsimmon.wrapFormat(format)
+end
+
 WrappedFormat.setConfigValue = Format.setConfigValue
 WrappedFormat.setConfig = Format.setConfig
 
