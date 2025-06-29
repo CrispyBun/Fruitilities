@@ -41,6 +41,8 @@ local animango = {}
 ---@field loveImage? love.Image The LÖVE image used to draw the frame
 ---@diagnostic disable-next-line: undefined-doc-name
 ---@field loveQuad? love.Quad The LÖVE quad used to crop the frame's image
+---@diagnostic disable-next-line: undefined-doc-name
+---@field loveSpritebatch? love.SpriteBatch Optional spritebatch to use instead of the loveImage field. The sprite simply adds another instance (including its quad, if present) to the batch each time draw is called (so the batch should be cleared every frame).
 
 ---@class Animango.Animation
 ---@field frames Animango.Frame[] The frames in the animation
@@ -719,14 +721,25 @@ local love = love
 ---@param kx? number
 ---@param ky? number
 function animango.graphics.drawFrame(frame, x, y, r, sx, sy, ox, oy, kx, ky)
-    if not frame.loveImage then return end
     x = x or 0
     y = y or 0
 
-    if frame.loveQuad then
-        love.graphics.draw(frame.loveImage, frame.loveQuad, x, y, r, sx, sy, ox, oy, kx, ky)
-    else
-        love.graphics.draw(frame.loveImage, x, y, r, sx, sy, ox, oy, kx, ky)
+    if frame.loveSpritebatch then
+        if frame.loveQuad then
+            frame.loveSpritebatch:add(frame.loveQuad, x, y, r, sx, sy, ox, oy, kx, ky)
+        else
+            frame.loveSpritebatch:add(x, y, r, sx, sy, ox, oy, kx, ky)
+        end
+        return
+    end
+
+    if frame.loveImage then
+        if frame.loveQuad then
+            love.graphics.draw(frame.loveImage, frame.loveQuad, x, y, r, sx, sy, ox, oy, kx, ky)
+        else
+            love.graphics.draw(frame.loveImage, x, y, r, sx, sy, ox, oy, kx, ky)
+        end
+        return
     end
 end
 
