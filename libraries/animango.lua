@@ -370,8 +370,8 @@ function Sprite:update(dt)
     local nextFrameActual = math.floor(nextFrame)
     local frameChanged = (lastFrameActual ~= nextFrameActual) or isVeryFirstFrame
 
-    local frameCount = #animation.frames
-    local looped = (nextFrame >= frameCount + 1) or (nextFrame ~= nextFrame) -- NaN check for 0-frame animation edge case
+    local frameCount = math.max(#animation.frames, 1) -- Consider 0-frame animations to have 1 empty frame
+    local looped = (nextFrame >= frameCount + 1)
     nextFrame = ((nextFrame-1) % frameCount) + 1 -- loop the animation
 
     self.currentFrame = nextFrame
