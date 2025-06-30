@@ -1486,6 +1486,12 @@ function cocollision.polygonsIntersect(polygon1, polygon2, x1, y1, x2, y2)
     -- If we made it here, there was a collision
     if not cocollision.doPushVectorCalculation then return true end
 
+    -- Edge case where all the vertices are in the same exact spot so a push vector couldn't be calculated
+    if not pushVectorX or not pushVectorY then
+        pushVectorX = 0
+        pushVectorY = cocollision.pushVectorIncrease
+    end
+
     -- Make sure the push vector is pointing in the right direction
     polygon1CenterX = polygon1CenterX / (#polygon1 / 2)
     polygon1CenterY = polygon1CenterY / (#polygon1 / 2)
@@ -1628,9 +1634,16 @@ function cocollision.polygonIntersectsCircle(polygon, polygonX, polygonY, circle
 
     if not cocollision.doPushVectorCalculation then return true end
 
+    -- Edge case where a single vertex is in the exact center of the circle so a push vector couldn't be calculated
+    if not pushVectorX or not pushVectorY then
+        pushVectorX = 0
+        pushVectorY = circleRadius
+    end
+
     -- Technically the wrong way to do the pushVectorIncrease (adds it to both axes) but no one's gonna know
     pushVectorX = pushVectorX + (pushVectorX > 0 and cocollision.pushVectorIncrease or pushVectorX < 0 and -cocollision.pushVectorIncrease or 0)
     pushVectorY = pushVectorY + (pushVectorY > 0 and cocollision.pushVectorIncrease or pushVectorY < 0 and -cocollision.pushVectorIncrease or 0)
+    if pushVectorX == 0 and pushVectorY == 0 then pushVectorY = cocollision.pushVectorIncrease end
 
     -- Make sure the push vector is pointing in the right direction
     polygonCenterX = polygonCenterX / (#polygon / 2)
