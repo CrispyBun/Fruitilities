@@ -131,7 +131,7 @@ papayui.touchScrollingEnabled = true  -- Whether or not holding down the action 
 ---@field margin number[] The margin of the element, in the format {left, top, right, bottom}
 ---@field color? string The background color of this element. Either a name from the ui.colors table, or anything supported by the `papayui.resolveUnknownColor()` function (by default, "#hex" or "rgb()").
 ---@field colorHover? string The background color of this element when it's hovered over
----@field drawRectangle? boolean Whether or not the element should draw a rectangle of its color at its position. If nil, defaults to papayui.drawElementRectangles.
+---@field shouldDrawRectangle? boolean Whether or not the element should draw a rectangle of its color at its position. If nil, defaults to papayui.drawElementRectangles.
 ---@field draw? fun(event: Papayui.DrawEvent) Function that draws the element
 ---@field drawInner? fun(event: Papayui.DrawEvent) Similar to the draw function, but is drawn after it and receives the element's inner padded area as the size
 ---@field layout Papayui.ElementLayout The way this element's children will be laid out
@@ -1640,8 +1640,8 @@ function Element:draw(x, y, width, height, isSelected, event)
         color = papayui.resolveUnknownColor(colorName)
     end
 
-    local drawRectangle = style.drawRectangle == nil and papayui.drawElementRectangles or style.drawRectangle
-    if color and drawRectangle then
+    local shouldDrawRectangle = style.shouldDrawRectangle == nil and papayui.drawElementRectangles or style.shouldDrawRectangle
+    if color and shouldDrawRectangle then
         papayui.graphics.drawRectangle(x, y, width, height, color)
     end
 
