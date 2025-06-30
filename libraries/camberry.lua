@@ -690,6 +690,7 @@ function Camera:moveTowardsTargets(dt)
         return
     end
 
+    -- https://www.rorydriscoll.com/2016/03/07/frame-rate-independent-damping-using-lerp/
     self.x = lerp(sourceX, targetX, 1 - smoothness ^ dt)
     self.y = lerp(sourceY, targetY, 1 - smoothness ^ dt)
 end
