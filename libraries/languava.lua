@@ -118,7 +118,8 @@ local LanguageMT = {__index = Language}
 --- or if it's in the format of `[languava.languageSubsetSeparator][subset name]`, to select a subset of the currently selected language.
 ---@param query string|Languava.Query The identifier of the translation (e.g. `"game.item.sword"` or `{base = "game.item.sword"}`)
 ---@param langcode? string Optional override or subset for the language to use instead of the currently selected one (e.g. `"en_US"` or `"@plural"` if @ is the subset separator)
----@return string
+---@return string translation The translated text, or just the query as a string if a translation wasn't found
+---@return boolean found Whether or not a translation was found
 function languava.get(query, langcode)
     if not query then error("No query provided", 2) end
     langcode = langcode or languava.currentLanguage
@@ -142,6 +143,7 @@ end
 ---@param query string|Languava.Query
 ---@param langcode? string
 ---@return string
+---@return boolean
 function languavaMT.__call(t, query, langcode)
     return languava.get(query, langcode)
 end
@@ -304,7 +306,8 @@ end
 --- Returns the translation of the given `query`.
 ---@param query string|Languava.Query The query specifying what translation to get
 ---@param subset? string Can be used to look into a subset of the language instead of the language itself
----@return string
+---@return string translation The translated text, or just the query as a string if a translation wasn't found
+---@return boolean found Whether or not a translation was found
 function Language:get(query, subset)
     if type(query) == "table" and not query.base then
         error("Object query is missing 'base' field", 2)
@@ -314,7 +317,7 @@ function Language:get(query, subset)
     -- Querying a subset
     if subset then
         local subsetLanguage = self.subsetLanguages[subset]
-        if not subsetLanguage then return stringQuery end -- Subset not found
+        if not subsetLanguage then return stringQuery, false end -- Subset not found
 
         return subsetLanguage:get(query)
     end
@@ -325,22 +328,22 @@ function Language:get(query, subset)
         for processorIndex = 1, #chain do
             local processingFn = chain[processorIndex]
             local out = processingFn(self, query)
-            if out then return out end
+            if out then return out, true end
         end
     end
 
     -- Regular string query processing and fallbacks:
 
     local translation = self:getRaw(stringQuery)
-    if translation then return translation end
+    if translation then return translation, true end
 
     if self.fallbackFunction then
         local out = self:fallbackFunction(stringQuery)
-        if out then return out end
+        if out then return out, true end
     end
 
     if self.fallbackLanguage then return self.fallbackLanguage:get(query) end
-    return stringQuery
+    return stringQuery, false
 end
 
 --- Simply gets the text translation of a pure string query if it has one, or `nil` if it doesn't.  
