@@ -205,6 +205,7 @@ local UIMT = {__index = UI}
 ---@field targetElement Papayui.Element The element that the event was triggered for
 ---@field data table The arbitrary data that was put into the element
 ---@field ui Papayui.UI The UI the event was triggered in
+---@field dt? number The deltatime value used in the last `UI:update()`. Only present in some event types.
 
 ---@class Papayui.DrawEvent : Papayui.Event
 ---@field x number The X position of the element
@@ -615,10 +616,10 @@ function UI:update(dt)
             end
         end
 
-        self:triggerEvent("update", member)
+        self:triggerEvent("update", member, dt)
     end
 
-    if self.selectedMember then self:triggerEvent("hoveredUpdate", self.selectedMember) end
+    if self.selectedMember then self:triggerEvent("hoveredUpdate", self.selectedMember, dt) end
 end
 
 --------------------------------------------------
@@ -1053,14 +1054,16 @@ end
 --- Triggers the specified event on the given member
 ---@param eventType Papayui.EventType
 ---@param member Papayui.LiveMember
-function UI:triggerEvent(eventType, member)
+---@param dt? number
+function UI:triggerEvent(eventType, member, dt)
     ---@type Papayui.Event
     local event = {
         type = eventType,
         targetMember = member,
         targetElement = member.element,
         data = member.element.data,
-        ui = self
+        ui = self,
+        dt = dt
     }
 
     self:callEvent(event)
