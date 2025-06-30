@@ -562,16 +562,16 @@ function UI:update(dt)
             local frictionY = scrollVelocityY * papayui.scrollFriction
 
             -- Apply first half of friction force
-            scrollVelocityX = scrollVelocityX - frictionX * dtNormalised * 0.5
-            scrollVelocityY = scrollVelocityY - frictionY * dtNormalised * 0.5
+            scrollVelocityX = scrollVelocityX - frictionX * dtNormalised * 0.75
+            scrollVelocityY = scrollVelocityY - frictionY * dtNormalised * 0.75
 
             -- Move
             scrollX = scrollX + scrollVelocityX * dtNormalised
             scrollY = scrollY + scrollVelocityY * dtNormalised
 
             -- Apply second half of friction force
-            scrollVelocityX = scrollVelocityX - frictionX * dtNormalised * 0.5
-            scrollVelocityY = scrollVelocityY - frictionY * dtNormalised * 0.5
+            scrollVelocityX = scrollVelocityX - frictionX * dtNormalised * 0.25
+            scrollVelocityY = scrollVelocityY - frictionY * dtNormalised * 0.25
 
             -- Apply the values
             member.scrollX = scrollX
@@ -1827,9 +1827,9 @@ local function predictNeededScrollVelocity(targetDistanceTravelled, friction, hi
         local result = 0
         for velocityIteration = 1, simulationTime do
             local absoluteFriction = velocity * friction
-            velocity = velocity - absoluteFriction * 0.5
+            velocity = velocity - absoluteFriction * 0.75
             result = result + velocity
-            velocity = velocity - absoluteFriction * 0.5
+            velocity = velocity - absoluteFriction * 0.25
         end
 
         if math.abs(result) >= math.abs(targetDistanceTravelled) then return initialVelocity end
