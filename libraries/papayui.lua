@@ -2790,22 +2790,22 @@ function LiveMember:scrollToView()
         offsetY = offsetY + math.min(py2 - y2, 0)
 
         if parentStyle.scrollHorizontal then
-            local targetVelocity = offsetX
-            if targetVelocity > 0 then targetVelocity = targetVelocity + papayui.buttonScrollOvershoot end
-            if targetVelocity < 0 then targetVelocity = targetVelocity - papayui.buttonScrollOvershoot end
+            local targetDistanceTravelled = offsetX
+            if targetDistanceTravelled > 0 then targetDistanceTravelled = targetDistanceTravelled + papayui.buttonScrollOvershoot end
+            if targetDistanceTravelled < 0 then targetDistanceTravelled = targetDistanceTravelled - papayui.buttonScrollOvershoot end
             local velocity = 0
-            if targetVelocity ~= 0 then velocity = predictNeededScrollVelocity(targetVelocity, papayui.scrollFriction) end
+            if targetDistanceTravelled ~= 0 then velocity = predictNeededScrollVelocity(targetDistanceTravelled, papayui.scrollFriction) end
 
             parent.scrollVelocityX = velocity
             x1 = x1 + offsetX
             x2 = x2 + offsetX
         end
         if parentStyle.scrollVertical then
-            local targetVelocity = offsetY
-            if targetVelocity > 0 then targetVelocity = targetVelocity + papayui.buttonScrollOvershoot end
-            if targetVelocity < 0 then targetVelocity = targetVelocity - papayui.buttonScrollOvershoot end
+            local targetDistanceTravelled = offsetY
+            if targetDistanceTravelled > 0 then targetDistanceTravelled = targetDistanceTravelled + papayui.buttonScrollOvershoot end
+            if targetDistanceTravelled < 0 then targetDistanceTravelled = targetDistanceTravelled - papayui.buttonScrollOvershoot end
             local velocity = 0
-            if targetVelocity ~= 0 then velocity = predictNeededScrollVelocity(targetVelocity, papayui.scrollFriction) end
+            if targetDistanceTravelled ~= 0 then velocity = predictNeededScrollVelocity(targetDistanceTravelled, papayui.scrollFriction) end
 
             parent.scrollVelocityY = velocity
             y1 = y1 + offsetY
