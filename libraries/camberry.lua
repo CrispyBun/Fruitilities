@@ -45,7 +45,7 @@ local camberry = {}
 ---@field safeBoundsOffset [number, number] The distance from the camera's edge (in each axis) that targets must stay in if `snapToFirstTarget` or `zoomToAllTargets` are enabled. Positive values shrink the area, negative values grow it.
 ---@field safeBoundsAreDeadzone boolean If true, the `safeBoundsOffset` will be a rectangle starting from the center of the camera, rather than it starting and shrinking from the edges of the camera. Default is false.
 ---@field scaleSafeBoundsWithZoom boolean If true, the safe bounds area will scale with the camera's zoom. This may make auto-zooming to show targets inaccurate. Default is false.
----@field updateTargetRigs boolean If true, the camera will scan its targets and, if they have an `updateRigs` method, calls it.
+---@field shouldUpdateTargetRigs boolean If true, the camera will scan its targets and, if they have an `updateRigs` method, calls it.
 ---@field minAutoZoom number The minimum zoom the camera can automatically zoom to when zooming to show targets. This stacks with the currently set zoom value. Default is 0 (unlimited).
 ---@field pixelPerfectMovement boolean Whether or not the camera's position should snap to integer coordinates when rendering.
 ---@field dontRenderZoom boolean If true, zoom will still be present in all calculations, but won't be rendered.
@@ -128,7 +128,7 @@ function camberry.newCamera(width, height)
         safeBoundsOffset = {0, 0},
         safeBoundsAreDeadzone = false,
         scaleSafeBoundsWithZoom = false,
-        updateTargetRigs = false,
+        shouldUpdateTargetRigs = false,
         minAutoZoom = 0,
         dontRenderZoom = false,
         dontRenderRotation = false,
@@ -176,7 +176,7 @@ function Camera:clone()
     camera.snapToFirstTarget = self.snapToFirstTarget
     camera.zoomToAllTargets = self.zoomToAllTargets
     camera.safeBoundsOffset[1], camera.safeBoundsOffset[2] = self.safeBoundsOffset[1], self.safeBoundsOffset[2]
-    camera.updateTargetRigs = self.updateTargetRigs
+    camera.shouldUpdateTargetRigs = self.shouldUpdateTargetRigs
     camera.minAutoZoom = self.minAutoZoom
     camera.dontRenderZoom = self.dontRenderZoom
     camera.dontRenderRotation = self.dontRenderRotation
@@ -271,9 +271,11 @@ end
 --------------------------------------------------
 --- ### Camera:update(dt)
 --- Updates the camera's position.
+--- This is the only update that needs to be called on the camera,
+--- as this will also call `camera:updateRigs()`.
 ---@param dt number The time in seconds since the last call to update
 function Camera:update(dt)
-    if self.updateTargetRigs then
+    if self.shouldUpdateTargetRigs then
         for targetIndex = 1, #self.targets do
             local target = self.targets[targetIndex]
             if target.updateRigs then target:updateRigs(dt) end
@@ -550,7 +552,7 @@ end
 
 --------------------------------------------------
 --- ### Camera:getBoundsForRendering()
---- Returns the bounds the camera should actually render to (takes `pixelPerfectMovement` into account).
+--- Returns the bounds the camera should actually render to.
 function Camera:getBoundsForRendering()
     local depthX, depthY = self:getParallaxDepthValues()
     local offsetX, offsetY = self:getOffsetForRendering()
@@ -597,7 +599,7 @@ end
 
 --------------------------------------------------
 --- ### Camera:getOffsetForRendering()
---- Returns the offset of the camera that rendering should use (takes `dontRenderOffset` into account).
+--- Returns the offset of the camera that rendering should use.
 ---@return number
 ---@return number
 function Camera:getOffsetForRendering()
