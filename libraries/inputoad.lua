@@ -133,6 +133,15 @@ end
 function inputoad.updateTime(time)
     inputoad.time = time
 end
+
+--------------------------------------------------
+--- ### inputoad.updateTimeRelative(dt)
+--- Like `inputoad.updateTime()`, but takes in a deltatime value rather an absolute time value.
+---@param dt number
+function inputoad.updateTimeRelative(dt)
+    inputoad.time = inputoad.time + dt
+end
+
 ---@type number
 inputoad.time = 0
 
