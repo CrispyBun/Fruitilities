@@ -226,6 +226,20 @@ function Sprite:setPosition(x, y)
 end
 
 --------------------------------------------------
+--- ### Sprite:setOrigin(originX, originY)
+--- Sets the sprite's origin.
+---@param originX number
+---@param originY number
+---@generic T : Animango.Sprite
+---@param self T
+---@return T self
+function Sprite:setOrigin(originX, originY)
+    self.originX = originX
+    self.originY = originY
+    return self
+end
+
+--------------------------------------------------
 --- ### Sprite:setAnimation(animationName)
 --- Sets the sprite's current animation and resets all the relevant variables.
 ---@param animationName string
