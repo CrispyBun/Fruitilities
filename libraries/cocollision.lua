@@ -1362,23 +1362,26 @@ function cocollision.rectanglesIntersect(rectangle1, rectangle2, x1, y1, x2, y2)
     local pushX = -leftPush < rightPush and leftPush or rightPush
     local pushY = -upPush < downPush and upPush or downPush
 
-    if math.abs(pushX) < math.abs(pushY) then
-        pushX = pushX + (pushX > 0 and cocollision.pushVectorIncrease or pushX < 0 and -cocollision.pushVectorIncrease or 0)
-        pushY = 0
+    pushX = pushX + (pushX > 0 and cocollision.pushVectorIncrease or pushX < 0 and -cocollision.pushVectorIncrease or 0)
+    pushY = pushY + (pushY > 0 and cocollision.pushVectorIncrease or pushY < 0 and -cocollision.pushVectorIncrease or 0)
 
-        if pushX == 0 then -- Touching edges
-            pushX = pushX + ((ax1 == bx2) and cocollision.pushVectorIncrease or (ax2 == bx1) and -cocollision.pushVectorIncrease or 0)
-        end
-    else
-        pushX = 0
-        pushY = pushY + (pushY > 0 and cocollision.pushVectorIncrease or pushY < 0 and -cocollision.pushVectorIncrease or 0)
-
-        if pushY == 0 then -- Touching edges
-            pushY = pushY + ((ay1 == by2) and cocollision.pushVectorIncrease or (ay2 == by1) and -cocollision.pushVectorIncrease or 0)
-        end
+    -- Fix touching edges
+    if pushX == 0 then
+        pushX = pushX + ((ax1 == bx2) and cocollision.pushVectorIncrease or (ax2 == bx1) and -cocollision.pushVectorIncrease or 0)
+    end
+    if pushY == 0 then
+        pushY = pushY + ((ay1 == by2) and cocollision.pushVectorIncrease or (ay2 == by1) and -cocollision.pushVectorIncrease or 0)
     end
 
-    return true, {infoType = "push_vector", pushX, pushY}
+    local bothAxesPushX = pushX
+    local bothAxesPushY = pushY
+    if math.abs(pushX) < math.abs(pushY) then
+        pushY = 0
+    else
+        pushX = 0
+    end
+
+    return true, {infoType = "push_vector", pushX, pushY, bothAxesPushX = bothAxesPushX, bothAxesPushY = bothAxesPushY}
 end
 local rectanglesIntersect = cocollision.rectanglesIntersect
 
