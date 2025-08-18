@@ -308,9 +308,9 @@ end
 ---@return number
 ---@return number
 function Camera:toCameraSpace(px, py)
-    local x, y, width, height = self:getBounds()
-    local zoom = self:getZoom()
-    local rotation = self:getRotation()
+    local x, y, width, height = self:getBoundsForRendering()
+    local zoom = self:getZoomForRendering()
+    local rotation = self:getRotationForRendering()
 
     local halfWidth = width / 2
     local halfHeight = height / 2
@@ -340,9 +340,9 @@ end
 ---@return number
 ---@return number
 function Camera:toWorldSpace(px, py)
-    local x, y, width, height = self:getBounds()
-    local zoom = self:getZoom()
-    local rotation = self:getRotation()
+    local x, y, width, height = self:getBoundsForRendering()
+    local zoom = self:getZoomForRendering()
+    local rotation = self:getRotationForRendering()
 
     local halfWidth = width / 2
     local halfHeight = height / 2
@@ -627,6 +627,12 @@ function Camera:getPixelPerfectOffset()
     local depthX, depthY = self:getParallaxDepthValues()
     local x = self.x / depthX * zoom
     local y = self.y / depthY * zoom
+
+    if self.invertPositionRelativeToTargets then
+        x = -x -- We need to flip the sign of the result
+        y = -y
+    end
+
     return
         -((x + 0.5) % 1 - 0.5),
         -((y + 0.5) % 1 - 0.5)
