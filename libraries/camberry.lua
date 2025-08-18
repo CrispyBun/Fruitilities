@@ -503,6 +503,15 @@ function Camera:getOffset()
 end
 
 --------------------------------------------------
+--- ### Camera:getPosition()
+--- Returns the camera's position (which is in the center of its view box).
+---@return number x
+---@return number y
+function Camera:getPosition()
+    return self.x, self.y
+end
+
+--------------------------------------------------
 --- ### Camera:getBounds()
 --- Returns the bounds that the camera sees.
 ---@param ignoreInternalZoom? boolean
