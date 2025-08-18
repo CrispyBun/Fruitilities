@@ -74,7 +74,7 @@ local TargetMT = {__index = Target}
 
 ---@class Camberry.RigReceiver
 ---@field attachedRigs Camberry.Rig[] The current active rigs. These will be updated and used. If any modify the same value, the value will be averaged.
----@field waitForAllRigs boolean If true, the receiver will finish and detach its attached rigs all at once, and only after all of them are at the end of the animation.
+---@field shouldWaitForAllRigs boolean If true, the receiver will finish and detach its attached rigs all at once, and only after all of them are at the end of the animation.
 ---@field stackableRigValues table<string, boolean> If a key in this table is true, and multiple rigs modify a value with that key in the receiver, the values will be summed instead of averaged.
 local RigReceiver = {}
 local RigReceiverMT = {__index = RigReceiver}
@@ -147,7 +147,7 @@ function camberry.newCamera(width, height)
         _offsetY = 0,
 
         attachedRigs = {},
-        waitForAllRigs = false,
+        shouldWaitForAllRigs = false,
         stackableRigValues = {
             offsetX = true,
             offsetY = true,
@@ -192,7 +192,7 @@ function Camera:clone()
     camera._offsetY = self._offsetY
 
     -- No point in copying attached rigs, as that'd make them attached to two cameras which would break stuff
-    camera.waitForAllRigs = self.waitForAllRigs
+    camera.shouldWaitForAllRigs = self.shouldWaitForAllRigs
     for valueIndex = 1, #self.stackableRigValues do
         camera.stackableRigValues[valueIndex] = self.stackableRigValues[valueIndex]
     end
@@ -791,7 +791,7 @@ function camberry.newSimpleTarget(x, y)
         y = y or 0,
 
         attachedRigs = {},
-        waitForAllRigs = false,
+        shouldWaitForAllRigs = false,
         stackableRigValues = {}
     }
 
@@ -835,7 +835,7 @@ function camberry.newRigReceiver()
     -- new Camberry.RigReceiver
     local receiver = {
         attachedRigs = {},
-        waitForAllRigs = false,
+        shouldWaitForAllRigs = false,
         stackableRigValues = {}
     }
 
@@ -907,7 +907,7 @@ function RigReceiver:updateRigs(dt)
 
     local stackableValues = self.stackableRigValues
 
-    local waitForAllRigs = self.waitForAllRigs
+    local shouldWaitForAllRigs = self.shouldWaitForAllRigs
     local allRigsFinished = true
 
     local rigs = self.attachedRigs
@@ -934,7 +934,7 @@ function RigReceiver:updateRigs(dt)
         local progressFinished = rig.progress >= duration and not rig.stayAttached
         if not progressFinished then allRigsFinished = false end
 
-        if progressFinished and not waitForAllRigs then
+        if progressFinished and not shouldWaitForAllRigs then
             popRig(self, rigIndex)
             rigCount = rigCount - 1
             finishedRigs[#finishedRigs+1] = rig
@@ -944,7 +944,7 @@ function RigReceiver:updateRigs(dt)
         end
     end
 
-    if waitForAllRigs and allRigsFinished then
+    if shouldWaitForAllRigs and allRigsFinished then
         for rigIndex = 1, #rigs do
             finishedRigs[rigIndex] = rigs[rigIndex]
         end
