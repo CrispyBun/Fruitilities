@@ -270,6 +270,17 @@ function Sprite:changeAnimationFrom(requiredCurrentAnimation, animationName)
 end
 
 --------------------------------------------------
+--- ### Sprite:currentAnimationHasPrefix(prefix)
+--- Returns true if the name of the current selected animation
+--- starts with the given string.
+---@param prefix string
+---@return boolean
+function Sprite:currentAnimationHasPrefix(prefix)
+    local currentAnimation = self.currentAnimation
+    return string.sub(currentAnimation, 1, #prefix) == prefix
+end
+
+--------------------------------------------------
 --- ### Sprite:hasAnimation(animationName)
 --- Returns true if the sprite contains the specified animation, or false otherwise.
 ---@param animationName string
