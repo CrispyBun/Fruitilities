@@ -7,7 +7,7 @@
 --[[
 MIT License
 
-Copyright (c) 2024 Ava "CrispyBun" Špráchalů
+Copyright (c) 2024-2025 Ava "CrispyBun" Špráchalů
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -429,11 +429,12 @@ function Sprite:draw(x, y, r, sx, sy, ox, oy, kx, ky)
     kx = kx or self.shearX
     ky = ky or self.shearY
 
+    x = x or (self.x + self.translateX)
+    y = y or (self.y + self.translateY)
+
     local animation = self.animations[self.currentAnimation]
     if not animation then return animango.graphics.drawUnknownAnimationError(x, y) end
 
-    x = x or (self.x + self.translateX)
-    y = y or (self.y + self.translateY)
     ox = ox or (self.originX + animation.originX)
     oy = oy or (self.originY + animation.originY)
 
