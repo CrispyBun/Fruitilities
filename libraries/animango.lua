@@ -72,6 +72,8 @@ local AnimationMT = {__index = Animation}
 ---@field currentIteration integer How many times the animation has looped back to the first frame
 ---@field animations table<string, Animango.Animation>
 ---@field animationEvents table<Animango.AnimationEventType, Animango.AnimationEvent> Any events attached to the sprite (used for any active animation)
+---@field stateMachine? Animango.SpriteStateMachine An optional state machine to automatically switch the sprite's animations
+---@field owner? table Doesn't do anything, but can be useful to set to an object that this sprite belongs to. May be useful for state machines deciding the animation for example.
 local Sprite = {}
 local SpriteMT = {__index = Sprite}
 
@@ -86,6 +88,12 @@ local SpriteMT = {__index = Sprite}
 ---| '"frame"' # A new frame has been displayed
 ---| '"update"' # The animation playback has been updated
 
+---@class Animango.SpriteStateMachine
+---@field states table<string, (fun(sprite: Animango.Sprite): string?)?> Each state (aka current animation) and a function deciding which animation to switch to from that state on an update (can return `nil` to stay on the same one)
+---@field vars table<string, any> Any potential variables sent to the state machine to change states based on
+local SpriteStateMachine = {}
+local SpriteStateMachineMT = {__index = SpriteStateMachine}
+
 -- Sprites -----------------------------------------------------------------------------------------
 
 --------------------------------------------------
@@ -93,7 +101,7 @@ local SpriteMT = {__index = Sprite}
 --- Creates a new blank animango sprite.
 ---@return Animango.Sprite
 function animango.newSprite()
-    -- new Animango.Sprite
+    ---@type Animango.Sprite
     local sprite = {
         x = 0,
         y = 0,
@@ -136,7 +144,7 @@ end
 --- Also copies the origin.
 ---@return Animango.Sprite
 function Sprite:instance()
-    -- new Animango.Sprite
+    ---@type Animango.Sprite
     local inst = {
         x = 0,
         y = 0,
@@ -155,7 +163,8 @@ function Sprite:instance()
         currentFrame = 1,
         currentIteration = 1,
         animations = self.animations,
-        animationEvents = self.animationEvents
+        animationEvents = self.animationEvents,
+        stateMachine = self.stateMachine and self.stateMachine:instance()
     }
     return setmetatable(inst, SpriteMT)
 end
@@ -165,8 +174,8 @@ end
 --- Creates a copy of the sprite.
 ---@return Animango.Sprite
 function Sprite:clone()
-    -- new Animango.Sprite
-    local inst = {
+    ---@type Animango.Sprite
+    local clone = {
         x = self.x,
         y = self.y,
         scaleX = self.scaleX,
@@ -183,19 +192,20 @@ function Sprite:clone()
         currentAnimation = self.currentAnimation,
         currentFrame = self.currentFrame,
         currentIteration = self.currentIteration,
+        stateMachine = self.stateMachine and self.stateMachine:clone(),
 
         animations = {},
         animationEvents = {}
     }
 
     for key, value in pairs(self.animations) do
-        inst.animations[key] = value
+        clone.animations[key] = value
     end
     for key, value in pairs(self.animationEvents) do
-        inst.animationEvents[key] = value
+        clone.animationEvents[key] = value
     end
 
-    return setmetatable(inst, SpriteMT)
+    return setmetatable(clone, SpriteMT)
 end
 
 --------------------------------------------------
@@ -377,10 +387,41 @@ function Sprite:getCurrentAnimation()
 end
 
 --------------------------------------------------
+--- ### Sprite:assignStateMachine(stateMachine)
+--- Assigns a state machine to the sprite.
+--- The sprite will use it on each update to automatically change its animations.
+---@param stateMachine Animango.SpriteStateMachine
+function Sprite:assignStateMachine(stateMachine)
+    self.stateMachine = stateMachine
+end
+
+--------------------------------------------------
+--- ### Sprite:setStateMachineVar(key, value)
+--- Sets the given variable in the sprite's state machine, if it has a state machine assigned.
+---@param key string
+---@param value any
+function Sprite:setStateMachineVar(key, value)
+    if not self.stateMachine then return end
+    self.stateMachine:setVar(key, value)
+end
+
+--------------------------------------------------
+--- ### Sprite:getStateMachineVar(key)
+--- Gets the given variable from the sprite's state machine, or `nil` if it doesn't have a state machine assigned.
+---@param key string
+---@return any
+function Sprite:getStateMachineVar(key)
+    if not self.stateMachine then return nil end
+    return self.stateMachine:getVar(key)
+end
+
+--------------------------------------------------
 --- ### Sprite:update(dt)
 --- Update (and animate) the sprite.
 ---@param dt number The time in seconds since the last call to update
 function Sprite:update(dt)
+    if self.stateMachine then self.stateMachine:updateState(self) end
+
     local animation = self.animations[self.currentAnimation]
     if not animation then return end
 
@@ -496,7 +537,7 @@ end
 ---@param frames? Animango.Frame[] The frames in this animation
 ---@return Animango.Animation
 function animango.newAnimation(fps, originX, originY, frames)
-    -- new Animango.Animation
+    ---@type Animango.Animation
     local animation = {
         frames = frames or {},
         fps = fps or 1,
@@ -737,6 +778,104 @@ function animango.newFrame(data)
     return frame
 end
 
+-- State Machines ----------------------------------------------------------------------------------
+
+--------------------------------------------------
+--- ### animango.newStateMachine()
+--- Creates a new sprite state machine.
+---@return Animango.SpriteStateMachine
+function animango.newStateMachine()
+    ---@type Animango.SpriteStateMachine
+    local stateMachine = {
+        states = {},
+        vars = {}
+    }
+    return setmetatable(stateMachine, SpriteStateMachineMT)
+end
+
+--------------------------------------------------
+--- ### SpriteStateMachine:addStateFn(state, fn)
+--- Adds a new function `fn` for deciding if and when to switch from animation `state` to another one in a given sprite.
+--- Should return the new animation name if it should switch, or `nil` if it should keep playing the same one.
+---@param state string
+---@param fn fun(sprite: Animango.Sprite): string?
+function SpriteStateMachine:addStateFn(state, fn)
+    if self.states[state] then error(string.format("State %s already has a function assigned", state), 2) end
+    self.states[state] = fn
+end
+
+--------------------------------------------------
+--- ### SpriteStateMachine:setVar(key, value)
+--- Sets a variable the state machine can read for state-changing purposes.
+---@param key string
+---@param value any
+function SpriteStateMachine:setVar(key, value)
+    self.vars[key] = value
+end
+
+--------------------------------------------------
+--- ### SpriteStateMachine:getVar(key)
+--- Gets a variable from state machine.
+---@param key string
+function SpriteStateMachine:getVar(key)
+    return self.vars[key]
+end
+
+--------------------------------------------------
+--- ### SpriteStateMachine:updateState(sprite)
+--- Updates the state (and potentially changes the sprite's animation).
+--- 
+--- If the state machine is assigned to a sprite, there's not need to call this manually.
+--- The sprite will call it itself on each sprite update.
+---@param sprite Animango.Sprite
+function SpriteStateMachine:updateState(sprite)
+    local state = sprite:getCurrentAnimation()
+    if not self.states[state] then return end
+
+    local nextState = self.states[state](sprite)
+    if not nextState then return end
+
+    sprite:setAnimation(nextState)
+end
+
+--------------------------------------------------
+--- ### SpriteStateMachine:instance()
+--- Creates and returns a new instance of the state machine by generating a one which references the same states table.
+---@return Animango.SpriteStateMachine
+function SpriteStateMachine:instance()
+    ---@type Animango.SpriteStateMachine
+    local inst = {
+        states = self.states,
+        vars = {}
+    }
+
+    for key, value in pairs(self.vars) do
+        inst.vars[key] = value
+    end
+
+    return setmetatable(inst, SpriteStateMachineMT)
+end
+
+--------------------------------------------------
+--- ### SpriteStateMachine:clone()
+--- Creates a clone of the state machine.
+---@return Animango.SpriteStateMachine
+function SpriteStateMachine:clone()
+    ---@type Animango.SpriteStateMachine
+    local clone = {
+        states = {},
+        vars = {}
+    }
+
+    for key, value in pairs(self.states) do
+        clone.states[key] = value
+    end
+    for key, value in pairs(self.vars) do
+        clone.vars[key] = value
+    end
+
+    return setmetatable(clone, SpriteStateMachineMT)
+end
 
 -- Abstraction for possible usage outside LÖVE -----------------------------------------------------
 
