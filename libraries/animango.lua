@@ -89,10 +89,14 @@ local SpriteMT = {__index = Sprite}
 ---| '"update"' # The animation playback has been updated
 
 ---@class Animango.SpriteStateMachine
----@field states table<string, (fun(sprite: Animango.Sprite): string?)?> Each state (aka current animation) and a function deciding which animation to switch to from that state on an update (can return `nil` to stay on the same one)
+---@field states table<string, Animango.SpriteStateMachineStateFn?> Each state (aka current animation) and a function deciding which animation to switch to from that state on an update (can return `nil` to stay on the same one)
+---@field before Animango.SpriteStateMachineStateFn? An optional function that's called before processing the current state
+---@field after Animango.SpriteStateMachineStateFn? An optional function that's called after processing the current state
 ---@field vars table<string, any> Any potential variables sent to the state machine to change states based on
 local SpriteStateMachine = {}
 local SpriteStateMachineMT = {__index = SpriteStateMachine}
+
+---@alias Animango.SpriteStateMachineStateFn fun(sprite: Animango.Sprite): string?
 
 -- Sprites -----------------------------------------------------------------------------------------
 
@@ -798,10 +802,25 @@ end
 --- Adds a new function `fn` for deciding if and when to switch from animation `state` to another one in a given sprite.
 --- Should return the new animation name if it should switch, or `nil` if it should keep playing the same one.
 ---@param state string
----@param fn fun(sprite: Animango.Sprite): string?
-function SpriteStateMachine:addStateFn(state, fn)
-    if self.states[state] then error(string.format("State %s already has a function assigned", state), 2) end
+---@param fn Animango.SpriteStateMachineStateFn
+function SpriteStateMachine:setStateFn(state, fn)
     self.states[state] = fn
+end
+
+--------------------------------------------------
+--- ### SpriteStateMachine:addBeforeFn(fn)
+--- Adds a new function `fn` to run before the actual state function runs (if any). Works the same way as a state function.
+---@param fn Animango.SpriteStateMachineStateFn
+function SpriteStateMachine:setBeforeFn(fn)
+    self.before = fn
+end
+
+--------------------------------------------------
+--- ### SpriteStateMachine:addAfterFn(fn)
+--- Adds a new function `fn` to run after the actual state function runs (if any). Works the same way as a state function.
+---@param fn Animango.SpriteStateMachineStateFn
+function SpriteStateMachine:setAfterFn(fn)
+    self.after = fn
 end
 
 --------------------------------------------------
@@ -830,12 +849,25 @@ end
 ---@param sprite Animango.Sprite
 function SpriteStateMachine:updateState(sprite)
     local state = sprite:getCurrentAnimation()
-    if not self.states[state] then return end
+    local newState
 
-    local nextState = self.states[state](sprite)
-    if not nextState then return end
+    newState = self.before and self.before(sprite)
+    if newState then
+        sprite:setAnimation(newState)
+        state = newState
+    end
 
-    sprite:setAnimation(nextState)
+    newState = self.states[state] and self.states[state](sprite)
+    if newState then
+        sprite:setAnimation(newState)
+        state = newState
+    end
+
+    newState = self.after and self.after(sprite)
+    if newState then
+        sprite:setAnimation(newState)
+        state = newState
+    end
 end
 
 --------------------------------------------------
@@ -846,6 +878,8 @@ function SpriteStateMachine:instance()
     ---@type Animango.SpriteStateMachine
     local inst = {
         states = self.states,
+        before = self.before,
+        after = self.after,
         vars = {}
     }
 
@@ -864,6 +898,8 @@ function SpriteStateMachine:clone()
     ---@type Animango.SpriteStateMachine
     local clone = {
         states = {},
+        before = self.before,
+        after = self.after,
         vars = {}
     }
 
