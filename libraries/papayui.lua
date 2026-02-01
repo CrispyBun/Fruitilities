@@ -115,6 +115,8 @@ papayui.touchScrollingEnabled = true  -- Whether or not holding down the action 
 ---| '"scrollerVelocity"' # The element's scrolling velocity in either axis is not zero and has been updated
 ---| '"draw"' # The element has been drawn (also used in the actual draw functions)
 ---| '"navigate"' # Button navigation was triggered on the element (also used in the Element.nav selecting function)
+---| '"actionPress"' # The action key was just *pressed down* on the element, but not yet released, so the actual action callback hasn't happened yet. For most purposes, the `action` event is better to use.
+---| '"actionRelease"' # The action key was just *released up* on the element. Basically equivalent to the `action` event. Note that just because an `actionPress` event happened on an element DOESN'T mean that a following `actionRelease` will always happen.
 
 ---@alias Papayui.UIEnabledState
 ---| '"enabled"' # The UI is enabled
@@ -771,6 +773,10 @@ end
 function UI:actionPress()
     if self.enabledState ~= "enabled" then return end
     self.actionDown = true
+
+    if self.selectedMember then
+        self:triggerEvent("actionPress", self.selectedMember)
+    end
 end
 
 --------------------------------------------------
@@ -793,8 +799,10 @@ function UI:actionRelease()
         return false -- Return to make sure the possibly reselected member doesn't get clicked
     end
 
-    if self.selectedMember then
-        self:triggerEvent("action", self.selectedMember)
+    local selectedMember = self.selectedMember
+    if selectedMember then
+        self:triggerEvent("action", selectedMember)
+        self:triggerEvent("actionRelease", selectedMember)
         return true
     end
     return false
