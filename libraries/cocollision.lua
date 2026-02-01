@@ -7,7 +7,7 @@
 --[[
 MIT License
 
-Copyright (c) 2024 Ava "CrispyBun" Špráchalů
+Copyright (c) 2024-2026 Ava "CrispyBun" Špráchalů
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -273,7 +273,7 @@ end
 --- ### cocollision.newRectangleShape(x, y, width, height)
 --- ### cocollision.newRectangleShape(width, height)
 --- Creates a new axis aligned rectangle shape.  
---- Rectangles output a push vector as the second argument in collisions with other rectangles, polygons or circles.
+--- Rectangles output a push vector as the second return value in collisions with other rectangles, polygons or circles.
 ---@param x number
 ---@param y number
 ---@param width number
@@ -288,7 +288,7 @@ end
 --- ### cocollision.newPolygonShape(...)
 --- ### cocollision.newPolygonShape(vertices)
 --- Creates a new convex polygon shape. The vertices may be supplied as alternating X and Y coordinates in either a single flat array or a vararg. The polygon shape type also supports any amount of vertices, and can be basically a point or a segment.  
---- Polygons output a push vector as the second argument in collisions with other rectangles, polygons or circles.
+--- Polygons output a push vector as the second return value in collisions with other rectangles, polygons or circles.
 ---@param ... number
 ---@return Cocollision.Shape
 ---@overload fun(vertices: number[]): Cocollision.Shape
@@ -358,7 +358,7 @@ end
 --- ### cocollision.newCircleShape(radius)
 --- ### cocollision.newCircleShape(x, y, radius)
 --- Creates a new circle shape.  
---- Circles output a push vector as the second argument in collisions with other rectangles, polygons, or circles.
+--- Circles output a push vector as the second return value in collisions with other rectangles, polygons, or circles.
 ---@param x number
 ---@param y number
 ---@param radius number
@@ -562,7 +562,7 @@ end
 --- ### Shape:setShapeToRectangle(x, y, width, height)
 --- ### Shape:setShapeToRectangle(width, height)
 --- Sets the shape to be an axis aligned rectangle.  
---- Rectangles output a push vector as the second argument in collisions with other rectangles, polygons, or circles.
+--- Rectangles output a push vector as the second return value in collisions with other rectangles, polygons, or circles.
 ---@param x number
 ---@param y number
 ---@param width number
@@ -594,7 +594,7 @@ Shape.setShapeToAABB = Shape.setShapeToRectangle
 --- ### Shape:setShapeToPolygon(...)
 --- ### Shape:setShapeToPolygon(vertices)
 --- Sets the shape to be a convex polygon. The vertices may be supplied as alternating X and Y coordinates in either a single flat array or a vararg. The polygon shape type also supports any amount of vertices, and can be basically a point or a segment.  
---- Polygons output a push vector as the second argument in collisions with other rectangles, polygons, or circles.
+--- Polygons output a push vector as the second return value in collisions with other rectangles, polygons, or circles.
 ---@param ... number
 ---@return Cocollision.Shape self
 ---@overload fun(self: Cocollision.Shape, vertices: number[]): Cocollision.Shape
@@ -697,7 +697,7 @@ end
 --- ### Shape:setShapeToCircle(radius)
 --- ### Shape:setShapeToCircle(x, y, radius)
 --- Sets the shape to be a circle.  
---- Circles output a push vector as the second argument in collisions with other rectangles, polygons, or circles.
+--- Circles output a push vector as the second return value in collisions with other rectangles, polygons, or circles.
 ---@param x number
 ---@param y number
 ---@param radius number
