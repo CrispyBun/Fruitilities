@@ -249,7 +249,7 @@ end
 --- Creates a new shape.
 ---@return Cocollision.Shape
 function cocollision.newShape()
-    -- new Cocollision.Shape
+    ---@type Cocollision.Shape
     local shape = {
         shapeType = "none",
         x = 0,
@@ -387,7 +387,7 @@ cocollision.newAnnulusShape = cocollision.newDonutShape
 --- ### Shape:clone()
 --- Creates a copy of the shape.
 function Shape:clone()
-    -- new Cocollision.Shape
+    ---@type Cocollision.Shape
     local inst = {
         shapeType = self.shapeType,
         x = self.x,
@@ -1037,7 +1037,7 @@ end
 ---@param cellSize number
 ---@return Cocollision.SpatialPartition
 function cocollision.newSpatialPartition(cellSize)
-    -- new Cocollision.SpatialPartition
+    ---@type Cocollision.SpatialPartition
     local partition = {
         shapes = {},
         cellSize = cellSize,

@@ -343,7 +343,7 @@ parsimmon.charMaps.escapedMeanings = {
 --- Creates a new format encoder/decoder for defining how to parse a new format unknown by the library.
 ---@return Parsimmon.Format
 function parsimmon.newFormat()
-    -- new Parsimmon.Format
+    ---@type Parsimmon.Format
     local format = {
         modules = {},
         entryModuleName = "Entry",
@@ -416,7 +416,7 @@ end
 --- Creates an identical copy of the format. Any config values are only shallow-copied, but modules are deep-copied.
 ---@return Parsimmon.Format
 function Format:duplicate()
-    -- new Parsimmon.Format
+    ---@type Parsimmon.Format
     local format = {
         modules = {},
         entryModuleName = self.entryModuleName,
@@ -589,7 +589,7 @@ end
 ---@param name? string Name of the module
 ---@return Parsimmon.ConvertorModule
 function parsimmon.newConvertorModule(name)
-    -- new Parsimmon.ConvertorModule
+    ---@type Parsimmon.ConvertorModule
     local module = {
         name = name or "Unnamed module",
         decodingStates = {
@@ -605,7 +605,7 @@ end
 --- Creates an identical copy of the module.
 ---@return Parsimmon.ConvertorModule
 function Module:duplicate()
-    -- new Parsimmon.ConvertorModule
+    ---@type Parsimmon.ConvertorModule
     local module = {
         name = self.name,
         decodingStates = {},
@@ -655,7 +655,7 @@ end
 ---@param valueToEncode? any The value to set in the `valueToEncode` field
 ---@return Parsimmon.ModuleStatus
 function parsimmon.newModuleStatus(format, module, inheritedMemory, valueToEncode)
-    -- new Parsimmon.ModuleStatus
+    ---@type Parsimmon.ModuleStatus
     local status = {
         format = format,
         module = module,
@@ -682,7 +682,7 @@ end
 ---@param format Parsimmon.Format
 ---@return Parsimmon.ChunkDecoder
 function parsimmon.newChunkDecoder(format)
-    -- new Parsimmon.ChunkDecoder
+    ---@type Parsimmon.ChunkDecoder
     local decoder = {
         format = format,
         stack = format:prepareModuleStack(),
@@ -734,7 +734,7 @@ end
 ---@param valueToEncode any
 ---@return Parsimmon.ChunkEncoder
 function parsimmon.newChunkEncoder(format, valueToEncode)
-    -- new Parsimmon.ChunkEncoder
+    ---@type Parsimmon.ChunkEncoder
     local encoder = {
         format = format,
         stack = format:prepareModuleStack(valueToEncode),
@@ -768,7 +768,7 @@ end
 --- Wraps a format implementation into an interface only intended for encoding/decoding using the format.
 ---@param format Parsimmon.Format
 function parsimmon.wrapFormat(format)
-    -- new Parsimmon.WrappedFormat
+    ---@type Parsimmon.WrappedFormat
     local wrapped = {
         format = format,
         config = {}

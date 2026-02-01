@@ -352,7 +352,7 @@ end
 --- ```
 ---@return Papayui.ElementStyle
 function papayui.newElementStyle()
-    -- new Papayui.ElementStyle
+    ---@type Papayui.ElementStyle
     local style = {
         width = 0,
         height = 0,
@@ -393,7 +393,7 @@ end
 --- ```
 ---@return Papayui.ElementBehavior
 function papayui.newElementBehavior()
-    -- new Papayui.ElementBehavior
+    ---@type Papayui.ElementBehavior
     local behavior = {
         isSelectable = nil,
         buttonSelectable = true,
@@ -421,7 +421,7 @@ function papayui.newElement(style, behavior)
     style = style or papayui.newElementStyle()
     behavior = behavior or papayui.newElementBehavior()
 
-    -- new Papayui.Element
+    ---@type Papayui.Element
     local element = {
         style = style,
         behavior = behavior,
@@ -443,7 +443,7 @@ end
 ---@param init? fun(element: Papayui.Element, ...: unknown)
 ---@return Papayui.Template
 function papayui.newTemplate(style, behavior, data, init)
-    -- new Papayui.Template
+    ---@type Papayui.Template
     local template = {
         style = style,
         behavior = behavior,
@@ -463,7 +463,7 @@ end
 ---@param y? number The Y coordinate of the UI (Default is 0)
 ---@return Papayui.UI
 function papayui.newUI(rootElement, x, y)
-    -- new Papayui.UI
+    ---@type Papayui.UI
     local ui = {
         members = {},
         selectedMember = nil,
@@ -1475,7 +1475,7 @@ Template.newElement = Template.instance
 --- Returns a copy of the template.
 ---@return Papayui.Template
 function Template:clone()
-    -- new Papayui.Template
+    ---@type Papayui.Template
     local clonedTemplate = {
         style = self.style and self.style:clone(),
         behavior = self.behavior and self.behavior:clone(),
@@ -1551,7 +1551,7 @@ end
 --- Returns a copy of the element.
 ---@return Papayui.Element
 function Element:clone()
-    -- new Papayui.Element
+    ---@type Papayui.Element
     local clonedElement = {
         style = self.style:clone(),
         behavior = self.behavior:clone(),
@@ -2498,7 +2498,7 @@ end
 function papayui.newLiveMember(element, x, y, parent)
     local style = element.style
 
-    -- new Papayui.LiveMember
+    ---@type Papayui.LiveMember
     local member = {
         element = element,
         children = {},
