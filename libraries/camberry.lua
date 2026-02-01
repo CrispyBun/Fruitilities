@@ -7,7 +7,7 @@
 --[[
 MIT License
 
-Copyright (c) 2024-2025 Ava "CrispyBun" Špráchalů
+Copyright (c) 2024-2026 Ava "CrispyBun" Špráchalů
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -900,6 +900,23 @@ function RigReceiver:clearRigs()
     local rigs = self.attachedRigs
     for rigIndex = #rigs, 1, -1 do
         popRig(self, rigIndex)
+    end
+end
+
+--------------------------------------------------
+--- ### RigReceiver:clearRigsWithKey(key)
+--- Removes all rigs which animate the specified key.
+---@param key string
+function RigReceiver:clearRigsWithKey(key)
+    local rigs = self.attachedRigs
+    for rigIndex = #rigs, 1, -1 do
+        local rig = rigs[rigIndex]
+        for rigKey in pairs(rig.sourceValues) do
+            if rigKey == key then
+                popRig(self, rigIndex)
+                break
+            end
+        end
     end
 end
 
