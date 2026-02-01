@@ -412,9 +412,7 @@ end
 --- Sets the shape's position.
 ---@param x number
 ---@param y number
----@generic T : Cocollision.Shape
----@param self T
----@return T self
+---@return self
 function Shape:setPosition(x, y)
     self.x = x
     self.y = y
@@ -548,13 +546,11 @@ end
 --------------------------------------------------
 --- ### Shape:removeShape()
 --- Sets the shape type to "none" and removes all vertices.
----@generic T : Cocollision.Shape
----@param self T
----@return T self
+---@return self
 function Shape:removeShape()
     self.shapeType = "none"
     self.vertices = {}
-    self--[[@as Cocollision.Shape]]:refreshTransform()
+    self:refreshTransform()
     return self
 end
 
@@ -760,9 +756,7 @@ Shape.setShapeToAnnulus = Shape.setShapeToDonut
 --------------------------------------------------
 --- ### Shape:polygonify()
 --- Converts the shape to a polygon shape (if possible). Circle shapes will convert too, but will lose some of their roundness (based on `cocollision.polygonCircleSegments`).
----@generic T : Cocollision.Shape
----@param self T
----@return T self
+---@return self
 function Shape:polygonify()
     local sourceShapeType = self.shapeType
     self.shapeType = "polygon"
@@ -828,14 +822,12 @@ end
 ---@param n integer
 ---@param x number
 ---@param y number
----@generic T : Cocollision.Shape
----@param self T
----@return T self
+---@return self
 function Shape:setVertex(n, x, y)
-    local vertices = self--[[@as Cocollision.Shape]].vertices
+    local vertices = self.vertices
     vertices[n * 2 - 1] = x
     vertices[n * 2] = y
-    self--[[@as Cocollision.Shape]]:refreshTransform()
+    self:refreshTransform()
     return self
 end
 
@@ -843,14 +835,12 @@ end
 --- ### Shape:removeVertex(n)
 --- Removes the nth vertex of the shape.
 ---@param n integer
----@generic T : Cocollision.Shape
----@param self T
----@return T self
+---@return self
 function Shape:removeVertex(n)
-    local vertices = self--[[@as Cocollision.Shape]].vertices
+    local vertices = self.vertices
     table.remove(vertices, n * 2 - 1)
     table.remove(vertices, n * 2 - 1)
-    self--[[@as Cocollision.Shape]]:refreshTransform()
+    self:refreshTransform()
     return self
 end
 
@@ -859,14 +849,12 @@ end
 --- Appends a new vertex to the shape (after the last vertex).
 ---@param x number
 ---@param y number
----@generic T : Cocollision.Shape
----@param self T
----@return T self
+---@return self
 function Shape:addVertex(x, y)
-    local vertices = self--[[@as Cocollision.Shape]].vertices
+    local vertices = self.vertices
     vertices[#vertices + 1] = x
     vertices[#vertices + 1] = y
-    self--[[@as Cocollision.Shape]]:refreshTransform()
+    self:refreshTransform()
     return self
 end
 
@@ -876,14 +864,12 @@ end
 ---@param n integer
 ---@param x number
 ---@param y number
----@generic T : Cocollision.Shape
----@param self T
----@return T self
+---@return self
 function Shape:insertVertex(n, x, y)
-    local vertices = self--[[@as Cocollision.Shape]].vertices
+    local vertices = self.vertices
     table.insert(vertices, n * 2 - 1, x)
     table.insert(vertices, n * 2, y)
-    self--[[@as Cocollision.Shape]]:refreshTransform()
+    self:refreshTransform()
     return self
 end
 
@@ -903,13 +889,11 @@ end
 --- Sets the origin of the shape.
 ---@param x number
 ---@param y number
----@generic T : Cocollision.Shape
----@param self T
----@return T self
+---@return self
 function Shape:setOrigin(x, y)
     self.originX = x
     self.originY = y
-    self--[[@as Cocollision.Shape]]:refreshTransform()
+    self:refreshTransform()
     return self
 end
 
@@ -917,12 +901,10 @@ end
 --- ### Shape:setRotation(rotation)
 --- Sets the shape's rotation.
 ---@param r number
----@generic T : Cocollision.Shape
----@param self T
----@return T self
+---@return self
 function Shape:setRotation(r)
     self.rotation = r
-    self--[[@as Cocollision.Shape]]:refreshTransform()
+    self:refreshTransform()
     return self
 end
 
@@ -931,13 +913,11 @@ end
 --- Sets the shape's scale. If `sy` is not supplied, sets both axes to the first argument.
 ---@param sx number
 ---@param sy? number
----@generic T : Cocollision.Shape
----@param self T
----@return T self
+---@return self
 function Shape:setScale(sx, sy)
     self.scaleX = sx
     self.scaleY = sy or sx
-    self--[[@as Cocollision.Shape]]:refreshTransform()
+    self:refreshTransform()
     return self
 end
 
@@ -946,13 +926,11 @@ end
 --- Sets the shape's translate.
 ---@param x number
 ---@param y number
----@generic T : Cocollision.Shape
----@param self T
----@return T self
+---@return self
 function Shape:setTranslate(x, y)
     self.translateX = x
     self.translateY = y
-    self--[[@as Cocollision.Shape]]:refreshTransform()
+    self:refreshTransform()
     return self
 end
 
@@ -960,12 +938,10 @@ end
 --- ### Shape:setRectangularRotation(doRectangularRotation)
 --- Sets whether the shape should rotate if its type is a rectangle. This is false by default.
 ---@param doRectangularRotation boolean
----@generic T : Cocollision.Shape
----@param self T
----@return T self
+---@return self
 function Shape:setRectangularRotation(doRectangularRotation)
     self.doRectangularRotation = doRectangularRotation
-    self--[[@as Cocollision.Shape]]:refreshTransform()
+    self:refreshTransform()
     return self
 end
 

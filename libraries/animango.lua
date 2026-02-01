@@ -134,11 +134,9 @@ end
 --- Adds a new animation to the sprite.
 ---@param name string The name to identify the animation
 ---@param animation Animango.Animation The animation in question
----@generic T : Animango.Sprite
----@param self T
----@return T self
+---@return self
 function Sprite:addAnimation(name, animation)
-    self--[[@as Animango.Sprite]].animations[name] = animation
+    self.animations[name] = animation
     return self
 end
 
@@ -217,11 +215,9 @@ end
 --- Sets the given animation event of the sprite.
 ---@param eventType Animango.AnimationEventType
 ---@param event Animango.AnimationEvent
----@generic T : Animango.Sprite
----@param self T
----@return T self
+---@return self
 function Sprite:setAnimationEvent(eventType, event)
-    self--[[@as Animango.Sprite]].animationEvents[eventType] = event
+    self.animationEvents[eventType] = event
     return self
 end
 
@@ -230,9 +226,7 @@ end
 --- Sets the sprite's position.
 ---@param x number
 ---@param y number
----@generic T : Animango.Sprite
----@param self T
----@return T self
+---@return self
 function Sprite:setPosition(x, y)
     self.x = x
     self.y = y
@@ -244,9 +238,7 @@ end
 --- Sets the sprite's origin.
 ---@param originX number
 ---@param originY number
----@generic T : Animango.Sprite
----@param self T
----@return T self
+---@return self
 function Sprite:setOrigin(originX, originY)
     self.originX = originX
     self.originY = originY
@@ -257,9 +249,7 @@ end
 --- ### Sprite:setAnimation(animationName)
 --- Sets the sprite's current animation and resets all the relevant variables.
 ---@param animationName string
----@generic T : Animango.Sprite
----@param self T
----@return T self
+---@return self
 function Sprite:setAnimation(animationName)
     self.currentAnimation = animationName
     self.currentFrame = 1
@@ -273,12 +263,10 @@ end
 --- Like `Sprite:setAnimation()`, but only works if the current animation matches the one specified.
 ---@param requiredCurrentAnimation string
 ---@param animationName string
----@generic T : Animango.Sprite
----@param self T
----@return T self
+---@return self
 function Sprite:changeAnimationFrom(requiredCurrentAnimation, animationName)
-    if self--[[@as Animango.Sprite]].currentAnimation == requiredCurrentAnimation then
-        return self--[[@as Animango.Sprite]]:setAnimation(animationName)
+    if self.currentAnimation == requiredCurrentAnimation then
+        return self:setAnimation(animationName)
     end
     return self
 end
@@ -308,9 +296,7 @@ end
 --- ### Sprite:setCurrentFrame(frame)
 --- Sets the sprite's current frame in the animaton.
 ---@param frame number
----@generic T : Animango.Sprite
----@param self T
----@return T self
+---@return self
 function Sprite:setCurrentFrame(frame)
     self.currentFrame = frame
     return self
@@ -321,9 +307,7 @@ end
 --- Sets the sprite's scale. If `sy` is not supplied, sets both axes to the first argument.
 ---@param sx number Scale on the X axis
 ---@param sy? number Scale on the Y axis (Default is `sx`)
----@generic T : Animango.Sprite
----@param self T
----@return T self
+---@return self
 function Sprite:setScale(sx, sy)
     self.scaleX = sx
     self.scaleY = sy or sx
@@ -334,9 +318,7 @@ end
 --- ### Sprite:setRotation(rotation)
 --- Sets the sprite's rotation.
 ---@param rotation number
----@generic T : Animango.Sprite
----@param self T
----@return T self
+---@return self
 function Sprite:setRotation(rotation)
     self.rotation = rotation
     return self
@@ -347,9 +329,7 @@ end
 --- Sets the sprite's shear.
 ---@param kx number Shear on the X axis
 ---@param ky number Shear on the Y axis
----@generic T : Animango.Sprite
----@param self T
----@return T self
+---@return self
 function Sprite:setShear(kx, ky)
     self.shearX = kx
     self.shearY = ky
@@ -360,9 +340,7 @@ end
 --- ### Sprite:setPlaybackSpeed(speed)
 --- Sets the sprite's speed multiplier for its animations.
 ---@param speed number
----@generic T : Animango.Sprite
----@param self T
----@return T self
+---@return self
 function Sprite:setPlaybackSpeed(speed)
     self.playbackSpeed = speed
     return self
