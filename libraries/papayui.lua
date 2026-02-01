@@ -192,7 +192,7 @@ local TemplateMT = {__index = Template}
 ---@field members Papayui.LiveMember[] All the elements in the UI, in the drawn order
 ---@field selectedMember? Papayui.LiveMember The member that is currently selected
 ---@field lastSelection? Papayui.LiveMember The last element that was selected
----@field actionDown boolean If the action key is currently down (set automatically by the appropriate methods)
+---@field actionDown string? If (and which) action key is currently down (set automatically by the appropriate methods)
 ---@field cursorX number The cursor X coordinate
 ---@field cursorY number The cursor Y coordinate
 ---@field touchDraggedMember? Papayui.LiveMember The member that is currently being being scrolled using touch input
@@ -470,7 +470,7 @@ function papayui.newUI(rootElement, x, y)
         members = {},
         selectedMember = nil,
         lastSelection = nil,
-        actionDown = false,
+        actionDown = nil,
         cursorX = math.huge,
         cursorY = math.huge,
         touchDraggedMember = nil,
@@ -769,11 +769,14 @@ end
 
 --------------------------------------------------
 --- ### UI:actionPress()
---- Tells the UI that the action key (typically enter, left click, etc.) has been pressed
-function UI:actionPress()
+--- Tells the UI that the action key (typically enter, left click, etc.) has been pressed.
+--- 
+--- The specific key that was pressed (in the form of some string ID) may be supplied
+--- if you need some elements to behave differently based on which key was pressed.
+---@param key string?
+function UI:actionPress(key)
     if self.enabledState ~= "enabled" then return end
-    self.actionDown = true
-
+    self.actionDown = key or "unknown"
     if self.selectedMember then
         self:triggerEvent("actionPress", self.selectedMember)
     end
@@ -789,13 +792,13 @@ function UI:actionRelease()
     -- Bail if the action isn't down in the first place to prevent wonky behavior with multiple key presses
     if not self.actionDown then return false end
 
-    self.actionDown = false
-
     if self.touchDraggedMember then
         if self.lastSelection and self.lastSelection:isPointInBounds(self.cursorX, self.cursorY) then
             self:select(self.lastSelection) -- Reselect the last selection (otherwise touch scrolling can feel clunky on mouse)
         end
         self.touchDraggedMember = nil
+
+        self.actionDown = nil
         return false -- Return to make sure the possibly reselected member doesn't get clicked
     end
 
@@ -803,8 +806,12 @@ function UI:actionRelease()
     if selectedMember then
         self:triggerEvent("action", selectedMember)
         self:triggerEvent("actionRelease", selectedMember)
+
+        self.actionDown = nil
         return true
     end
+
+    self.actionDown = nil
     return false
 end
 
@@ -815,10 +822,22 @@ end
 --- It's recommended to call actionPress and actionRelease on the respective key events instead of actionPulse,
 --- but if you just want a single callback for a generic "key pressed" event, you can use actionPulse.  
 --- Note that this doesn't allow for touch scrolling to work.
+---@param key string?
 ---@return boolean actionHappened
-function UI:actionPulse()
-    self:actionPress()
+function UI:actionPulse(key)
+    self:actionPress(key)
     return self:actionRelease()
+end
+
+--------------------------------------------------
+--- ### UI:getActionDown()
+--- Retruns `nil` if the action is NOT considered pressed down,
+--- or a string containing the key ID (as specified in `actionPress()`) if the action IS down.
+--- 
+--- If no key ID was specified when pressed, the default ID is `"unknown"`.
+---@return string?
+function UI:getActionDown()
+    return self.actionDown
 end
 
 --------------------------------------------------
@@ -839,7 +858,7 @@ end
 --- Disables the UI, making inputs not register for it.  
 --- If `keepGraphics` is set to true, the UI will still be drawn, otherwise drawing will be disabled too.
 function UI:disable(keepGraphics)
-    self.actionDown = false
+    self.actionDown = nil
     self.touchDraggedMember = nil
 
     if keepGraphics then self.enabledState = "noinput"
@@ -850,7 +869,7 @@ end
 --- ### UI:sleep()
 --- Puts the UI to sleep, disabling input, drawing, and updates. Awake it again with UI:enable().
 function UI:sleep()
-    self.actionDown = false
+    self.actionDown = nil
     self.touchDraggedMember = nil
 
     self.enabledState = "asleep"
