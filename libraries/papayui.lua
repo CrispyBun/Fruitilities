@@ -940,12 +940,24 @@ function UI:select(member, scrollToView)
 end
 
 --------------------------------------------------
+--- ### UI:selectElement(element, scrollToView)
+--- Like `UI:select(member)`, but uses an element instead of a live member.
+--- Will simply deselect the current member if the element is not found in the UI.
+---@param element Papayui.Element
+---@param scrollToView boolean
+function UI:selectElement(element, scrollToView)
+    local member = self:findMember(element)
+    self:select(member, scrollToView)
+end
+
+--------------------------------------------------
 --- ### UI:findMember(elementOrFunction)
 --- Finds and returns a LiveMember.  
 ---
 --- * When supplied with an Element, returns the member instanced from that element.  
 --- * When supplied with a function, the function gets called on each member, passing the member into the function, and returns the element the function returns true for.
 ---@param elementOrFunction Papayui.Element|fun(member: Papayui.LiveMember): boolean
+---@return Papayui.LiveMember?
 function UI:findMember(elementOrFunction)
     local isFunction = type(elementOrFunction) == "function"
     local members = self.members
