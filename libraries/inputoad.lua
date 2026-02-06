@@ -7,7 +7,7 @@
 --[[
 MIT License
 
-Copyright (c) 2024-2025 Ava "CrispyBun" Špráchalů
+Copyright (c) 2024-2026 Ava "CrispyBun" Špráchalů
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -91,6 +91,7 @@ inputoad.onInputRecorded = nil
 ---@field numPresses integer How many distinct buttons are currently pressing this input
 ---@field isConsumed boolean Whether or not this input is currently consumed and shouldn't be triggering actions anymore
 ---@field modifiersPressed table<string, boolean> The modifiers that were held down when this input was pressed
+---@field properties table<string, any> Any arbitrary properties the input holds, such as the analog X and Y position of a joystick
 
 -- Sending inputs ----------------------------------------------------------------------------------
 
@@ -119,6 +120,36 @@ end
 function inputoad.triggerPulse(input)
     inputoad.triggerPressed(input)
     inputoad.triggerReleased(input)
+end
+
+--------------------------------------------------
+--- ### inputoad.setInputProperty(input, key, value)
+--- Sets an arbitrary property that the input holds besides just being or not being pressed,
+--- such as the analog input of a joystick (which may have the `key` set to something like `"joystick_x"`).
+--- 
+--- It's good to set these *before* `inputoad.triggerPressed()` is called so that you have access
+--- to the updated properties in the corresponding action callbacks.
+--- 
+--- These can later be retrieved using `inputoad.getActionInputProperties()`.
+---@param input string
+---@param key string
+---@param value any
+function inputoad.setInputProperty(input, key, value)
+    local inputState = inputoad.getRawInputState(input)
+    inputState.properties[key] = value
+end
+
+--------------------------------------------------
+--- ### inputoad.clearInputProperties(input)
+--- Sets any previously set properties of the input to `nil`.
+---@param input string
+function inputoad.clearInputProperties(input)
+    local inputState = inputoad.getRawInputState(input)
+    local properties = inputState.properties
+
+    for key in pairs(properties) do
+        properties[key] = nil
+    end
 end
 
 --------------------------------------------------
@@ -241,6 +272,22 @@ function inputoad.wasActionPressed(action, bufferTime)
 
     if not state.lastPressed then return false end
     return (inputoad.time - state.lastPressed) <= bufferTime
+end
+
+--------------------------------------------------
+--- ### inputoad.getActionInputProperties(action)
+--- Gets the properties of the input that last triggered the given action.
+--- Can be used for things like analog joystick input or any other properties you see fit to set for any inputs.
+---@param action string
+---@return table<string, any>
+function inputoad.getActionInputProperties(action)
+    local state = inputoad.getActionState(action)
+
+    local lastInput = state.lastInput
+    if not lastInput then return {} end
+
+    local inputState = inputoad.getRawInputState(lastInput)
+    return inputState.properties
 end
 
 --------------------------------------------------
@@ -650,7 +697,8 @@ function inputoad.getRawInputState(input)
     state = {
         numPresses = 0,
         isConsumed = false,
-        modifiersPressed = {}
+        modifiersPressed = {},
+        properties = {}
     }
     inputoad.rawInputStates[input] = state
 
