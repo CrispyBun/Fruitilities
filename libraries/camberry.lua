@@ -56,6 +56,10 @@ local camberry = {}
 ---@field parallaxStrengthY number Multiplier for the parallax effect in the Y direction. Default is 0.
 ---@field rotationalParallax? number If set, enables parallax on rotation for a trippy effect. Works like parallax strength.
 ---@field invertPositionRelativeToTargets boolean If set to true, the camera will render its position to the opposite one in relation to its targets - if the camera is to the left of the targets, it will render to the right of them, etc.
+---@field minX number? If set, the camera's left bound will never go over this (global) position.
+---@field minY number? If set, the camera's top bound will never go over this (global) position.
+---@field maxX number? If set, the camera's right bound will never go over this (global) position.
+---@field maxY number? If set, the camera's bottom bound will never go over this (global) position.
 ---@field x number The camera's x position. You shouldn't modify this yourself if you use targets.
 ---@field y number The camera's y position. You shouldn't modify this yourself if you use targets.
 ---@field width number The camera's width.
@@ -284,6 +288,7 @@ function Camera:update(dt)
 
     self:moveTowardsTargets(dt)
     self:snapTargetsToBounds()
+    self:snapToWorldBounds()
     self:updateRigs(dt)
     return camberry.graphics.updateCamera(self)
 end
@@ -397,6 +402,9 @@ end
 --------------------------------------------------
 --- ### Camera:setOffset(x, y)
 --- Sets the camera's rendering offset. The offset bypasses parallax effects.
+--- 
+--- This is purely a post processing effect. Functions such as keeping targets
+--- always visible or the camera not going past world bounds do NOT take the offset into account.
 ---@param x number
 ---@param y number
 ---@return Camberry.Camera self
@@ -419,6 +427,21 @@ function Camera:setSafeBoundsOffset(x, y)
     self.safeBoundsOffset[1] = x
     self.safeBoundsOffset[2] = y or x
     return self
+end
+
+--------------------------------------------------
+--- ### Camera:setWorldBounds(minX, minY, maxX, maxY)
+--- Allows you to set a global coordinate value for each direction beyond which the camera will try to not show anything.
+--- Each of these arguments may be `nil` to make the camera's travel in that direction unlimited.
+---@param minX number?
+---@param minY number?
+---@param maxX number?
+---@param maxY number?
+function Camera:setWorldBounds(minX, minY, maxX, maxY)
+    self.minX = minX
+    self.minY = minY
+    self.maxX = maxX
+    self.maxY = maxY
 end
 
 --------------------------------------------------
@@ -717,6 +740,39 @@ end
 function Camera:snapTargetsToBounds()
     if self.snapToFirstTarget then self:snapFirstTargetToBounds() end
     if self.zoomToAllTargets then self:zoomTargetsToBounds() end
+end
+
+--------------------------------------------------
+--- ### Camera:snapToWorldBounds()
+--- Snaps the camera so that its bounds don't show (as long as they're not bigger than the world) anything beyond the world bounds (if they are set).
+--- Used internally.
+function Camera:snapToWorldBounds()
+    local minX = self.minX
+    local minY = self.minY
+    local maxX = self.maxX
+    local maxY = self.maxY
+
+    local boundsX, boundsY, boundsWidth, boundsHeight = self:getBounds()
+
+    local pushRight = minX and math.max(0, minX - boundsX) or 0
+    local pushDown = minY and math.max(0, minY - boundsY) or 0
+    local pushLeft = maxX and math.max(0, boundsX + boundsWidth - maxX) or 0
+    local pushUp = maxY and math.max(0, boundsY + boundsHeight - maxY) or 0
+
+    local pushX = pushRight - pushLeft
+    local pushY = pushDown - pushUp
+
+    self.x = self.x + pushX
+    self.y = self.y + pushY
+
+    if minX and maxX then
+        local worldWidth = maxX - minX
+        if boundsWidth > worldWidth then self.x = minX + worldWidth / 2 end
+    end
+    if minY and maxY then
+        local worldHeight = maxY - minY
+        if boundsHeight > worldHeight then self.y = maxY + worldHeight / 2 end
+    end
 end
 
 --------------------------------------------------
