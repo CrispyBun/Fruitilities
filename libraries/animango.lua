@@ -90,6 +90,7 @@ local SpriteMT = {__index = Sprite}
 
 ---@class Animango.SpriteStateMachine
 ---@field states table<string, Animango.SpriteStateMachineStateFn?> Each state (aka current animation) and a function deciding which animation to switch to from that state on an update (can return `nil` to stay on the same one)
+---@field default Animango.SpriteStateMachineStateFn? An optional function that's called for the current state if a different explicit state function wasn't set for it
 ---@field before Animango.SpriteStateMachineStateFn? An optional function that's called before processing the current state
 ---@field after Animango.SpriteStateMachineStateFn? An optional function that's called after processing the current state
 ---@field vars table<string, any> Any potential variables sent to the state machine to change states based on
@@ -786,6 +787,14 @@ function SpriteStateMachine:setStateFn(state, fn)
 end
 
 --------------------------------------------------
+--- ### SpriteStateMachine:setDefaultStateFn(fn)
+--- Adds a new function `fn` to run for any state where no explicit function was set using `setStateFn()`.
+---@param fn Animango.SpriteStateMachineStateFn
+function SpriteStateMachine:setDefaultStateFn(fn)
+    self.default = fn
+end
+
+--------------------------------------------------
 --- ### SpriteStateMachine:addBeforeFn(fn)
 --- Adds a new function `fn` to run before the actual state function runs (if any). Works the same way as a state function.
 ---@param fn Animango.SpriteStateMachineStateFn
@@ -835,7 +844,8 @@ function SpriteStateMachine:updateState(sprite)
         state = newState
     end
 
-    newState = self.states[state] and self.states[state](sprite)
+    local stateFn = self.states[state] or self.default
+    newState = stateFn and stateFn(sprite)
     if newState then
         sprite:setAnimation(newState)
         state = newState
@@ -856,6 +866,7 @@ function SpriteStateMachine:instance()
     ---@type Animango.SpriteStateMachine
     local inst = {
         states = self.states,
+        default = self.default,
         before = self.before,
         after = self.after,
         vars = {}
@@ -876,6 +887,7 @@ function SpriteStateMachine:clone()
     ---@type Animango.SpriteStateMachine
     local clone = {
         states = {},
+        default = self.default,
         before = self.before,
         after = self.after,
         vars = {}
