@@ -255,7 +255,7 @@ end
 function inputoad.isActionDown(action, bufferTime)
     local state = inputoad.getActionState(action)
 
-    if not inputoad.isActionActive(action) then
+    if not inputoad.isActionTriggerable(action) then
         return false
     end
 
@@ -277,7 +277,7 @@ inputoad.isActionHeld = inputoad.isActionDown
 function inputoad.wasActionPressed(action, bufferTime)
     local state = inputoad.getActionState(action)
 
-    if not inputoad.isActionActive(action) then
+    if not inputoad.isActionTriggerable(action) then
         return false
     end
 
@@ -302,11 +302,11 @@ function inputoad.getActionInputProperties(action)
 end
 
 --------------------------------------------------
---- ### inputoad.isActionActive(action)
+--- ### inputoad.isActionTriggerable(action)
 --- Returns a boolean stating if the action is active or, for whatever reason (namely it can be consumed or disabled), isn't.
 ---@param action any
 ---@return boolean
-function inputoad.isActionActive(action)
+function inputoad.isActionTriggerable(action)
     local state = inputoad.getActionState(action)
 
     if not state.isEnabled then
