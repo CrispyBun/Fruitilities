@@ -164,6 +164,48 @@ function inputoad.clearInputProperties(input)
 end
 
 --------------------------------------------------
+--- ### inputoad.setInputPropertyPair(input, key, a, b)
+--- Similar to `inputoad.setInputProperty()`,
+--- but instead of setting the property directly, makes (or appends to)
+--- a table under the property key `key`, and into that table, inserts `t[a] = b`.
+---@param input string
+---@param key string
+---@param a string|number
+---@param b any
+function inputoad.setInputPropertyPair(input, key, a, b)
+    local inputState = inputoad.getRawInputState(input)
+    local properties = inputState.properties
+
+    local current = properties[key]
+    if type(current) ~= "table" then
+        current = {}
+        properties[key] = current
+    end
+
+    current[a] = b
+end
+
+--------------------------------------------------
+--- ### inputoad.clearInputPropertyPairs(input, key)
+--- Makes sure the property under the given key is an empty table.
+---@param input string
+---@param key string
+function inputoad.clearInputPropertyPairs(input, key)
+    local inputState = inputoad.getRawInputState(input)
+    local properties = inputState.properties
+
+    local current = properties[key]
+    if type(current) ~= "table" then
+        properties[key] = {}
+        return
+    end
+
+    for a, b in pairs(current) do
+        current[a] = nil
+    end
+end
+
+--------------------------------------------------
 --- ### inputoad.updateTime(time)
 --- Updates the library's internal time variable to the given number value.  
 --- This functionality is totally optional, but required for the input buffering utilities of the library to work, if used.
