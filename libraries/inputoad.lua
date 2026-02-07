@@ -93,6 +93,17 @@ inputoad.onInputRecorded = nil
 ---@field modifiersPressed table<string, boolean> The modifiers that were held down when this input was pressed
 ---@field properties table<string, any> Any arbitrary properties the input holds, such as the analog X and Y position of a joystick
 
+---@class Inputoad.DynamicInputHandler
+---@field values any[] The list of the ever-changing values associated with the input, such as the X and Y axes of a joystick
+---@field valuesPrevious any[] A snapshot of the values from the previous update
+---@field input string The identificator of the input that will be sent to inputoad, for example `"joystick"`
+---@field propertyKeys (string?)[] Optional properties for each value - any set ones will be set as properties to the input
+---@field isActive? fun(handler: Inputoad.DynamicInputHandler): boolean Optional function specifying if the input should be considered active, such as a joystick being past its deadzone
+---@field active boolean Internal variable for keeping track of when the input is active and should send pressed/released events
+---@field processExtras? fun(handler: Inputoad.DynamicInputHandler, inputWillBeActive: boolean) Optional function called at the end of each update to values, can be used to send more properties to inputoad
+local DynamicInputHandler = {}
+local DynamicInputHandlerMT = {__index = DynamicInputHandler}
+
 -- Sending inputs ----------------------------------------------------------------------------------
 
 --------------------------------------------------
@@ -578,6 +589,159 @@ function inputoad.inputIsMappedToAction(input, action)
         if actions[actionIndex] == action then return true end
     end
     return false
+end
+
+-- Dynamic input handlers --------------------------------------------------------------------------
+
+--------------------------------------------------
+--- ### inputoad.newDynamicInputHandler()
+--- Creates a new handler to aid with sending `press` and `release` events and/or setting input properties
+--- for dynamic ever-changing inputs such as the joystick on a controller.
+---@return Inputoad.DynamicInputHandler
+function inputoad.newDynamicInputHandler()
+    ---@type Inputoad.DynamicInputHandler
+    local handler = {
+        values = {},
+        valuesPrevious = {},
+        input = "unknown",
+        propertyKeys = {},
+        active = false
+    }
+    return setmetatable(handler, DynamicInputHandlerMT)
+end
+
+--------------------------------------------------
+--- ### DynamicInputHandler:newSimilarHandler()
+--- Creates a new handler which has the same activity checker and extra processing function as this one,
+--- as well as being linked to the same table of property keys as this one.
+---@return Inputoad.DynamicInputHandler
+function DynamicInputHandler:newSimilarHandler()
+    local handler = inputoad.newDynamicInputHandler()
+
+    handler.propertyKeys = self.propertyKeys
+    handler.isActive = self.isActive
+    handler.processExtras = self.processExtras
+
+    return handler
+end
+
+--------------------------------------------------
+--- ### DynamicInputHandler:configureInput(input)
+--- Sets the input type that should be sent to inputoad as being pressed or released from this handler.
+--- This should be set once before you start using the handler.
+--- 
+--- Note that the handler needs a configured function for checking if it's active,
+--- otherwise it will never send any press and release events anyway.
+---@param input string
+function DynamicInputHandler:configureInput(input)
+    self.input = input
+end
+
+--------------------------------------------------
+--- ### DynamicInputHandler:configurePropertyKey(valueIndex, propertyKey)
+--- Sets the property associated with the given value that should be sent to the input.
+--- This should be set once before you start using the handler.
+--- 
+--- If this is a joystick with the X axis and Y axis as the values, for example,
+--- you might want to set the `propertyKey` at `valueIndex = 1` to something like `"joystick_x"`.
+--- 
+--- Any value indices that have no property key set will simply not be sent out.
+---@param valueIndex integer
+---@param propertyKey string
+function DynamicInputHandler:configurePropertyKey(valueIndex, propertyKey)
+    self.propertyKeys[valueIndex] = propertyKey
+end
+
+--------------------------------------------------
+--- ### DynamicInputHandler:configureActivityCheckerFn(isActiveFn)
+--- Sets the function that should return whether or not the input should be considered active
+--- based on the current state of the handler.
+--- This should be set once before you start using the handler.
+--- 
+--- Can check for things like the values changing (using the fact that the handler remembers the previous values set),
+--- or something like the values going past some threshold.
+--- 
+--- Having this set will make the handler send corresponding pressed/released events about the input to inputoad.
+---@param isActiveFn fun(handler: Inputoad.DynamicInputHandler): boolean
+function DynamicInputHandler:configureActivityCheckerFn(isActiveFn)
+    self.isActive = isActiveFn
+end
+
+--------------------------------------------------
+--- ### DynamicInputHandler:configureExtraProcessingFn(processExtrasFn)
+--- Sets an optional function that's called each time the values are set.
+--- Can be useful if you want to send even more input properties to inputoad based on the values.
+---@param processExtrasFn fun(handler: Inputoad.DynamicInputHandler, inputWillBeActive: boolean)
+function DynamicInputHandler:configureExtraProcessingFn(processExtrasFn)
+    self.processExtras = processExtrasFn
+end
+
+--------------------------------------------------
+--- ### DynamicInputHandler:configureInitialValues(...)
+--- Sets the initial values to some base ones so that
+--- the next call to the activity checker function has these values stored in the captured snapshot of the previous values.
+--- The first ever call to that function would otherwise have the previous values set to `nil`s.
+---@param ... any
+function DynamicInputHandler:configureInitialValues(...)
+    for valueIndex = 1, select("#", ...) do
+        self.values[valueIndex] = select(valueIndex, ...)
+    end
+end
+
+--------------------------------------------------
+--- ### DynamicInputHandler:setValues(...)
+--- Sets the current values associated with the input.
+--- If you're setting up the joystick of a controller, for example, its current X and Y values should be set here.
+--- 
+--- It's up to you whether this is called every frame or only when some of the values change (or maybe just when you see fit).
+--- Note however that if you set up a function for checking whether or not the input is currently active,
+--- it will only be called when you call this function, no more and no less times.
+---@param ... any
+function DynamicInputHandler:setValues(...)
+    local propertyKeys = self.propertyKeys
+    local input = self.input
+
+    for valueIndex = 1, select("#", ...) do
+        local value = select(valueIndex, ...)
+
+        self.valuesPrevious[valueIndex] = self.values[valueIndex]
+        self.values[valueIndex] = value
+
+        local propertyKey = propertyKeys[valueIndex]
+        if propertyKey then inputoad.setInputProperty(input, propertyKey, value) end
+    end
+
+    local isActive = self.isActive
+    local processExtras = self.processExtras
+
+    local active = self.active
+    local activeNew = isActive and isActive(self) or false
+
+    if processExtras then processExtras(self, activeNew) end
+
+    if not active and activeNew then inputoad.triggerPressed(input)
+    elseif active and not activeNew then inputoad.triggerReleased(input) end
+
+    self.active = activeNew
+end
+
+--------------------------------------------------
+--- ### DynamicInputHandler:getValue(valueIndex)
+--- Gets the value at the given index (e.g. index `1` might have the X coordinate of a controller joystick).
+--- The second return value specifies the *previous* value on the same index.
+---@param valueIndex integer
+---@return any value
+---@return any valuePrevious
+function DynamicInputHandler:getValue(valueIndex)
+    return self.values[valueIndex], self.valuesPrevious[valueIndex]
+end
+
+--------------------------------------------------
+--- ### DynamicInputHandler:getInput()
+--- Returns the input identificator that this handler sends to inputoad.
+---@return string
+function DynamicInputHandler:getInput()
+    return self.input
 end
 
 -- Implementation ----------------------------------------------------------------------------------
