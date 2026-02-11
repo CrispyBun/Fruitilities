@@ -144,7 +144,7 @@ end
 --------------------------------------------------
 --- ### Sprite:instance()
 --- Creates and returns a new instance of the sprite by generating a new sprite which references the same animations and events.
---- Also copies the origin.
+--- Also copies the origin and translate.
 ---@return Animango.Sprite
 function Sprite:instance()
     ---@type Animango.Sprite
@@ -158,8 +158,8 @@ function Sprite:instance()
         shearY = 0,
         originX = self.originX,
         originY = self.originY,
-        translateX = 0,
-        translateY = 0,
+        translateX = self.translateX,
+        translateY = self.translateY,
         playbackSpeed = 1,
         playbackSpeedMultiplier = 1,
         currentAnimation = "default",
@@ -243,6 +243,18 @@ end
 function Sprite:setOrigin(originX, originY)
     self.originX = originX
     self.originY = originY
+    return self
+end
+
+--------------------------------------------------
+--- ### Sprite:setTranslate(translateX, translateY)
+--- Sets the sprite's translate.
+---@param translateX number
+---@param translateY number
+---@return self
+function Sprite:setTranslate(translateX, translateY)
+    self.translateX = translateX
+    self.translateY = translateY
     return self
 end
 
@@ -464,8 +476,8 @@ function Sprite:draw(x, y, r, sx, sy, ox, oy, kx, ky)
     kx = kx or self.shearX
     ky = ky or self.shearY
 
-    x = x or (self.x + self.translateX)
-    y = y or (self.y + self.translateY)
+    x = (x or self.x) + self.translateX
+    y = (y or self.y) + self.translateY
 
     local animation = self.animations[self.currentAnimation]
     if not animation then return animango.graphics.drawUnknownAnimationError(x, y) end
