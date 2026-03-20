@@ -143,28 +143,27 @@ end
 
 --------------------------------------------------
 --- ### Sprite:instance()
---- Creates and returns a new instance of the sprite by generating a new sprite which references the same animations and events.
---- Also copies the origin and translate.
+--- Similar to `Sprite:clone()`, but has the new sprite refer to the same animation, event, and state machine state tables.
 ---@return Animango.Sprite
 function Sprite:instance()
     ---@type Animango.Sprite
     local inst = {
-        x = 0,
-        y = 0,
-        scaleX = 1,
-        scaleY = 1,
-        rotation = 0,
-        shearX = 0,
-        shearY = 0,
+        x = self.x,
+        y = self.y,
+        scaleX = self.scaleX,
+        scaleY = self.scaleY,
+        rotation = self.rotation,
+        shearX = self.shearX,
+        shearY = self.shearY,
         originX = self.originX,
         originY = self.originY,
         translateX = self.translateX,
         translateY = self.translateY,
-        playbackSpeed = 1,
-        playbackSpeedMultiplier = 1,
-        currentAnimation = "default",
-        currentFrame = 1,
-        currentIteration = 1,
+        playbackSpeed = self.playbackSpeed,
+        playbackSpeedMultiplier = self.playbackSpeedMultiplier,
+        currentAnimation = self.currentAnimation,
+        currentFrame = self.currentFrame,
+        currentIteration = self.currentIteration,
         animations = self.animations,
         animationEvents = self.animationEvents,
         stateMachine = self.stateMachine and self.stateMachine:instance()
@@ -884,6 +883,9 @@ function SpriteStateMachine:instance()
         vars = {}
     }
 
+    for key, value in pairs(self.vars) do
+        inst.vars[key] = value
+    end
     for key, value in pairs(self.vars) do
         inst.vars[key] = value
     end
