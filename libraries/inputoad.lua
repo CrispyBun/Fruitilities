@@ -40,6 +40,10 @@ inputoad.mappings = {}
 ---@type table<string, table<Inputoad.CallbackType, Inputoad.InputCallbackFn[]>>
 inputoad.callbacks = {}
 
+--- A callback that's called first for all actions (one for each callback type)
+---@type table<Inputoad.CallbackType, Inputoad.InputCallbackFn?>
+inputoad.universalCallback = {}
+
 --- A list of inputs that are also considered modifiers for other inputs (such as "ctrl")
 ---@type string[]
 inputoad.modifiers = {}
@@ -283,6 +287,16 @@ function inputoad.addCallback(action, callbackType, callbackFn, addToFront)
 
     local index = addToFront and 1 or (#callbacks+1)
     return table.insert(callbacks, index, callbackFn)
+end
+
+--------------------------------------------------
+--- ### inputoad.setUniversalCallback(callbackType, callbackFn)
+--- Sets the callback that's called first for *every* action,
+--- before that action's specific callbacks are called (if any).
+---@param callbackType Inputoad.CallbackType
+---@param callbackFn Inputoad.InputCallbackFn
+function inputoad.setUniversalCallback(callbackType, callbackFn)
+    inputoad.universalCallback[callbackType] = callbackFn
 end
 
 --------------------------------------------------
@@ -852,17 +866,21 @@ end
 --- Triggers the given callbacks. Used internally.  
 ---@param action string
 ---@param callbackType Inputoad.CallbackType
----@return boolean callbackFound
+---@return boolean actionSpecificCallbackFound
 ---@return Inputoad.InputCallbackReturn? callbackReturn
 function inputoad.triggerCallbacksForAction(action, callbackType)
+    local uCallback = inputoad.universalCallback[callbackType]
+    local uTrigger = uCallback and uCallback(action)
+
     local callbackTable = inputoad.callbacks[action]
-    if not callbackTable then return false end
+    if not callbackTable then return false, uTrigger end
 
     local callbacks = callbackTable[callbackType]
-    if not callbacks then return false end
-    if #callbacks == 0 then return false end
+    if not callbacks then return false, uTrigger end
+    if #callbacks == 0 then return false, uTrigger end
 
-    local allTriggersAreIgnore = true
+    if uTrigger == "consume" then return true, uTrigger end
+    local allTriggersAreIgnore = uTrigger == "ignore"
 
     for callbackIndex = 1, #callbacks do
         local callback = callbacks[callbackIndex]
